@@ -967,10 +967,6 @@ async function main(): Promise<void> {
   const crashItem = (await listDraftsOfBatch(db, crashBatch.id))[0]!;
   await markDraftsQueued(db, [crashItem.id]);
 
-  // Worker que morreu sem liberar: lease cravado num dono que nunca volta.
-  const cravado = await claimDraft(db, crashItem.id, 'worker-que-morreu:1', LEASE_CURTO_MS);
-  check('lease do dono morto ficou cravado', cravado.ok, cravado);
-
   const fila = new Queue<PublishJobData>(QUEUES.publish, { connection: redis });
   await fila.obliterate({ force: true });
   let tentativaMax = 0;
@@ -982,34 +978,45 @@ async function main(): Promise<void> {
     },
     { connection: redis, concurrency: 1 },
   );
+
+  // Worker que morreu sem liberar: lease cravado num dono que nunca volta. Fica
+  // depois do setup da fila — o `obliterate` varre o Redis e comeria o lease se
+  // ele já estivesse contando.
+  const cravado = await claimDraft(db, crashItem.id, 'worker-que-morreu:1', LEASE_CURTO_MS);
+  check('lease do dono morto ficou cravado', cravado.ok, cravado);
+  const expiraEm = (await getDraft(db, crashItem.id))?.leaseUntil ?? null;
+
   const adsAntesCrash = graph.count(`POST ${stressAccount}/ads`);
-  const inicioCrash = Date.now();
   await fila.add(
     'publish',
     { draftId: crashItem.id, adAccountId: stressAccount, batchId: crashBatch.id },
     { attempts: RETRY.maxAttempts, backoff: { type: 'fixed', delay: 500 } },
   );
-  let crashPublicado = false;
-  for (let i = 0; i < 40; i += 1) {
+  let publicadoEm = 0;
+  for (let i = 0; i < 60; i += 1) {
     const atual = await getDraft(db, crashItem.id);
     if (atual?.status === 'published') {
-      crashPublicado = true;
+      publicadoEm = Date.now();
       break;
     }
     if (atual?.status === 'failed') break;
     await new Promise((r) => setTimeout(r, 250));
   }
-  const crashSegundos = (Date.now() - inicioCrash) / 1000;
   const crashFinal = await getDraft(db, crashItem.id);
   await crashWorker.close();
   await fila.obliterate({ force: true });
   await fila.close();
 
-  check('item publica sozinho após o lease expirar', crashPublicado, {
+  check('item publica sozinho após o lease expirar', publicadoEm > 0, {
     status: crashFinal?.status,
-    segundos: crashSegundos,
   });
-  check('esperou a expiração, não passou por cima do lease', crashSegundos >= 3, crashSegundos);
+  // Ancorado na expiração gravada, não num limiar de relógio: o que importa é
+  // que a publicação só aconteceu depois de o lease do morto valer nada.
+  check(
+    'esperou a expiração, não passou por cima do lease',
+    !!expiraEm && publicadoEm >= expiraEm.getTime(),
+    { expiraEm: expiraEm?.toISOString(), publicadoEm: new Date(publicadoEm).toISOString() },
+  );
   check('contenção não consumiu tentativas', tentativaMax === 1, {
     tentativaMax,
     maxAttempts: RETRY.maxAttempts,
