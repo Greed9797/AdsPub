@@ -113,8 +113,11 @@ sendo decisão humana no Ads Manager.
   `shared`, `db`, `crypto`, `auth`, `meta-client`, `ai`, `rules`, `media`, `storage`, `assets` e
   `telemetry`.
 - Observabilidade opcional: rastros OpenTelemetry (`OTEL_EXPORTER_OTLP_ENDPOINT`) e erros no
-  Sentry (`SENTRY_DSN`). Sem essas variáveis nenhum SDK é carregado; quando ligado, o evento
-  passa por um scrubber que mascara token e `appsecret_proof` inclusive na query string da URL.
+  Sentry (`SENTRY_DSN`). Sem essas variáveis nenhum SDK é carregado.
+- Token nunca sai em texto: API e worker compartilham o mesmo logger pino com redator por chave
+  **e** mascaramento de `access_token`/`appsecret_proof` na query string — que aparece dentro de
+  mensagem, stack e URL, onde redator por chave não alcança. O mesmo mascaramento cobre o evento
+  do Sentry, os breadcrumbs do integration HTTP e os atributos de URL dos spans do OpenTelemetry.
 - API Fastify com contrato OpenAPI publicado em `/docs` e erros em `application/problem+json`.
 - Regra de lint que impede qualquer código fora do worker de importar as escritas da Graph API.
 - Versão da Graph API fixada por configuração (`META_API_VERSION`) e validada no boot e no cliente.

@@ -3,7 +3,7 @@ import { loadServerEnv } from '@adpub/config';
 import { createDb, getConnectionToken, recordMetaCall } from '@adpub/db';
 import { MetaClient } from '@adpub/meta-client';
 import { Storage } from '@adpub/storage';
-import { initTelemetry } from '@adpub/telemetry';
+import { initTelemetry, redactingLogger } from '@adpub/telemetry';
 import { Redis } from 'ioredis';
 import { buildApp } from './app.js';
 import { aiCacheFor } from './services/batch-plan.js';
@@ -81,7 +81,7 @@ deps.ai = new AiClient({
   cache: aiCacheFor(deps, null),
 });
 
-const app = await buildApp(deps, { logger: true, docs: true, corsOrigin: env.WEB_URL });
+const app = await buildApp(deps, { logger: redactingLogger(env.LOG_LEVEL), docs: true, corsOrigin: env.WEB_URL });
 
 async function shutdown(signal: string): Promise<void> {
   app.log.info({ signal }, 'encerrando API');

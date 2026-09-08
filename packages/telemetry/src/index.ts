@@ -1,4 +1,5 @@
 import { redact } from '@adpub/crypto';
+import pino, { type DestinationStream, type Logger, type LoggerOptions } from 'pino';
 
 /**
  * Observabilidade opcional (T019): rastros OpenTelemetry e erros no Sentry.
@@ -35,27 +36,85 @@ interface SentryEventLike {
   request?: RequestLike | undefined;
 }
 
-const SENSITIVE_QUERY = new Set(['access_token', 'appsecret_proof', 'token', 'client_secret']);
+/** Chaves que a Meta e o Google carregam na query string (client.ts monta assim). */
+const SENSITIVE_QUERY = ['access_token', 'appsecret_proof', 'token', 'client_secret', 'refresh_token'];
+
+const QUERY_PATTERN = new RegExp(`((?:^|[?&])(?:${SENSITIVE_QUERY.join('|')})=)([^&\\s"']+)`, 'gi');
 
 /**
- * Constituição VI/SC-006: nenhum token sai daqui. Além do `redact` por chave,
- * a URL do request é reescrita porque a Meta carrega o token na query string.
+ * Mascara segredo em query string dentro de qualquer texto — URL completa,
+ * `query_string` solta, mensagem de erro ou stack. Mascarar por chave não basta:
+ * o token da Graph viaja como parâmetro, dentro de uma string.
+ */
+export function maskSecretsInText(text: string): string {
+  return text.replace(QUERY_PATTERN, '$1[redacted]');
+}
+
+/** Aplica `maskSecretsInText` em toda string alcançável do valor. */
+function maskDeep<T>(value: T, depth = 0): T {
+  if (typeof value === 'string') return maskSecretsInText(value) as T;
+  if (depth > 8 || value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map((item) => maskDeep(item, depth + 1)) as T;
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    out[key] = maskDeep(item, depth + 1);
+  }
+  return out as T;
+}
+
+/**
+ * Constituição VI/SC-006: nenhum token sai daqui. `redact` cuida das chaves
+ * conhecidas; o passo de texto cobre o que o Sentry monta sozinho — URL do
+ * request, `breadcrumbs[].data.url` do integration HTTP, mensagem e stack.
  */
 export function scrubEvent<T extends SentryEventLike>(event: T): T {
-  const scrubbed = redact(event);
-  if (!scrubbed.request) return scrubbed;
+  return maskDeep(redact(event));
+}
 
-  const request = { ...scrubbed.request };
-  if (typeof request.url === 'string' && request.url.includes('?')) {
-    const [base, query] = request.url.split('?', 2);
-    const params = new URLSearchParams(query);
-    for (const key of params.keys()) {
-      if (SENSITIVE_QUERY.has(key)) params.set(key, '[redacted]');
-    }
-    request.url = `${base}?${params.toString()}`;
+/** Mesmo tratamento no ponto de entrada do breadcrumb, antes de virar evento. */
+export function scrubBreadcrumb<T>(breadcrumb: T): T {
+  return maskDeep(redact(breadcrumb));
+}
+
+/**
+ * Atributos de span que o `getNodeAutoInstrumentations` preenche com a URL
+ * chamada. Mutação no lugar: é o objeto que o exportador vai serializar.
+ */
+export function scrubSpanAttributes(attributes: Record<string, unknown>): void {
+  for (const [key, value] of Object.entries(attributes)) {
+    if (typeof value === 'string') attributes[key] = maskSecretsInText(value);
   }
-  if (request.query_string !== undefined) request.query_string = '[redacted]';
-  return { ...scrubbed, request };
+}
+
+/** Chaves cujo valor inteiro é segredo, independente de formato. */
+export const LOG_REDACT_PATHS = [
+  'token',
+  '*.token',
+  'access_token',
+  '*.access_token',
+  'appsecret_proof',
+  '*.appsecret_proof',
+  'authorization',
+  '*.authorization',
+  'headers.authorization',
+];
+
+/**
+ * Logger padrão de API e worker: `redact` por chave mais mascaramento de
+ * segredo em texto (mensagem, stack, URL), porque `pino.redact` só olha chaves.
+ */
+export function redactingLogger(level: string, destination?: DestinationStream): Logger {
+  const options: LoggerOptions = {
+    level,
+    redact: { paths: LOG_REDACT_PATHS, censor: '[redacted]' },
+    formatters: { log: (object) => maskDeep(object) },
+    hooks: {
+      logMethod(args, method) {
+        method.apply(this, args.map((arg) => maskDeep(arg)) as typeof args);
+      },
+    },
+  };
+  return destination ? pino(options, destination) : pino(options);
 }
 
 const DISABLED: Telemetry = {
@@ -81,9 +140,17 @@ export async function initTelemetry(options: TelemetryOptions): Promise<Telemetr
       import('@opentelemetry/exporter-trace-otlp-http'),
       import('@opentelemetry/auto-instrumentations-node'),
     ]);
+    /** A URL chamada vai crua no atributo do span: mascara antes de exportar. */
+    type ExportArgs = Parameters<InstanceType<typeof OTLPTraceExporter>['export']>;
+    class ScrubbingExporter extends OTLPTraceExporter {
+      override export(...[spans, done]: ExportArgs): void {
+        for (const span of spans) scrubSpanAttributes(span.attributes);
+        super.export(spans, done);
+      }
+    }
     const sdk = new NodeSDK({
       serviceName: options.service,
-      traceExporter: new OTLPTraceExporter({ url: `${options.otlpEndpoint}/v1/traces` }),
+      traceExporter: new ScrubbingExporter({ url: `${options.otlpEndpoint}/v1/traces` }),
       instrumentations: [getNodeAutoInstrumentations()],
     });
     sdk.start();
@@ -102,9 +169,11 @@ export async function initTelemetry(options: TelemetryOptions): Promise<Telemetr
       sendDefaultPii: false,
       beforeSend: (event) => scrubEvent(event),
       beforeSendTransaction: (event) => scrubEvent(event),
+      beforeBreadcrumb: (breadcrumb) => scrubBreadcrumb(breadcrumb),
     });
     capture = (error, context) => {
-      Sentry.captureException(error, context ? { extra: redact(context) } : undefined);
+      const extra = context ? scrubBreadcrumb(redact(context)) : undefined;
+      Sentry.captureException(error, extra ? { extra } : undefined);
     };
     shutdowns.push(async () => {
       await Sentry.close(2_000);

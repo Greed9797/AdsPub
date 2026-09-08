@@ -2,7 +2,8 @@ import { loadServerEnv, type ServerEnv } from '@adpub/config';
 import { createDb, type Database } from '@adpub/db';
 import { Storage } from '@adpub/storage';
 import { Redis } from 'ioredis';
-import pino, { type Logger } from 'pino';
+import { redactingLogger } from '@adpub/telemetry';
+import type { Logger } from 'pino';
 import type { Sql } from 'postgres';
 
 export interface WorkerContext {
@@ -31,13 +32,7 @@ export function createContext(): WorkerContext {
       accessKey: env.S3_ACCESS_KEY,
       secretKey: env.S3_SECRET_KEY,
     }),
-    log: pino({
-      level: env.LOG_LEVEL,
-      // Constituição VI: nenhum token em log.
-      redact: {
-        paths: ['token', '*.token', 'access_token', '*.access_token', 'appsecret_proof'],
-        censor: '[redacted]',
-      },
-    }),
+    // Constituição VI: nenhum token em log — mesmo redator da API.
+    log: redactingLogger(env.LOG_LEVEL),
   };
 }

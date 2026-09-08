@@ -37,7 +37,7 @@ pnpm workspaces + Turborepo, TypeScript em Node 22.
 | [`packages/media`](packages/media) | `sharp` + `ffprobe`: dimensões, proporção, duração e miniaturas |
 | [`packages/storage`](packages/storage) | Storage S3-compatível (MinIO no local) com URLs assinadas |
 | [`packages/assets`](packages/assets) | Ingestão de criativo: valida, deduplica por SHA-256 e grava no storage + banco |
-| [`packages/telemetry`](packages/telemetry) | Rastros OpenTelemetry e erros no Sentry, ligados só por variável de ambiente, com scrubber que mascara token e `appsecret_proof` (inclusive na query da URL) |
+| [`packages/telemetry`](packages/telemetry) | `redactingLogger` (pino com redator, usado por API e worker) e observabilidade opcional: rastros OpenTelemetry e erros no Sentry ligados só por variável de ambiente, com mascaramento de token na query da URL em evento, breadcrumb e atributo de span |
 
 ## Subir local
 
