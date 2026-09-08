@@ -17,7 +17,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const cookie = request.cookies.get(OAUTH_STATE_COOKIE)?.value ?? '';
   const [expectedState, nonce] = cookie.split('.');
 
-  if (!code || !state || !expectedState || state !== expectedState) {
+  // Sem nonce não há como amarrar o id_token a este fluxo: recomeça o login.
+  if (!code || !state || !expectedState || !nonce || state !== expectedState) {
     return NextResponse.redirect(`${env.webUrl}/login?erro=state`);
   }
 
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const identity = await verifyGoogleIdToken({
       idToken,
       clientId: env.googleClientId,
-      ...(nonce ? { nonce } : {}),
+      nonce,
       allowedDomain: env.allowedDomain,
     });
 

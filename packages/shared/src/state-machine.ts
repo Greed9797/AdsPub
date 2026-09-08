@@ -28,16 +28,31 @@ export function statusForStep(step: PublishStep): AdDraftStatus {
   return step === 'done' ? 'published' : STEP_STATUS[step];
 }
 
+/**
+ * R3/R4: reprocessar retoma na etapa salva em `publish_jobs.step` e uma falha
+ * transiente (rate limit, 5xx, vídeo processando) volta para a mesma etapa.
+ * Por isso `queued` alcança qualquer etapa e cada etapa permite reentrada em si
+ * mesma - o que continua proibido é andar para trás e sair de `published`.
+ */
 const TRANSITIONS: Record<AdDraftStatus, readonly AdDraftStatus[]> = {
   draft: ['draft', 'ready', 'blocked'],
   blocked: ['blocked', 'ready', 'draft'],
   ready: ['ready', 'queued', 'draft', 'blocked'],
-  queued: ['uploading_media', 'ensuring_campaign', 'failed', 'ready'],
+  queued: [
+    'queued',
+    'uploading_media',
+    'ensuring_campaign',
+    'ensuring_adset',
+    'creating_creative',
+    'creating_ad',
+    'failed',
+    'ready',
+  ],
   uploading_media: ['uploading_media', 'ensuring_campaign', 'failed'],
-  ensuring_campaign: ['ensuring_adset', 'failed'],
-  ensuring_adset: ['creating_creative', 'failed'],
-  creating_creative: ['creating_ad', 'failed'],
-  creating_ad: ['published', 'failed'],
+  ensuring_campaign: ['ensuring_campaign', 'ensuring_adset', 'failed'],
+  ensuring_adset: ['ensuring_adset', 'creating_creative', 'failed'],
+  creating_creative: ['creating_creative', 'creating_ad', 'failed'],
+  creating_ad: ['creating_ad', 'published', 'failed'],
   published: ['in_review', 'approved', 'disapproved', 'published'],
   in_review: ['in_review', 'approved', 'disapproved'],
   approved: ['approved', 'disapproved'],

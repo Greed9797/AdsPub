@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildGoogleAuthUrl, isAllowedDomain } from '../src/google.js';
+import { buildGoogleAuthUrl, identityFromClaims, isAllowedDomain } from '../src/google.js';
 import { mintSessionToken, verifySessionToken } from '../src/session.js';
 
 const SECRET = 'segredo-de-teste-com-tamanho-suficiente';
@@ -56,5 +56,54 @@ describe('buildGoogleAuthUrl', () => {
     expect(url.searchParams.get('state')).toBe('st');
     expect(url.searchParams.get('nonce')).toBe('no');
     expect(url.searchParams.get('scope')).toContain('email');
+  });
+});
+
+describe('identityFromClaims (R16)', () => {
+  const claims = {
+    sub: '1',
+    email: 'Gestor@Empresa.com.br',
+    email_verified: true,
+    name: 'Gestor',
+    hd: 'empresa.com.br',
+    nonce: 'no',
+  };
+  const expected = { nonce: 'no', allowedDomain: 'empresa.com.br' };
+
+  it('aceita conta do Workspace e normaliza e-mail', () => {
+    expect(identityFromClaims(claims, expected)).toEqual({
+      sub: '1',
+      email: 'gestor@empresa.com.br',
+      name: 'Gestor',
+      hd: 'empresa.com.br',
+    });
+  });
+
+  it('recusa conta sem hd mesmo com e-mail no domínio', () => {
+    const { hd: _hd, ...semHd } = claims;
+    expect(() => identityFromClaims(semHd, expected)).toThrow(/fora do domínio/);
+  });
+
+  it('recusa hd de outro domínio', () => {
+    expect(() => identityFromClaims({ ...claims, hd: 'outra.com' }, expected)).toThrow(
+      /fora do domínio/,
+    );
+  });
+
+  it('recusa e-mail não verificado', () => {
+    expect(() => identityFromClaims({ ...claims, email_verified: false }, expected)).toThrow(
+      /e-mail verificado/,
+    );
+  });
+
+  it('recusa nonce ausente ou diferente', () => {
+    expect(() => identityFromClaims(claims, { ...expected, nonce: '' })).toThrow(/Nonce/);
+    expect(() => identityFromClaims(claims, { ...expected, nonce: 'outro' })).toThrow(/Nonce/);
+  });
+
+  it('recusa domínio permitido vazio', () => {
+    expect(() => identityFromClaims(claims, { ...expected, allowedDomain: '' })).toThrow(
+      /fora do domínio/,
+    );
   });
 });

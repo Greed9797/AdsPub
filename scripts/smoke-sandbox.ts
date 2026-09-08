@@ -24,6 +24,7 @@ import type { ApiDeps, JobRef, Queues } from '@adpub/api/lib/deps';
 import { ingestFile } from '@adpub/assets';
 import { mintSessionToken } from '@adpub/auth';
 import { loadServerEnv } from '@adpub/config';
+import { mask } from '@adpub/crypto';
 import {
   createConnection,
   createDb,
@@ -95,11 +96,46 @@ function check(label: string, condition: boolean, detail?: unknown): void {
   if (detail !== undefined) console.error('       ', JSON.stringify(detail, null, 2).slice(0, 1500));
 }
 
+/**
+ * SC-006: o erro da Meta devolve o token cru ("Malformed access token EAA…") e
+ * este script roda em CI. Tudo que sai — console, log estruturado e o erro
+ * fatal — passa por este scrubber com os segredos trocados por `mask()`.
+ */
+function makeScrubber(secrets: readonly string[]): (text: string) => string {
+  const alvos = secrets.filter((secret) => secret.length >= 8);
+  return (text) => {
+    let out = text;
+    for (const secret of alvos) out = out.split(secret).join(mask(secret));
+    return out;
+  };
+}
+
+let scrub: (text: string) => string = (text) => text;
+
+function scrubConsole(): void {
+  for (const nome of ['log', 'error', 'warn'] as const) {
+    const original = console[nome].bind(console);
+    console[nome] = (...args: unknown[]) => {
+      original(
+        ...args.map((arg) => {
+          if (arg instanceof Error) return scrub(arg.stack ?? arg.message);
+          return typeof arg === 'string' ? scrub(arg) : arg;
+        }),
+      );
+    };
+  }
+}
+
 async function main(): Promise<void> {
   const smoke = smokeEnv();
   const env = loadServerEnv();
-  const log = pino({ level: env.LOG_LEVEL ?? 'warn' });
-  const { db, sql } = createDb(env.DATABASE_URL, { max: 4 });
+  scrub = makeScrubber([smoke.token, env.META_APP_SECRET, env.MASTER_KEY]);
+  scrubConsole();
+  const log = pino(
+    { level: env.LOG_LEVEL ?? 'warn' },
+    { write: (line: string) => process.stdout.write(scrub(line)) },
+  );
+  const { db, sql } = createDb(env.DATABASE_URL, { max: 4, onNotice: () => {} });
   const storage = new Storage({
     endpoint: env.S3_ENDPOINT,
     bucket: env.S3_BUCKET,
@@ -383,4 +419,10 @@ async function main(): Promise<void> {
   console.log('\nFUMAÇA SANDBOX OK — 2 anúncios PAUSED criados pelo pipeline e arquivados.');
 }
 
-await main();
+try {
+  await main();
+} catch (error) {
+  // O handler padrão do Node imprimiria a mensagem crua da Meta (com o token).
+  console.error(error instanceof Error ? (error.stack ?? error.message) : error);
+  process.exit(1);
+}

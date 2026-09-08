@@ -12,8 +12,9 @@ export function createDb(
   const sql = postgres(url, {
     max: options.max ?? 10,
     prepare: false,
-    // Sem handler, notices do Postgres iriam para o stdout crus.
-    onnotice: options.onNotice ?? (() => {}),
+    // Notices do Postgres são sinal útil em `db:migrate` e em produção: só quem
+    // pede (smoke/e2e, que dão truncate e conhecem o ruído) silencia.
+    ...(options.onNotice ? { onnotice: options.onNotice } : {}),
   });
   const db = drizzle(sql, { schema });
   return { db, sql };

@@ -17,7 +17,10 @@ import {
 import { applyAutoFields, statusFromValidation, validateItem } from '@adpub/rules';
 import {
   adDraftInputSchema,
+  IN_FLIGHT_STATUSES,
+  PUBLISHED_STATUSES,
   type AdDraftInput,
+  type AdDraftStatus,
   type BatchPlan,
   type Copy,
   type PlanItem,
@@ -40,6 +43,22 @@ export function aiCacheFor(deps: ApiDeps, batchId: string | null): AiCache {
   };
 }
 
+/**
+ * Recriar o plano apaga os itens do lote. Item na fila ou já publicado carrega
+ * `meta_ids` e `idempotency_key`: apagá-lo perderia a idempotência e permitiria
+ * republicar o mesmo anúncio. Nesse caso o lote é intocável - duplique-o.
+ */
+function assertReplaceable(existing: readonly { status: AdDraftStatus }[]): void {
+  const travados = existing.filter(
+    (item) =>
+      IN_FLIGHT_STATUSES.includes(item.status) || PUBLISHED_STATUSES.includes(item.status),
+  );
+  if (travados.length === 0) return;
+  throw unprocessable(
+    `Lote tem ${travados.length} item(ns) em publicação ou já publicado(s): o plano não pode ser recriado. Duplique o lote para uma nova versão.`,
+  );
+}
+
 /** FR-006: briefing + criativos + conta → BatchPlan → itens persistidos. */
 export async function generatePlan(
   deps: ApiDeps,
@@ -54,6 +73,7 @@ export async function generatePlan(
   if (existing.length > 0 && !input.regenerate) {
     throw unprocessable('O lote já tem itens. Use regenerate=true para recriar o plano.');
   }
+  assertReplaceable(existing);
 
   const ctx = await loadBatchContext(deps, {
     clientId: batch.clientId,
@@ -174,6 +194,7 @@ export async function setManualPlan(
   }
 
   const existing = await listDraftsOfBatch(deps.db, batch.id);
+  assertReplaceable(existing);
   if (existing.length > 0) await deleteDraftsOfBatch(deps.db, batch.id);
   const items = await materializePlan(deps, { batch, plan: input.plan, assets });
 

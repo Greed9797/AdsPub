@@ -132,7 +132,7 @@ function fakeAiInvoker(assetId: string) {
 
 async function main(): Promise<void> {
   const env = loadServerEnv();
-  const { db, sql } = createDb(env.DATABASE_URL, { max: 4 });
+  const { db, sql } = createDb(env.DATABASE_URL, { max: 4, onNotice: () => {} });
   const storage = new Storage({
     endpoint: env.S3_ENDPOINT,
     bucket: env.S3_BUCKET,
@@ -550,6 +550,24 @@ async function main(): Promise<void> {
     payload: { confirm_count: 0, only_failed: true },
   });
   check('republicar sem itens elegíveis é recusado', republish.statusCode === 422, republish.json());
+
+  // Recriar o plano apagaria os itens: com anúncio já na Meta isso perderia os
+  // `meta_ids` e permitiria republicar o mesmo anúncio.
+  const replanejar = await app.inject({
+    method: 'PUT',
+    url: `/api/v1/batches/${batch.id}/plan`,
+    headers: auth,
+    payload: manualPlan,
+  });
+  check('recriar plano de lote publicado é recusado', replanejar.statusCode === 422, replanejar.json());
+  const aposReplan = (await app
+    .inject({ method: 'GET', url: `/api/v1/batches/${batch.id}`, headers: auth })
+    .then((r) => r.json())) as { items: Array<{ meta_ids: Record<string, string> }> };
+  check(
+    'IDs da Meta preservados após a recusa',
+    aposReplan.items.length === 2 && aposReplan.items.every((item) => item.meta_ids.ad_id === graph.ids.ad),
+    aposReplan.items.map((item) => item.meta_ids),
+  );
 
   phase('FR-018 — poller de revisão');
   const poll = await runStatusPoll(workerCtx, metaFactory);

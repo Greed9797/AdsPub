@@ -60,4 +60,6 @@ export const E2E_ENV: Record<string, string> = {
   API_URL,
   WEB_URL,
   LOG_LEVEL: 'warn',
+  // O harness semeia do zero: `truncateAllTables` exige este opt-in.
+  ADPUB_ALLOW_TRUNCATE: '1',
 };

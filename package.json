@@ -18,8 +18,8 @@
     "test:e2e": "playwright test",
     "db:generate": "pnpm --filter @adpub/db run generate",
     "db:migrate": "pnpm --filter @adpub/db run migrate",
-    "smoke:sandbox": "tsx scripts/smoke-sandbox.ts",
-    "smoke:integration": "tsx scripts/smoke-integration.ts"
+    "smoke:sandbox": "ADPUB_ALLOW_TRUNCATE=1 tsx scripts/smoke-sandbox.ts",
+    "smoke:integration": "ADPUB_ALLOW_TRUNCATE=1 tsx scripts/smoke-integration.ts"
   },
   "devDependencies": {
     "@adpub/ai": "workspace:*",

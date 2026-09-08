@@ -18,21 +18,35 @@ Nada aqui usa segredo real: substitua `<TOKEN>`, `<ACCOUNT_ID>`, `<BUSINESS_ID>`
 A versão da API é a mesma que o produto fixa em `META_API_VERSION` (hoje `v25.0`, ver `.env.example`
 e `packages/config/src/env.ts`). O `MetaClient` recusa qualquer valor que não case com `/^v\d+\.\d+$/`.
 
+Os dois segredos (token e app secret) nunca vão para a linha de comando nem para o histórico:
+ficam em arquivos `chmod 600` e são lidos por variável de ambiente. `openssl ... -hmac "$APP_SECRET"`
+colocaria o app secret em `argv`, visível para qualquer usuário da máquina em `ps aux`.
+
 ```bash
+set +o history                          # nada deste bloco entra no histórico do shell
+
+mkdir -p ~/.adpub && chmod 700 ~/.adpub
+printf '%s' '<TOKEN>'      > ~/.adpub/token       && chmod 600 ~/.adpub/token
+printf '%s' '<APP_SECRET>' > ~/.adpub/app_secret  && chmod 600 ~/.adpub/app_secret
+
 export API=v25.0
-export TOKEN='<TOKEN>'                 # token de System User, nunca commitar
-export APP_SECRET='<APP_SECRET>'
+export TOKEN=$(cat ~/.adpub/token)      # token de System User, nunca commitar
+export APP_SECRET=$(cat ~/.adpub/app_secret)
 export ACT=act_<ACCOUNT_ID>
 export BUSINESS_ID=<BUSINESS_ID>
 export PAGE_ID=<PAGE_ID>
-export IG_USER_ID=<IG_USER_ID>         # opcional: sem IG o anúncio roda só no Facebook
+export IG_USER_ID=<IG_USER_ID>          # opcional: sem IG o anúncio roda só no Facebook
 
 # Constituição IV: appsecret_proof em toda chamada (packages/crypto → appsecretProof()).
-export PROOF=$(printf '%s' "$TOKEN" | openssl dgst -sha256 -hmac "$APP_SECRET" | awk '{print $2}')
+# O node lê os dois segredos do ambiente: nenhum deles aparece em `argv`.
+export PROOF=$(node -e 'process.stdout.write(require("crypto").createHmac("sha256",process.env.APP_SECRET).update(process.env.TOKEN).digest("hex"))')
 
 export G="https://graph.facebook.com/$API"
 export AUTH="access_token=$TOKEN&appsecret_proof=$PROOF"
 ```
+
+O `$AUTH` é passado com `-d`/`--data-urlencode` (corpo/query montados pelo curl), não em `--url`;
+ao terminar, `unset TOKEN APP_SECRET PROOF AUTH` e `set -o history`.
 
 Permissões exigidas no token: `ads_management`, `business_management`, `pages_read_engagement`,
 `pages_manage_ads`.

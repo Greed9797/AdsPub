@@ -68,7 +68,8 @@ export interface GoogleIdentity {
   sub: string;
   email: string;
   name: string;
-  hd?: string;
+  /** Domínio Workspace que emitiu a conta - sempre presente após a validação. */
+  hd: string;
 }
 
 export class DomainNotAllowedError extends Error {
@@ -78,10 +79,19 @@ export class DomainNotAllowedError extends Error {
   }
 }
 
+/**
+ * R16: só entra quem o Google confirma como conta do Workspace da empresa.
+ *
+ * A assinatura é conferida contra o JWKS do Google (`aud` = nosso client,
+ * `iss` = accounts.google.com) e o `nonce` é obrigatório - sem ele um id_token
+ * capturado de outro fluxo seria reaproveitável. A autorização olha o claim
+ * `hd`, não o sufixo do e-mail: conta de consumidor pode ter e-mail verificado
+ * em domínio próprio, mas nunca recebe `hd` do Workspace.
+ */
 export async function verifyGoogleIdToken(input: {
   idToken: string;
   clientId: string;
-  nonce?: string;
+  nonce: string;
   allowedDomain: string;
 }): Promise<GoogleIdentity> {
   jwks ??= createRemoteJWKSet(new URL(JWKS_URL));
@@ -89,20 +99,32 @@ export async function verifyGoogleIdToken(input: {
     audience: input.clientId,
     issuer: ISSUERS,
   });
-  if (input.nonce && payload.nonce !== input.nonce) {
+  return identityFromClaims(payload, { nonce: input.nonce, allowedDomain: input.allowedDomain });
+}
+
+/**
+ * Autorização a partir dos claims de um id_token **já verificado**. Separado de
+ * `verifyGoogleIdToken` porque é aqui que mora a regra de acesso (nonce, e-mail
+ * verificado, Workspace) e ela precisa de teste sem rede.
+ */
+export function identityFromClaims(
+  claims: Record<string, unknown>,
+  expect: { nonce: string; allowedDomain: string },
+): GoogleIdentity {
+  if (!expect.nonce || claims.nonce !== expect.nonce) {
     throw new Error('Nonce do login não confere.');
   }
-  const email = String(payload.email ?? '').toLowerCase();
-  const emailVerified = payload.email_verified === true;
-  if (!email || !emailVerified) throw new Error('Login sem e-mail verificado.');
-  if (!isAllowedDomain(email, input.allowedDomain)) throw new DomainNotAllowedError(email);
+  const email = String(claims.email ?? '').toLowerCase();
+  if (!email || claims.email_verified !== true) {
+    throw new Error('Login sem e-mail verificado.');
+  }
 
-  return {
-    sub: String(payload.sub),
-    email,
-    name: String(payload.name ?? email),
-    ...(payload.hd ? { hd: String(payload.hd) } : {}),
-  };
+  const hd = String(claims.hd ?? '').toLowerCase();
+  const expected = expect.allowedDomain.trim().toLowerCase().replace(/^@/, '');
+  if (!expected || hd !== expected) throw new DomainNotAllowedError(email);
+  if (!isAllowedDomain(email, expect.allowedDomain)) throw new DomainNotAllowedError(email);
+
+  return { sub: String(claims.sub), email, name: String(claims.name ?? email), hd };
 }
 
 /** US6 cenário 3: e-mail fora do domínio corporativo não entra. */

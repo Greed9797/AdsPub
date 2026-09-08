@@ -76,6 +76,9 @@ jobs:
       - run: pnpm typecheck
 
       - name: Testes com log capturado
+        # `shell: bash` traz `-eo pipefail`: sem isso o exit code seria do `tee`
+        # e um teste vermelho passaria batido.
+        shell: bash
         run: pnpm test 2>&1 | tee /tmp/test-output.log
 
       # SC-006: nenhum token pode aparecer em log. Falha se o padrão vazar.

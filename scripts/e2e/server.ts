@@ -124,7 +124,7 @@ function fakeAiInvoker(assetId: string) {
  * segunda execução custa uma consulta e um `drizzle migrate` sem trabalho.
  */
 async function prepararBanco(): Promise<void> {
-  const manutencao = createDb(`${POSTGRES_BASE_URL}/postgres`, { max: 1 });
+  const manutencao = createDb(`${POSTGRES_BASE_URL}/postgres`, { max: 1, onNotice: () => {} });
   try {
     const existe = await manutencao.sql`select 1 from pg_database where datname = ${E2E_DATABASE}`;
     if (existe.length === 0) {
@@ -144,7 +144,7 @@ async function prepararBanco(): Promise<void> {
 await prepararBanco();
 
 const env = loadServerEnv();
-const { db, sql } = createDb(env.DATABASE_URL, { max: 6 });
+const { db, sql } = createDb(env.DATABASE_URL, { max: 6, onNotice: () => {} });
 const storage = new Storage({
   endpoint: env.S3_ENDPOINT,
   bucket: env.S3_BUCKET,
