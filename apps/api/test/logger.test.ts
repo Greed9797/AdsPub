@@ -55,6 +55,22 @@ describe('boot da API com logger ligado', () => {
     }
   });
 
+  it('mascara token na URL que o serializer do Fastify monta', async () => {
+    const stream = new PassThrough();
+    const app = await buildApp(deps, { logger: redactingLogger('info', stream) });
+    try {
+      const pedido = waitForLine(stream, 'request completed');
+      await app.inject({ method: 'GET', url: `/health?access_token=${TOKEN}` });
+
+      const saida = await pedido;
+      expect(saida).not.toContain(TOKEN);
+      expect(saida).toContain('access_token=[redacted]');
+      expect(saida).toContain('"method":"GET"');
+    } finally {
+      await app.close();
+    }
+  });
+
   it('sobe com `logger: true` usando o redator padrão', async () => {
     const app = await buildApp(deps, { logger: true });
     try {

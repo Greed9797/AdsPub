@@ -119,8 +119,10 @@ sendo decisão humana no Ads Manager.
   `Malformed access token EAA…` dentro da mensagem de erro, fora de qualquer `chave=valor`, e o
   redator por chave não alcança isso. `redact` aplica em toda string, então log, auditoria e
   `meta_api_calls` nascem limpos.
-- API e worker usam o mesmo `redactingLogger`; o mascaramento preserva `Error` (mensagem e stack) e
-  as instâncias que o Fastify serializa (`req`/`res`), copiando só objeto literal e array.
+- API e worker usam o mesmo `redactingLogger`, que mascara a linha já serializada
+  (`hooks.streamWrite`) — `formatters.log` e `hooks.logMethod` rodam antes dos serializers, então
+  `req.url` do Fastify escapava por ali. Como nada mais reescreve o objeto de log, `req`, `res` e
+  `err` chegam íntegros ao serializer.
 - O mesmo mascaramento cobre o evento do Sentry, os breadcrumbs do integration HTTP e os atributos
   de URL dos spans do OpenTelemetry.
 - API Fastify com contrato OpenAPI publicado em `/docs` e erros em `application/problem+json`.

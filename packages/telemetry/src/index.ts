@@ -121,19 +121,20 @@ export const LOG_REDACT_PATHS = [
 ];
 
 /**
- * Logger padrão de API e worker: `redact` por chave mais mascaramento de
- * segredo em texto (mensagem, stack, URL), porque `pino.redact` só olha chaves.
+ * Logger padrão de API e worker.
+ *
+ * `pino.redact` cobre chaves conhecidas, mas o segredo também viaja **dentro de
+ * texto**: URL, mensagem de erro da Meta, stack. Mascarar em `formatters.log`
+ * ou em `hooks.logMethod` não resolve: os dois rodam **antes** dos serializers
+ * (`pino/lib/tools.js`), então `req.url` do Fastify — que só existe depois —
+ * escapava. `hooks.streamWrite` é o único ponto após serializers, formatters e
+ * redact: mascara a linha já pronta, cobrindo todo caminho de log de uma vez.
  */
 export function redactingLogger(level: string, destination?: DestinationStream): Logger {
   const options: LoggerOptions = {
     level,
     redact: { paths: LOG_REDACT_PATHS, censor: '[redacted]' },
-    formatters: { log: (object) => maskDeep(object) },
-    hooks: {
-      logMethod(args, method) {
-        method.apply(this, args.map((arg) => maskDeep(arg)) as typeof args);
-      },
-    },
+    hooks: { streamWrite: (line) => maskText(line) },
   };
   return destination ? pino(options, destination) : pino(options);
 }
