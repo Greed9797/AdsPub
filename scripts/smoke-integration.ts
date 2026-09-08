@@ -146,7 +146,7 @@ async function main(): Promise<void> {
 
   phase('Preparando banco, storage e conexão');
   await storage.ensureBucket();
-  await truncateAllTables(db);
+  await truncateAllTables(db, env.DATABASE_URL);
 
   const workerCtx: WorkerContext = {
     env,
@@ -559,7 +559,12 @@ async function main(): Promise<void> {
     headers: auth,
     payload: manualPlan,
   });
-  check('recriar plano de lote publicado é recusado', replanejar.statusCode === 422, replanejar.json());
+  const replanejarProblem = replanejar.json() as { detail?: string };
+  check(
+    'recriar plano de lote publicado é recusado pelo motivo certo',
+    replanejar.statusCode === 422 && /já publicado/.test(replanejarProblem.detail ?? ''),
+    replanejarProblem,
+  );
   const aposReplan = (await app
     .inject({ method: 'GET', url: `/api/v1/batches/${batch.id}`, headers: auth })
     .then((r) => r.json())) as { items: Array<{ meta_ids: Record<string, string> }> };

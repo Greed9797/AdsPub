@@ -29,10 +29,11 @@ export function statusForStep(step: PublishStep): AdDraftStatus {
 }
 
 /**
- * R3/R4: reprocessar retoma na etapa salva em `publish_jobs.step` e uma falha
- * transiente (rate limit, 5xx, vídeo processando) volta para a mesma etapa.
- * Por isso `queued` alcança qualquer etapa e cada etapa permite reentrada em si
- * mesma - o que continua proibido é andar para trás e sair de `published`.
+ * R3/R4: reprocessar retoma na etapa salva em `publish_jobs.step` e o BullMQ
+ * pode reagendar o job (RETRY.maxAttempts) depois de o item já ter virado
+ * `failed`. Por isso `queued` e `failed` alcançam qualquer etapa e cada etapa
+ * permite reentrada em si mesma (falha transiente na mesma etapa). O que
+ * continua proibido é andar para trás no pipeline e sair de `published`.
  */
 const TRANSITIONS: Record<AdDraftStatus, readonly AdDraftStatus[]> = {
   draft: ['draft', 'ready', 'blocked'],
@@ -57,7 +58,18 @@ const TRANSITIONS: Record<AdDraftStatus, readonly AdDraftStatus[]> = {
   in_review: ['in_review', 'approved', 'disapproved'],
   approved: ['approved', 'disapproved'],
   disapproved: ['disapproved', 'approved'],
-  failed: ['failed', 'queued', 'draft', 'blocked', 'ready'],
+  failed: [
+    'failed',
+    'queued',
+    'draft',
+    'blocked',
+    'ready',
+    'uploading_media',
+    'ensuring_campaign',
+    'ensuring_adset',
+    'creating_creative',
+    'creating_ad',
+  ],
 };
 
 export const PUBLISHED_STATUSES: readonly AdDraftStatus[] = [

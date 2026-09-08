@@ -85,8 +85,9 @@ sendo decisão humana no Ads Manager.
 #### Auditoria e permissões (US6)
 
 - Login com Google restrito ao domínio corporativo: o `id_token` é verificado contra o JWKS do
-  Google (`aud`, `iss`, `nonce` obrigatório, `email_verified`) e a autorização exige o claim `hd` do
-  Workspace — sufixo de e-mail sozinho não abre a porta. Papéis: admin, coordenador, gestor e leitor.
+  Google (`aud`, `iss`, `nonce` obrigatório, `email_verified`) e a conta precisa ser de Workspace
+  (claim `hd` presente) com e-mail no domínio permitido — e-mail de conta pessoal terminando no
+  domínio não abre a porta. Papéis: admin, coordenador, gestor e leitor.
 - Escopo por conta: o gestor só enxerga as contas atribuídas a ele e recebe 403 nas demais.
 - Trilha de auditoria de toda ação de escrita (criar lote, gerar plano, editar item, validar,
   publicar, reprocessar, duplicar, alterar conexão, alterar padrões da conta, alterar usuário), com
@@ -118,8 +119,11 @@ sendo decisão humana no Ads Manager.
   anúncios reais.
 - CI com scan de segredos, build, lint, typecheck, testes, scan de token em log, smoke de integração
   e e2e Playwright; a fumaça em conta real fica num workflow separado, manual ou por release.
-- `truncateAllTables` (usado só por fumaça e e2e) exige `ADPUB_ALLOW_TRUNCATE=1` e banco de teste, e
-  a fumaça em sandbox mascara token e app secret em tudo que imprime.
+- `truncateAllTables` (usado só por fumaça e e2e) exige `ADPUB_ALLOW_TRUNCATE=1` **e** banco em
+  loopback ou com sufixo `_test`/`_e2e`; a fumaça em sandbox mascara token e app secret em console,
+  log estruturado e erro fatal.
+- Recriar o plano de um lote (IA ou construtor manual) apaga e recria os itens numa transação que
+  trava as linhas: se algum item estiver em publicação ou publicado, a troca é recusada com 422.
 - Infra local por Docker Compose (Postgres, Redis e MinIO), com portas configuráveis para conviver
   com serviços já instalados na máquina.
 - Documentação técnica: `README.md`, `docs/spike-meta.md`, `docs/erros-meta.md`,

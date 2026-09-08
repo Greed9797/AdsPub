@@ -13,4 +13,4 @@ export * from './repos/batch-refs.js';
 export * from './repos/jobs.js';
 export * from './repos/meta-calls.js';
 export * from './repos/ai-generations.js';
-export { truncateAllTables } from './testing.js';
+export { assertTruncateAllowed, truncateAllTables, TRUNCATE_OPT_IN } from './testing.js';

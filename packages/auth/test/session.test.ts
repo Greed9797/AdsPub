@@ -84,8 +84,13 @@ describe('identityFromClaims (R16)', () => {
     expect(() => identityFromClaims(semHd, expected)).toThrow(/fora do domínio/);
   });
 
-  it('recusa hd de outro domínio', () => {
-    expect(() => identityFromClaims({ ...claims, hd: 'outra.com' }, expected)).toThrow(
+  it('aceita domínio secundário do Workspace (hd é o primário)', () => {
+    const secundario = { ...claims, email: 'gestor@empresa.com.br', hd: 'grupo-empresa.com' };
+    expect(identityFromClaims(secundario, expected).hd).toBe('grupo-empresa.com');
+  });
+
+  it('recusa e-mail fora do domínio permitido mesmo com hd', () => {
+    expect(() => identityFromClaims({ ...claims, email: 'x@outra.com' }, expected)).toThrow(
       /fora do domínio/,
     );
   });

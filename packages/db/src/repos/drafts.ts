@@ -61,6 +61,32 @@ export async function deleteDraftsOfBatch(db: Database, batchId: string): Promis
   await db.delete(adDrafts).where(eq(adDrafts.batchId, batchId));
 }
 
+/**
+ * Apaga os itens do lote **só** se nenhum estiver em publicação ou publicado.
+ *
+ * O `for update` trava as linhas dentro da transação: um `POST /publish`
+ * concorrente (que faz `UPDATE ... status = 'queued'`) fica bloqueado até o
+ * commit, então não existe janela entre a checagem e o delete. Devolve os
+ * status que impediram a limpeza (vazio = apagou).
+ */
+export async function deleteReplaceableDraftsOfBatch(
+  db: Database,
+  batchId: string,
+  blockingStatuses: readonly AdDraftStatus[],
+): Promise<AdDraftStatus[]> {
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .select({ status: adDrafts.status })
+      .from(adDrafts)
+      .where(eq(adDrafts.batchId, batchId))
+      .for('update');
+    const blocking = rows.map((row) => row.status).filter((s) => blockingStatuses.includes(s));
+    if (blocking.length > 0) return blocking;
+    if (rows.length > 0) await tx.delete(adDrafts).where(eq(adDrafts.batchId, batchId));
+    return [];
+  });
+}
+
 export async function getDraft(db: Database, id: string): Promise<AdDraftRow | undefined> {
   const [row] = await db.select().from(adDrafts).where(eq(adDrafts.id, id));
   return row;

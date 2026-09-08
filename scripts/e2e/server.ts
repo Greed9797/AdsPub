@@ -221,7 +221,7 @@ function metaClientForToken(token: string): MetaClient {
 const app = await buildApp(deps, { logger: false });
 
 await storage.ensureBucket();
-await truncateAllTables(db);
+await truncateAllTables(db, env.DATABASE_URL);
 
 const connection = await createConnection(db, {
   businessId: BUSINESS_ID,

@@ -2,7 +2,7 @@ import { idempotencyKey } from '@adpub/crypto';
 import {
   audit,
   batchWithItems,
-  deleteDraftsOfBatch,
+  deleteReplaceableDraftsOfBatch,
   getBatch,
   insertDrafts,
   listDraftsOfBatch,
@@ -27,7 +27,7 @@ import {
   type SessionUser,
 } from '@adpub/shared';
 import type { AiCache, PlanContext } from '@adpub/ai';
-import { notFound, unprocessable } from '../lib/problem.js';
+import { notFound, unprocessable, type ProblemError } from '../lib/problem.js';
 import type { ApiDeps } from '../lib/deps.js';
 import { assetsForDrafts, loadBatchContext, validateContextFrom } from './batch-context.js';
 
@@ -43,20 +43,36 @@ export function aiCacheFor(deps: ApiDeps, batchId: string | null): AiCache {
   };
 }
 
+const BLOCKING_STATUSES: readonly AdDraftStatus[] = [
+  ...IN_FLIGHT_STATUSES,
+  ...PUBLISHED_STATUSES,
+];
+
 /**
  * Recriar o plano apaga os itens do lote. Item na fila ou já publicado carrega
  * `meta_ids` e `idempotency_key`: apagá-lo perderia a idempotência e permitiria
  * republicar o mesmo anúncio. Nesse caso o lote é intocável - duplique-o.
  */
 function assertReplaceable(existing: readonly { status: AdDraftStatus }[]): void {
-  const travados = existing.filter(
-    (item) =>
-      IN_FLIGHT_STATUSES.includes(item.status) || PUBLISHED_STATUSES.includes(item.status),
-  );
+  const travados = existing.filter((item) => BLOCKING_STATUSES.includes(item.status));
   if (travados.length === 0) return;
-  throw unprocessable(
-    `Lote tem ${travados.length} item(ns) em publicação ou já publicado(s): o plano não pode ser recriado. Duplique o lote para uma nova versão.`,
+  throw travadoError(travados.length);
+}
+
+function travadoError(quantos: number): ProblemError {
+  return unprocessable(
+    `Lote tem ${quantos} item(ns) em publicação ou já publicado(s): o plano não pode ser recriado. Duplique o lote para uma nova versão.`,
   );
+}
+
+/**
+ * Troca os itens do lote pelos do plano novo. A limpeza é atômica (trava as
+ * linhas e recusa se alguém enfileirou no meio): entre a checagem de cima e
+ * este ponto há a chamada da IA, que leva segundos.
+ */
+async function replaceDrafts(deps: ApiDeps, batchId: string): Promise<void> {
+  const travados = await deleteReplaceableDraftsOfBatch(deps.db, batchId, BLOCKING_STATUSES);
+  if (travados.length > 0) throw travadoError(travados.length);
 }
 
 /** FR-006: briefing + criativos + conta → BatchPlan → itens persistidos. */
@@ -117,7 +133,7 @@ export async function generatePlan(
   const { plan, meta } = await deps.ai.generatePlan(planContext);
   assertPlanRefs(plan);
 
-  if (existing.length > 0) await deleteDraftsOfBatch(deps.db, batch.id);
+  await replaceDrafts(deps, batch.id);
   const items = await materializePlan(deps, { batch, plan, assets });
 
   await patchBatch(deps.db, batch.id, { plan, status: items.length > 0 ? 'draft' : 'blocked' });
@@ -193,9 +209,7 @@ export async function setManualPlan(
     throw unprocessable(`Criativos não encontrados neste cliente: ${missing.join(', ')}.`);
   }
 
-  const existing = await listDraftsOfBatch(deps.db, batch.id);
-  assertReplaceable(existing);
-  if (existing.length > 0) await deleteDraftsOfBatch(deps.db, batch.id);
+  await replaceDrafts(deps, batch.id);
   const items = await materializePlan(deps, { batch, plan: input.plan, assets });
 
   await patchBatch(deps.db, batch.id, {

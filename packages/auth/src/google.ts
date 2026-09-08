@@ -106,6 +106,12 @@ export async function verifyGoogleIdToken(input: {
  * Autorização a partir dos claims de um id_token **já verificado**. Separado de
  * `verifyGoogleIdToken` porque é aqui que mora a regra de acesso (nonce, e-mail
  * verificado, Workspace) e ela precisa de teste sem rede.
+ *
+ * O claim `hd` precisa existir: conta de consumidor nunca o recebe, mesmo com
+ * e-mail verificado em domínio próprio — é o que impede alguém de entrar só por
+ * ter um e-mail que termina no domínio da empresa. Não exigimos `hd` igual ao
+ * domínio permitido porque o Workspace devolve sempre o domínio primário, e
+ * usuário de domínio secundário tem `email` no permitido e `hd` no primário.
  */
 export function identityFromClaims(
   claims: Record<string, unknown>,
@@ -120,8 +126,7 @@ export function identityFromClaims(
   }
 
   const hd = String(claims.hd ?? '').toLowerCase();
-  const expected = expect.allowedDomain.trim().toLowerCase().replace(/^@/, '');
-  if (!expected || hd !== expected) throw new DomainNotAllowedError(email);
+  if (!hd) throw new DomainNotAllowedError(email);
   if (!isAllowedDomain(email, expect.allowedDomain)) throw new DomainNotAllowedError(email);
 
   return { sub: String(claims.sub), email, name: String(claims.name ?? email), hd };

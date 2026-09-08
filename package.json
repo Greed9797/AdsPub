@@ -12,7 +12,7 @@
     "dev": "turbo run dev --parallel",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "typecheck": "turbo run typecheck",
+    "typecheck": "turbo run typecheck && tsc -p tsconfig.scripts.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",

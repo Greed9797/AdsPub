@@ -83,11 +83,11 @@ Todos rodam da raiz do repositório.
 | `pnpm build` | `turbo run build` — compila todos os pacotes e apps |
 | `pnpm dev` | sobe web, api e worker em paralelo |
 | `pnpm lint` | ESLint no monorepo (inclui a regra que proíbe escrita na Meta fora do worker) |
-| `pnpm typecheck` | `tsc --noEmit` em cada pacote |
+| `pnpm typecheck` | `tsc --noEmit` em cada pacote e app, mais `scripts/` e `e2e/` (`tsconfig.scripts.json`) |
 | `pnpm test` / `pnpm test:watch` | Vitest: unidade + contrato com as fixtures gravadas da Graph API |
 | `pnpm test:e2e` | Playwright: jornadas 1, 3 e 5 pela UI, com a Graph API falsa; usa banco/bucket próprios (`adpub_e2e`) e reconstrói o web a cada execução |
-| `pnpm smoke:integration` | API + worker de verdade contra Postgres/Redis/MinIO locais, com uma Graph API falsa — nenhuma chamada externa |
-| `pnpm smoke:sandbox` | cria 2 anúncios `PAUSED` na conta de teste e arquiva tudo no fim (**exige token real**) |
+| `pnpm smoke:integration` | API + worker de verdade contra Postgres/Redis/MinIO locais, com uma Graph API falsa — nenhuma chamada externa. **Zera o banco**: só roda em loopback ou banco `*_test`/`*_e2e` (`ADPUB_ALLOW_TRUNCATE=1`, definido pelo próprio script) |
+| `pnpm smoke:sandbox` | cria 2 anúncios `PAUSED` na conta de teste e arquiva tudo no fim (**exige token real**; token e app secret saem mascarados de qualquer log). **Zera o banco**, mesma guarda acima |
 | `pnpm db:generate` | gera migração a partir do schema Drizzle |
 | `pnpm db:migrate` | aplica as migrações |
 | `pnpm format` | Prettier |

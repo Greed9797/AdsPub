@@ -163,7 +163,7 @@ async function main(): Promise<void> {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 
   await storage.ensureBucket();
-  await truncateAllTables(db);
+  await truncateAllTables(db, env.DATABASE_URL);
 
   const queues: Queues = {
     async enqueueSync(connectionId) {

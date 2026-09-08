@@ -27,6 +27,15 @@ describe('retomada e retry (R3/R4)', () => {
     }
   });
 
+  it('job reagendado pelo BullMQ retoma de failed na etapa salva', () => {
+    // Erro não transiente marca `failed` e relança: o BullMQ ainda tem
+    // tentativas (RETRY.maxAttempts) e roda `runPublish` de novo com o item
+    // nesse estado.
+    for (const step of ETAPAS) {
+      expect(canTransition('failed', statusForStep(step))).toBe(true);
+    }
+  });
+
   it('cada etapa avança para a seguinte e pode falhar', () => {
     for (const step of ETAPAS) {
       expect(canTransition(statusForStep(step), statusForStep(nextStep(step)))).toBe(true);

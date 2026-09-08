@@ -18,16 +18,19 @@ Nada aqui usa segredo real: substitua `<TOKEN>`, `<ACCOUNT_ID>`, `<BUSINESS_ID>`
 A versão da API é a mesma que o produto fixa em `META_API_VERSION` (hoje `v25.0`, ver `.env.example`
 e `packages/config/src/env.ts`). O `MetaClient` recusa qualquer valor que não case com `/^v\d+\.\d+$/`.
 
-Os dois segredos (token e app secret) nunca vão para a linha de comando nem para o histórico:
-ficam em arquivos `chmod 600` e são lidos por variável de ambiente. `openssl ... -hmac "$APP_SECRET"`
-colocaria o app secret em `argv`, visível para qualquer usuário da máquina em `ps aux`.
+Os dois segredos (token e app secret) nunca aparecem na linha de comando nem no histórico. Dois
+detalhes que costumam passar batido: `openssl ... -hmac "$APP_SECRET"` deixa o app secret em `argv`,
+e `curl -d "access_token=$TOKEN"` deixa o token em `argv` — ambos visíveis em `ps aux` para qualquer
+usuário da máquina. Por isso o proof é calculado lendo do ambiente e a autenticação de cada `curl`
+vem de um arquivo de configuração `600`.
 
 ```bash
-set +o history                          # nada deste bloco entra no histórico do shell
+unset HISTFILE                          # bash e zsh: nada deste bloco vai para o histórico
+umask 077
 
 mkdir -p ~/.adpub && chmod 700 ~/.adpub
-printf '%s' '<TOKEN>'      > ~/.adpub/token       && chmod 600 ~/.adpub/token
-printf '%s' '<APP_SECRET>' > ~/.adpub/app_secret  && chmod 600 ~/.adpub/app_secret
+printf '%s' '<TOKEN>'      > ~/.adpub/token
+printf '%s' '<APP_SECRET>' > ~/.adpub/app_secret
 
 export API=v25.0
 export TOKEN=$(cat ~/.adpub/token)      # token de System User, nunca commitar
@@ -42,11 +45,17 @@ export IG_USER_ID=<IG_USER_ID>          # opcional: sem IG o anúncio roda só n
 export PROOF=$(node -e 'process.stdout.write(require("crypto").createHmac("sha256",process.env.APP_SECRET).update(process.env.TOKEN).digest("hex"))')
 
 export G="https://graph.facebook.com/$API"
-export AUTH="access_token=$TOKEN&appsecret_proof=$PROOF"
+
+# Autenticação lida de arquivo: o curl abaixo nunca recebe o token em `argv`.
+export AUTHFILE=~/.adpub/curlrc-auth
+cat > "$AUTHFILE" <<EOF
+data = "access_token=$TOKEN"
+data = "appsecret_proof=$PROOF"
+EOF
 ```
 
-O `$AUTH` é passado com `-d`/`--data-urlencode` (corpo/query montados pelo curl), não em `--url`;
-ao terminar, `unset TOKEN APP_SECRET PROOF AUTH` e `set -o history`.
+Todo `curl` daqui para baixo usa `--config "$AUTHFILE"`. Ao terminar o spike:
+`rm -f "$AUTHFILE"` e `unset TOKEN APP_SECRET PROOF AUTHFILE`.
 
 Permissões exigidas no token: `ads_management`, `business_management`, `pages_read_engagement`,
 `pages_manage_ads`.
@@ -54,7 +63,7 @@ Permissões exigidas no token: `ads_management`, `business_management`, `pages_r
 ## 1. `/me` — o token é de quem?
 
 ```bash
-curl -sG "$G/me" --data-urlencode "fields=id,name" -d "$AUTH"
+curl -sG "$G/me" --data-urlencode "fields=id,name" --config "$AUTHFILE"
 ```
 
 Mesma chamada que `getMe()` (`packages/meta-client/src/read/index.ts`).
@@ -65,21 +74,21 @@ Inventário da BM, usado pelo job de sync (`apps/worker/src/sync/connection.ts`)
 ```bash
 curl -sG "$G/$BUSINESS_ID/owned_ad_accounts" \
   --data-urlencode "fields=id,account_id,name,currency,timezone_name,account_status" \
-  -d "limit=100&$AUTH"                       # → owned_ad_accounts.json
+  -d "limit=100" --config "$AUTHFILE"                       # → owned_ad_accounts.json
 
 curl -sG "$G/$BUSINESS_ID/owned_pages" \
   --data-urlencode "fields=id,name,instagram_business_account{id,username}" \
-  -d "limit=100&$AUTH"                       # → owned_pages.json
+  -d "limit=100" --config "$AUTHFILE"                       # → owned_pages.json
 
 curl -sG "$G/$BUSINESS_ID/owned_instagram_accounts" \
-  --data-urlencode "fields=id,username" -d "limit=100&$AUTH"   # → owned_instagram_accounts.json
+  --data-urlencode "fields=id,username" -d "limit=100" --config "$AUTHFILE"   # → owned_instagram_accounts.json
 
-curl -sG "$G/$ACT/adspixels" --data-urlencode "fields=id,name" -d "limit=100&$AUTH"
+curl -sG "$G/$ACT/adspixels" --data-urlencode "fields=id,name" -d "limit=100" --config "$AUTHFILE"
                                              # → adspixels.json
 
 curl -sG "$G/$ACT/promote_pages" \
   --data-urlencode "fields=id,name,instagram_business_account{id,username}" \
-  -d "limit=100&$AUTH"                       # → promote_pages.json
+  -d "limit=100" --config "$AUTHFILE"                       # → promote_pages.json
 ```
 
 ## 2. `act_<ACCOUNT_ID>/adimages` — upload de imagem
@@ -110,7 +119,7 @@ pedaços de 4 MiB por padrão).
 curl -s -X POST "$G/$ACT/advideos" \
   -d "upload_phase=start" \
   -d "file_size=$(wc -c < video.mp4)" \
-  -d "$AUTH"
+  --config "$AUTHFILE"
 ```
 
 Devolve `upload_session_id`, `video_id`, `start_offset`, `end_offset`.
@@ -144,7 +153,7 @@ curl -s -X POST "$G/$ACT/advideos" \
   -d "upload_phase=finish" \
   -d "upload_session_id=$SESSION" \
   -d "title=video-inverno" \
-  -d "$AUTH"
+  --config "$AUTHFILE"
 ```
 
 Devolve `{"success":true}`. Resposta gravada em **`advideos_finish.json`**.
@@ -152,7 +161,7 @@ Devolve `{"success":true}`. Resposta gravada em **`advideos_finish.json`**.
 ### 3.4 Polling de `video_status`
 
 ```bash
-curl -sG "$G/$VIDEO_ID" --data-urlencode "fields=status" -d "$AUTH"
+curl -sG "$G/$VIDEO_ID" --data-urlencode "fields=status" --config "$AUTHFILE"
 ```
 
 Enquanto `status.video_status` for `processing`, o pipeline lança `VideoNotReadyError` e reagenda a
@@ -171,7 +180,7 @@ curl -s -X POST "$G/$ACT/campaigns" \
   -d "status=PAUSED" \
   -d "buying_type=AUCTION" \
   -d "special_ad_categories=[]" \
-  -d "$AUTH"
+  --config "$AUTHFILE"
 
 export CAMPAIGN_ID=<id devolvido>
 ```
@@ -192,7 +201,7 @@ curl -s -X POST "$G/$ACT/adsets" \
   -d 'targeting={"geo_locations":{"countries":["BR"]},"targeting_automation":{"advantage_audience":1}}' \
   -d "daily_budget=5000" \
   -d 'promoted_object={"pixel_id":"<PIXEL_ID>","custom_event_type":"PURCHASE"}' \
-  -d "$AUTH"
+  --config "$AUTHFILE"
 
 export ADSET_ID=<id devolvido>
 ```
@@ -212,7 +221,7 @@ curl -s -X POST "$G/$ACT/adcreatives" \
   -d "object_story_spec={\"page_id\":\"$PAGE_ID\",\"instagram_user_id\":\"$IG_USER_ID\",\"link_data\":{\"image_hash\":\"$IMAGE_HASH\",\"link\":\"https://exemplo.com.br/inverno\",\"message\":\"Texto principal\",\"name\":\"Título\",\"description\":\"Descrição\",\"call_to_action\":{\"type\":\"SHOP_NOW\",\"value\":{\"link\":\"https://exemplo.com.br/inverno\"}}}}" \
   -d 'degrees_of_freedom_spec={"creative_features_spec":{"standard_enhancements":{"enroll_status":"OPT_OUT"}}}' \
   --data-urlencode "url_tags=utm_source=facebook&utm_medium=paid" \
-  -d "$AUTH"
+  --config "$AUTHFILE"
 
 export CREATIVE_ID=<id devolvido>
 ```
@@ -230,7 +239,7 @@ curl -s -X POST "$G/$ACT/ads" \
   -d "adset_id=$ADSET_ID" \
   -d "creative={\"creative_id\":\"$CREATIVE_ID\"}" \
   -d "status=PAUSED" \
-  -d "$AUTH"
+  --config "$AUTHFILE"
 
 export AD_ID=<id devolvido>
 ```
@@ -249,7 +258,7 @@ Como o poller faz (`getAdsStatus`, até `GRAPH_BATCH_MAX` = 50 IDs por requisiç
 curl -s -X POST "$G/" \
   -d 'batch=[{"method":"GET","relative_url":"<AD_ID_1>?fields=effective_status,configured_status,ad_review_feedback"},{"method":"GET","relative_url":"<AD_ID_2>?fields=effective_status,configured_status,ad_review_feedback"}]' \
   -d "include_headers=false" \
-  -d "$AUTH"
+  --config "$AUTHFILE"
 ```
 
 Resposta gravada em **`ads_status_batch.json`**.
@@ -257,8 +266,8 @@ Resposta gravada em **`ads_status_batch.json`**.
 ## 9. Arquivamento (obrigatório no fim do spike)
 
 ```bash
-curl -s -X POST "$G/$AD_ID"       -d "status=ARCHIVED" -d "$AUTH"
-curl -s -X POST "$G/$CAMPAIGN_ID" -d "status=ARCHIVED" -d "$AUTH"
+curl -s -X POST "$G/$AD_ID"       -d "status=ARCHIVED" --config "$AUTHFILE"
+curl -s -X POST "$G/$CAMPAIGN_ID" -d "status=ARCHIVED" --config "$AUTHFILE"
 ```
 
 Mesmas chamadas de `archiveAd()` e `archiveCampaign()`, usadas por `pnpm smoke:sandbox`

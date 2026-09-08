@@ -4,32 +4,41 @@ import type { Database } from './client.js';
 /** Opt-in explícito: sem esta variável o truncate não roda. */
 export const TRUNCATE_OPT_IN = 'ADPUB_ALLOW_TRUNCATE';
 
-const TEST_DATABASES = new Set(['adpub', 'adpub_e2e', 'adpub_test']);
+const LOOPBACK = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+/**
+ * Duas condições, ambas obrigatórias, porque isto apaga 19 tabelas e é um
+ * entrypoint público do pacote:
+ *
+ * 1. `ADPUB_ALLOW_TRUNCATE=1` — definido só pelos scripts `smoke:*` e pelo
+ *    harness de e2e; nenhum processo de produto o define.
+ * 2. A URL aponta para loopback **ou** o banco tem sufixo `_test`/`_e2e`. O
+ *    nome `adpub` sozinho não vale nada: é o mesmo em dev e em produção.
+ *
+ * Ressalva conhecida: um túnel SSH de produção em `localhost` passaria pela
+ * regra 2 — a regra 1 é a que impede isso na prática.
+ */
+export function assertTruncateAllowed(url: string): void {
+  if (process.env[TRUNCATE_OPT_IN] !== '1') {
+    throw new Error(`truncateAllTables recusado: defina ${TRUNCATE_OPT_IN}=1 para permitir.`);
+  }
+  const { hostname, pathname } = new URL(url);
+  const database = pathname.replace(/^\//, '');
+  if (LOOPBACK.has(hostname.toLowerCase())) return;
+  if (/_(test|e2e)$/.test(database)) return;
+  throw new Error(
+    `truncateAllTables recusado: ${hostname}/${database} não é um banco descartável (use loopback ou sufixo _test/_e2e).`,
+  );
+}
 
 /**
  * Limpa todas as tabelas de dados. Existe para o smoke de integração, para o
  * harness de e2e e para testes locais — nunca é chamado pela API nem pelos
- * workers.
- *
- * As duas guardas existem porque isto é um entrypoint público do pacote: um
- * `DATABASE_URL` apontado para produção apagaria tudo sem aviso. Exigimos o
- * opt-in `ADPUB_ALLOW_TRUNCATE=1` (só os scripts de fumaça/e2e o definem) e um
- * nome de banco reconhecidamente local (`adpub`, `adpub_e2e`, `*_test`,
- * `*_e2e`).
+ * workers. A URL vem separada do handle porque é ela que diz para onde a
+ * conexão aponta.
  */
-export async function truncateAllTables(db: Database): Promise<void> {
-  if (process.env[TRUNCATE_OPT_IN] !== '1') {
-    throw new Error(`truncateAllTables recusado: defina ${TRUNCATE_OPT_IN}=1 para permitir.`);
-  }
-  const rows = (await db.execute(sql`select current_database() as name`)) as unknown as {
-    name: string;
-  }[];
-  const name = rows[0]?.name ?? '';
-  if (!TEST_DATABASES.has(name) && !/_(test|e2e)$/.test(name)) {
-    throw new Error(
-      `truncateAllTables recusado: banco "${name}" não é de teste (use ${[...TEST_DATABASES].join(', ')} ou sufixo _test/_e2e).`,
-    );
-  }
+export async function truncateAllTables(db: Database, url: string): Promise<void> {
+  assertTruncateAllowed(url);
   await db.execute(sql`truncate table
     audit_log, meta_api_calls, ai_generations, publish_jobs, batch_refs, ad_drafts,
     batches, asset_uploads, assets, user_ad_accounts, users, pixels, adsets_cache,
