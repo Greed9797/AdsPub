@@ -5,6 +5,11 @@ campanha, conjunto, criativo e anúncio **sempre `PAUSED`**, e arquivar tudo no 
 coisas: validar as permissões do System User, gravar o screencast do App Review (`docs/meta-app-review.md`)
 e regravar as fixtures de contrato de `packages/meta-client/test/fixtures/`.
 
+> **Estado atual das fixtures**: foram escritas a partir do formato documentado da Graph API, não
+> gravadas de uma conta real. Elas travam o contrato que o cliente espera (campos, tipos, erros),
+> mas a primeira execução deste runbook em conta de teste deve regravá-las (§"Como regravar uma
+> fixture") para capturar campos que a Meta devolva a mais.
+
 Nada aqui usa segredo real: substitua `<TOKEN>`, `<ACCOUNT_ID>`, `<BUSINESS_ID>`, `<PAGE_ID>`,
 `<IG_USER_ID>` e `<APP_SECRET>` pelos valores da sua conta de teste, **fora do repositório**.
 
