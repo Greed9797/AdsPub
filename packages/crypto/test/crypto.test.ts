@@ -76,6 +76,24 @@ describe('mask/redact', () => {
     const texto = 'act_1030000000001 sha256 3f786850e387550fdab836ed7e6dc881de23001b';
     expect(maskText(texto)).toBe(texto);
   });
+
+  it('não quebra linha JSON já serializada com aspa escapada', () => {
+    const linha = JSON.stringify({ msg: 'falhou ?access_token=EAAx123456" detalhe' });
+    const mascarada = maskText(linha);
+
+    const entry = JSON.parse(mascarada) as { msg: string };
+    expect(entry.msg).toBe('falhou ?access_token=[redacted]" detalhe');
+    expect(mascarada).not.toContain('EAAx123456');
+  });
+
+  it('preserva o resto da linha JSON com barra invertida no texto', () => {
+    const linha = JSON.stringify({ err: 'token=EAAx123456\\ caminho C:\\tmp', ok: 1 });
+    const entry = JSON.parse(maskText(linha)) as { err: string; ok: number };
+
+    expect(entry.err).not.toContain('EAAx123456');
+    expect(entry.err).toContain('caminho');
+    expect(entry.ok).toBe(1);
+  });
 });
 
 describe('idempotencyKey', () => {

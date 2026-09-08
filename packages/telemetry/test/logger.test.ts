@@ -99,6 +99,18 @@ describe('redactingLogger (Constituição VI / SC-006)', () => {
     expect(lines()).toContain('adpub.sync');
   });
 
+  it('linha continua sendo JSON válido quando o texto tem aspa escapada', () => {
+    const { stream, lines } = capture();
+    const log = redactingLogger('info', stream);
+
+    log.error({ detalhe: `?access_token=${TOKEN}" e aspas` }, `msg ?access_token=${TOKEN}" fim`);
+
+    const entry = JSON.parse(lines().trim()) as { msg?: string; detalhe?: string };
+    expect(entry.msg).toBe('msg ?access_token=[redacted]" fim');
+    expect(entry.detalhe).toBe('?access_token=[redacted]" e aspas');
+    expect(lines()).not.toContain(TOKEN);
+  });
+
   it('não transforma Date e Buffer em objeto vazio', () => {
     const { stream, lines } = capture();
     const log = redactingLogger('info', stream);

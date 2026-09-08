@@ -120,7 +120,8 @@ sendo decisão humana no Ads Manager.
   redator por chave não alcança isso. `redact` aplica em toda string, então log, auditoria e
   `meta_api_calls` nascem limpos.
 - API e worker usam o mesmo `redactingLogger`, que mascara a linha já serializada
-  (`hooks.streamWrite`) — `formatters.log` e `hooks.logMethod` rodam antes dos serializers, então
+  (`hooks.streamWrite`; o padrão nunca consome a barra de um `\"`, então a linha continua sendo
+  JSON válido) — `formatters.log` e `hooks.logMethod` rodam antes dos serializers, então
   `req.url` do Fastify escapava por ali. Como nada mais reescreve o objeto de log, `req`, `res` e
   `err` chegam íntegros ao serializer.
 - O mesmo mascaramento cobre o evento do Sentry, os breadcrumbs do integration HTTP e os atributos

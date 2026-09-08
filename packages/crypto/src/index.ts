@@ -81,7 +81,12 @@ const SECRET_KEYS = [
 /** Chaves que viajam na query string da Graph API e do Google. */
 const QUERY_KEYS = ['access_token', 'appsecret_proof', 'token', 'client_secret', 'refresh_token'];
 
-const QUERY_PATTERN = new RegExp(`((?:^|[?&])(?:${QUERY_KEYS.join('|')})=)([^&\\s"']+)`, 'gi');
+/**
+ * A barra fica fora da classe de propósito: mascarar sobre uma linha JSON já
+ * serializada não pode consumir o `\` de um `\"` — a aspa sobraria sem escape
+ * e a linha inteira deixaria de fazer `JSON.parse`.
+ */
+const QUERY_PATTERN = new RegExp(`((?:^|[?&])(?:${QUERY_KEYS.join('|')})=)([^&\\s"'\\\\]+)`, 'gi');
 
 /**
  * Token de System User / usuário da Meta. A Graph API **ecoa o token dentro da
