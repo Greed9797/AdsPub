@@ -15,6 +15,7 @@ import { mintSessionToken } from '@adpub/auth';
 import {
   createConnection,
   createDb,
+  deleteDraftsOfBatch,
   getBatch,
   getDraft,
   listAudit,
@@ -758,11 +759,14 @@ async function main(): Promise<void> {
   const loteApos = await getBatch(db, atomBatch.id);
   check('plano antigo preservado no rollback', loteApos?.plan?.notes !== 'nunca-grava', loteApos?.plan?.notes);
 
-  // Trocas concorrentes: o lock do lote as serializa. Sem ele, uma apaga os
-  // itens que a outra acabou de inserir e o plano gravado deixa de bater com
-  // os itens do lote.
+  // Trocas concorrentes. Rodadas pares começam **sem itens**: não existe linha
+  // de `ad_drafts` para travar, então só o `for update` no lote serializa as
+  // duas. Rodadas ímpares começam com itens (aí o lock dos itens também vale).
+  // Sem serialização, uma apaga o que a outra inseriu e o plano gravado deixa
+  // de bater com os itens (ou o insert colide no unique de `position`).
   const problemas: string[] = [];
   for (let rodada = 0; rodada < 10; rodada += 1) {
+    if (rodada % 2 === 0) await deleteDraftsOfBatch(db, atomBatch.id);
     const disputa = await Promise.allSettled([
       swapBatchPlan(db, {
         batchId: atomBatch.id,
@@ -792,7 +796,7 @@ async function main(): Promise<void> {
       problemas.push(`rodada ${rodada}: plano ${notas} com ${itens.map((i) => i.name).join(',')}`);
     }
   }
-  check('10 pares de trocas concorrentes sem perda nem mistura', problemas.length === 0, problemas.slice(0, 3));
+  check('10 pares de trocas concorrentes (5 com lote vazio) sem perda nem mistura', problemas.length === 0, problemas.slice(0, 3));
 
   await app.close();
   redis.disconnect();
