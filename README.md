@@ -29,7 +29,7 @@ pnpm workspaces + Turborepo, TypeScript em Node 22.
 | [`packages/config`](packages/config) | Parsing de ambiente com zod (falha rápido se faltar segredo) e as constantes do produto: limites de copy, specs de mídia, retry, concorrência por tier, nomes de fila |
 | [`packages/shared`](packages/shared) | Schemas zod compartilhados (fonte de verdade entre UI, API, worker e IA), enums, máquina de estados da publicação e o JSON Schema do tool use |
 | [`packages/db`](packages/db) | Drizzle ORM + Postgres: schema, repositórios por entidade e migrações |
-| [`packages/crypto`](packages/crypto) | AES-256-GCM para tokens, `mask()`/`redact()` para logs e auditoria, `appsecretProof()` e a `idempotencyKey` dos itens |
+| [`packages/crypto`](packages/crypto) | AES-256-GCM para tokens, `mask()`/`redact()`/`maskText()` para logs e auditoria (inclusive o token que a Meta ecoa dentro da mensagem de erro), `appsecretProof()` e a `idempotencyKey` dos itens |
 | [`packages/auth`](packages/auth) | Login Google restrito ao domínio corporativo e sessão JWT (`jose`) |
 | [`packages/meta-client`](packages/meta-client) | Cliente da Graph API: leituras, escritas (importáveis só pelo worker), leitura dos headers de rate limit e classificação/tradução de erros |
 | [`packages/ai`](packages/ai) | Anthropic: prompts versionados em `prompts/*.md`, tool use forçado, normalização da saída e custo por geração |

@@ -1,6 +1,6 @@
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import { MAX_UPLOAD_BYTES } from '@adpub/config';
 import { redactingLogger } from '@adpub/telemetry';
 import { registerAuth } from './plugins/auth.js';
@@ -14,20 +14,22 @@ import { clientRoutes } from './routes/clients.js';
 import { connectionRoutes } from './routes/connections.js';
 import { healthRoutes } from './routes/health.js';
 import { userRoutes } from './routes/users.js';
-import type { Logger } from 'pino';
 import type { ApiDeps } from './lib/deps.js';
 
 export interface BuildOptions {
   /** `true` usa o logger com redator (Constituição VI); instância própria também vale. */
-  logger?: boolean | Logger;
+  logger?: boolean | FastifyBaseLogger;
   corsOrigin?: string;
   docs?: boolean;
 }
 
 /** Fábrica testável: nenhuma dependência global, tudo injetado. */
 export async function buildApp(deps: ApiDeps, options: BuildOptions = {}): Promise<FastifyInstance> {
+  // Fastify 5 recusa instância de logger em `logger`: instância vai em `loggerInstance`.
+  const loggerInstance: FastifyBaseLogger | undefined =
+    options.logger === true ? redactingLogger('info') : (options.logger || undefined);
   const app = Fastify({
-    logger: options.logger === true ? redactingLogger('info') : (options.logger ?? false),
+    ...(loggerInstance ? { loggerInstance } : {}),
     bodyLimit: 2 * 1024 * 1024,
     trustProxy: true,
   });

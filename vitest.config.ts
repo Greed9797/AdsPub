@@ -16,6 +16,7 @@ export default defineConfig({
       '@adpub/db': pkg('db'),
       '@adpub/ai': pkg('ai'),
       '@adpub/meta-client': pkg('meta-client'),
+      '@adpub/telemetry': pkg('telemetry'),
     },
   },
   test: {

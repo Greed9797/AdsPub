@@ -114,10 +114,15 @@ sendo decisão humana no Ads Manager.
   `telemetry`.
 - Observabilidade opcional: rastros OpenTelemetry (`OTEL_EXPORTER_OTLP_ENDPOINT`) e erros no
   Sentry (`SENTRY_DSN`). Sem essas variáveis nenhum SDK é carregado.
-- Token nunca sai em texto: API e worker compartilham o mesmo logger pino com redator por chave
-  **e** mascaramento de `access_token`/`appsecret_proof` na query string — que aparece dentro de
-  mensagem, stack e URL, onde redator por chave não alcança. O mesmo mascaramento cobre o evento
-  do Sentry, os breadcrumbs do integration HTTP e os atributos de URL dos spans do OpenTelemetry.
+- Token nunca sai em texto: `maskText` (em `packages/crypto`, junto de `mask`/`redact`) mascara
+  segredo em query string **e** o token da Meta em texto livre — a Graph API ecoa
+  `Malformed access token EAA…` dentro da mensagem de erro, fora de qualquer `chave=valor`, e o
+  redator por chave não alcança isso. `redact` aplica em toda string, então log, auditoria e
+  `meta_api_calls` nascem limpos.
+- API e worker usam o mesmo `redactingLogger`; o mascaramento preserva `Error` (mensagem e stack) e
+  as instâncias que o Fastify serializa (`req`/`res`), copiando só objeto literal e array.
+- O mesmo mascaramento cobre o evento do Sentry, os breadcrumbs do integration HTTP e os atributos
+  de URL dos spans do OpenTelemetry.
 - API Fastify com contrato OpenAPI publicado em `/docs` e erros em `application/problem+json`.
 - Regra de lint que impede qualquer código fora do worker de importar as escritas da Graph API.
 - Versão da Graph API fixada por configuração (`META_API_VERSION`) e validada no boot e no cliente.

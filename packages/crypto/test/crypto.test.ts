@@ -4,6 +4,7 @@ import {
   appsecretProof,
   idempotencyKey,
   mask,
+  maskText,
   redact,
   stableHash,
 } from '../src/index.js';
@@ -55,6 +56,25 @@ describe('mask/redact', () => {
     expect(json).not.toContain('EAAGsupersecreto123');
     expect(json).not.toContain('deadbeef');
     expect(json).toContain('ad 1');
+  });
+
+  it('mascara o token que a Meta ecoa em texto livre, fora de chave=valor', () => {
+    const token = 'EAA-token-de-system-user-1234567890';
+    // Mensagem literal da Graph API — o caminho de erro mais comum do worker.
+    expect(maskText(`Malformed access token ${token}`)).toBe('Malformed access token [redacted]');
+    expect(redact({ err: `Malformed access token ${token}` })).toEqual({
+      err: 'Malformed access token [redacted]',
+    });
+  });
+
+  it('mascara segredo na query string sem comer o resto da URL', () => {
+    const out = maskText('https://graph.facebook.com/v25.0/me?access_token=EAAx123456&fields=id');
+    expect(out).toBe('https://graph.facebook.com/v25.0/me?access_token=[redacted]&fields=id');
+  });
+
+  it('não mascara id, hash nem nome de conta', () => {
+    const texto = 'act_1030000000001 sha256 3f786850e387550fdab836ed7e6dc881de23001b';
+    expect(maskText(texto)).toBe(texto);
   });
 });
 

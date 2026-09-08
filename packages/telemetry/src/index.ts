@@ -1,4 +1,4 @@
-import { redact } from '@adpub/crypto';
+import { maskText, redact } from '@adpub/crypto';
 import pino, { type DestinationStream, type Logger, type LoggerOptions } from 'pino';
 
 /**
@@ -36,30 +36,51 @@ interface SentryEventLike {
   request?: RequestLike | undefined;
 }
 
-/** Chaves que a Meta e o Google carregam na query string (client.ts monta assim). */
-const SENSITIVE_QUERY = ['access_token', 'appsecret_proof', 'token', 'client_secret', 'refresh_token'];
-
-const QUERY_PATTERN = new RegExp(`((?:^|[?&])(?:${SENSITIVE_QUERY.join('|')})=)([^&\\s"']+)`, 'gi');
+/** O mascaramento de texto vive em `@adpub/crypto`, junto de `mask`/`redact`. */
+export { maskText } from '@adpub/crypto';
 
 /**
- * Mascara segredo em query string dentro de qualquer texto — URL completa,
- * `query_string` solta, mensagem de erro ou stack. Mascarar por chave não basta:
- * o token da Graph viaja como parâmetro, dentro de uma string.
+ * Aplica `maskText` em toda string alcançável do valor.
+ *
+ * Só copia objeto literal e array. Instância de classe passa **intacta**:
+ * `Object.entries` de um `Request` do Fastify, `Date` ou `URL` devolve `{}`
+ * (propriedades no protótipo ou non-enumerable) e o log perderia o dado — foi
+ * exatamente o que aconteceu com `req`/`res`/`err`. `Error` tem ramo próprio
+ * porque `message`/`stack` são non-enumerable e precisam ser mascarados.
  */
-export function maskSecretsInText(text: string): string {
-  return text.replace(QUERY_PATTERN, '$1[redacted]');
-}
-
-/** Aplica `maskSecretsInText` em toda string alcançável do valor. */
 function maskDeep<T>(value: T, depth = 0): T {
-  if (typeof value === 'string') return maskSecretsInText(value) as T;
+  if (typeof value === 'string') return maskText(value) as T;
   if (depth > 8 || value === null || typeof value !== 'object') return value;
+  if (value instanceof Error) return maskError(value, depth) as T;
+  if (value instanceof URL) return maskText(value.toString()) as T;
   if (Array.isArray(value)) return value.map((item) => maskDeep(item, depth + 1)) as T;
+  const proto = Object.getPrototypeOf(value) as object | null;
+  if (proto !== Object.prototype && proto !== null) return value;
   const out: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
     out[key] = maskDeep(item, depth + 1);
   }
   return out as T;
+}
+
+/**
+ * Cópia mascarada preservando o protótipo: o serializador do pino usa
+ * `constructor.name`, então um `MetaApiError` continua aparecendo como tal.
+ */
+function maskError(error: Error, depth: number): Error {
+  const copy = Object.create(Object.getPrototypeOf(error) as object) as Error;
+  // Propriedades próprias (code, statusCode, subcode) entram mascaradas.
+  for (const [key, item] of Object.entries(error)) {
+    (copy as unknown as Record<string, unknown>)[key] = maskDeep(item, depth + 1);
+  }
+  define(copy, 'message', maskText(error.message));
+  if (error.stack) define(copy, 'stack', maskText(error.stack));
+  if (error.cause !== undefined) define(copy, 'cause', maskDeep(error.cause, depth + 1));
+  return copy;
+}
+
+function define(target: object, key: string, value: unknown): void {
+  Object.defineProperty(target, key, { value, writable: true, configurable: true });
 }
 
 /**
@@ -82,7 +103,7 @@ export function scrubBreadcrumb<T>(breadcrumb: T): T {
  */
 export function scrubSpanAttributes(attributes: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(attributes)) {
-    if (typeof value === 'string') attributes[key] = maskSecretsInText(value);
+    if (typeof value === 'string') attributes[key] = maskText(value);
   }
 }
 

@@ -78,6 +78,26 @@ const SECRET_KEYS = [
   'password',
 ];
 
+/** Chaves que viajam na query string da Graph API e do Google. */
+const QUERY_KEYS = ['access_token', 'appsecret_proof', 'token', 'client_secret', 'refresh_token'];
+
+const QUERY_PATTERN = new RegExp(`((?:^|[?&])(?:${QUERY_KEYS.join('|')})=)([^&\\s"']+)`, 'gi');
+
+/**
+ * Token de System User / usuário da Meta. A Graph API **ecoa o token dentro da
+ * mensagem de erro em texto livre** ("Malformed access token EAA…"), fora de
+ * qualquer `chave=valor` — daí um padrão para o formato do próprio token.
+ */
+const META_TOKEN_PATTERN = /EAA[A-Za-z0-9_-]{6,}/g;
+
+/**
+ * Mascara segredo dentro de texto: URL completa, query string solta, mensagem
+ * de erro da Meta, stack. Mascarar por chave não alcança nada disso.
+ */
+export function maskText(text: string): string {
+  return text.replace(QUERY_PATTERN, '$1[redacted]').replace(META_TOKEN_PATTERN, '[redacted]');
+}
+
 /** Remove segredos de objetos que vão para log/auditoria. */
 export function redact<T>(value: T): T {
   return redactUnknown(value, 0) as T;
@@ -85,6 +105,7 @@ export function redact<T>(value: T): T {
 
 function redactUnknown(value: unknown, depth: number): unknown {
   if (depth > 8) return '[profundidade máxima]';
+  if (typeof value === 'string') return maskText(value);
   if (Array.isArray(value)) return value.map((v) => redactUnknown(v, depth + 1));
   if (value && typeof value === 'object') {
     if (Buffer.isBuffer(value)) return `[buffer ${value.length}B]`;
