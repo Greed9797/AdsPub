@@ -143,6 +143,7 @@ Cache de ativos: `id text pk`, `name`, `connection_id`, `raw jsonb`, `synced_at`
 | idempotency_key | text unique | |
 | edited_fields | text[] | rastro de edição humana |
 | version | int | |
+| lease_owner, lease_until | text null / timestamptz null | exclusão mútua entre entregas simultâneas do mesmo job; dono por execução, expira e libera se o worker morrer |
 
 ### batch_refs (locks de objetos "novos")
 `batch_id uuid`, `ref_key text` (ex. `campaign:frio-set`), `kind enum campaign|adset`, `meta_id text null`, `state enum pending|created|failed` — PK `(batch_id, ref_key)`. Criação usa `INSERT ... ON CONFLICT DO NOTHING RETURNING`; quem inseriu cria; os demais aguardam `meta_id`.

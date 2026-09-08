@@ -18,6 +18,7 @@ import {
   deleteDraftsOfBatch,
   getBatch,
   getDraft,
+  markDraftsQueued,
   listAudit,
   listDraftsOfBatch,
   setAccountPages,
@@ -818,6 +819,97 @@ async function main(): Promise<void> {
       execucoes,
       erros,
     },
+  );
+
+  phase('SC-004 — entrega duplicada do mesmo job cria um anúncio só');
+  // O BullMQ reentrega job considerado travado (`stalledInterval`) e um worker
+  // reiniciado deixa o anterior terminando: duas execuções do MESMO item podem
+  // correr juntas. O primeiro item cria campanha e conjunto, então as refs
+  // ficam `ready` e o claim de ref não serializa mais nada — o lease do item é
+  // a única defesa contra dois anúncios na Meta.
+  const dupBatch = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/batches',
+      headers: auth,
+      payload: {
+        client_id: client.id,
+        ad_account_id: stressAccount,
+        name: 'Lote entrega duplicada',
+        mode: 'manual',
+      },
+    })
+    .then((r) => r.json())) as { id: string };
+  expect<{ items: Array<{ id: string }> }>(
+    'lote de entrega duplicada com 2 itens',
+    await app.inject({
+      method: 'PUT',
+      url: `/api/v1/batches/${dupBatch.id}/plan`,
+      headers: auth,
+      payload: {
+        ...manualPlan,
+        campaigns: [{ ...manualPlan.campaigns[0], key: 'dup-c1' }],
+        adsets: [{ ...manualPlan.adsets[0], key: 'dup-a1', campaign_key: 'dup-c1' }],
+        items: [
+          {
+            ...manualPlan.items[0],
+            campaign_ref: { kind: 'new', key: 'dup-c1' },
+            adset_ref: { kind: 'new', key: 'dup-a1' },
+            copies: [manualCopy('d1'), manualCopy('d2')],
+          },
+        ],
+      },
+    }),
+    200,
+  );
+  await app.inject({ method: 'POST', url: `/api/v1/batches/${dupBatch.id}/validate`, headers: auth });
+  // `POST /publish` marcaria `queued` e o stub de fila publicaria os dois itens
+  // inline; aqui precisamos controlar a concorrência, então fazemos o mesmo que
+  // a rota faz (`markDraftsQueued`) e chamamos o worker na mão.
+  const dupItems = await listDraftsOfBatch(db, dupBatch.id);
+  await markDraftsQueued(db, dupItems.map((item) => item.id));
+  await runPublish(
+    workerCtx,
+    metaFactory,
+    alert,
+    { draftId: dupItems[0]!.id, adAccountId: stressAccount, batchId: dupBatch.id },
+    1,
+  );
+  const adsAntes = graph.count(`POST ${stressAccount}/ads`);
+  const entregas = await Promise.allSettled(
+    [1, 2, 3, 4].map(() =>
+      runPublish(
+        workerCtx,
+        metaFactory,
+        alert,
+        { draftId: dupItems[1]!.id, adAccountId: stressAccount, batchId: dupBatch.id },
+        1,
+      ),
+    ),
+  );
+  const dupFinal = await getDraft(db, dupItems[1]!.id);
+  check(
+    '4 entregas simultâneas do mesmo item criam 1 anúncio',
+    graph.count(`POST ${stressAccount}/ads`) - adsAntes === 1,
+    { antes: adsAntes, depois: graph.count(`POST ${stressAccount}/ads`) },
+  );
+  check(
+    'as entregas perdedoras são recusadas como transitórias',
+    entregas.filter((e) => e.status === 'rejected').length === 3 &&
+      entregas.every(
+        (e) => e.status === 'fulfilled' || (e.reason as Error).name === 'DraftBusyError',
+      ),
+    entregas.map((e) => (e.status === 'fulfilled' ? 'ok' : (e.reason as Error).name)),
+  );
+  check(
+    'item termina published com um único ad_id',
+    dupFinal?.status === 'published' && !!dupFinal.metaIds?.ad_id,
+    { status: dupFinal?.status, metaIds: dupFinal?.metaIds },
+  );
+  check(
+    'lease liberado no fim da execução',
+    !dupFinal?.leaseOwner && !dupFinal?.leaseUntil,
+    { leaseOwner: dupFinal?.leaseOwner, leaseUntil: dupFinal?.leaseUntil },
   );
 
   phase('FR-006 — troca de plano é atômica');

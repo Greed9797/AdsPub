@@ -7,6 +7,8 @@ import {
   countDraftsByStatus,
   refreshBatchStatus,
   saveMetaIds,
+  releaseDraft,
+  claimDraft,
   setDraftStep,
   transitionDraft,
   upsertPublishJob,
@@ -29,6 +31,7 @@ import type { Alerter } from '../alerts.js';
 import type { WorkerContext } from '../context.js';
 import type { MetaFactory } from '../meta.js';
 import { VideoNotReadyError, ensureImageHash, ensureVideoReady } from './media.js';
+import { randomUUID } from 'node:crypto';
 import { RefPendingError, ensureAdset, ensureCampaign } from './refs.js';
 
 export interface PublishJobData {
@@ -47,12 +50,38 @@ export class AccountPausedError extends Error {
   }
 }
 
+export class DraftBusyError extends Error {
+  constructor(readonly draftId: string) {
+    super(`Item ${draftId} já está em publicação por outro worker. Reagendado.`);
+    this.name = 'DraftBusyError';
+  }
+}
+
 /**
  * Máquina de estados de publicação (R4). Cada etapa persiste o ID retornado
  * antes de avançar: reprocessar retoma na etapa salva e nunca duplica objeto.
  * Constituição I: este é o único caminho de escrita na Meta.
  */
 export async function runPublish(
+  ctx: WorkerContext,
+  meta: MetaFactory,
+  alert: Alerter,
+  data: PublishJobData,
+  attempt: number,
+): Promise<{ status: AdDraftRow['status']; adId?: string }> {
+  // Uma execução por item: sem isso duas entregas do mesmo job leem `meta_ids`
+  // vazio ao mesmo tempo e criam dois anúncios na Meta (SC-004). O dono é por
+  // execução — dois jobs do mesmo worker não podem compartilhar o lease.
+  const owner = `${process.pid}:${randomUUID()}`;
+  if (!(await claimDraft(ctx.db, data.draftId, owner))) throw new DraftBusyError(data.draftId);
+  try {
+    return await publishLocked(ctx, meta, alert, data, attempt);
+  } finally {
+    await releaseDraft(ctx.db, data.draftId, owner);
+  }
+}
+
+async function publishLocked(
   ctx: WorkerContext,
   meta: MetaFactory,
   alert: Alerter,

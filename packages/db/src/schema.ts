@@ -356,6 +356,9 @@ export const adDrafts = pgTable(
     editedFields: text('edited_fields').array().notNull().default(sql`'{}'::text[]`),
     version: integer('version').notNull().default(1),
     publishedAt: timestamp('published_at', { withTimezone: true }),
+    /** Dono da execução em curso (por job, não por worker) e validade do lease. */
+    leaseOwner: text('lease_owner'),
+    leaseUntil: timestamp('lease_until', { withTimezone: true }),
     createdAt,
     updatedAt,
   },

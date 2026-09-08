@@ -70,6 +70,12 @@ sendo decisão humana no Ads Manager.
   conta.
 - Reprocessamento idempotente: reexecutar um item retoma da etapa que falhou e nunca cria objeto
   duplicado; campanha e conjunto "novos" citados por vários itens são criados uma única vez.
+- Uma execução por item, garantida por lease em `ad_drafts` (`lease_owner`/`lease_until`): duas
+  entregas simultâneas do mesmo job — o BullMQ reentrega job que considera travado, e worker
+  reiniciado deixa o anterior terminando — leriam `meta_ids` vazio ao mesmo tempo e criariam dois
+  anúncios na Meta, com um ficando órfão. A perdedora é recusada e reagendada em 2s. O dono é por
+  execução, não por worker: com `publishConcurrency > 1` dois jobs do mesmo processo dividiriam o
+  lease.
 - Erros transientes fazem retry com backoff exponencial; erros permanentes param no item, com
   mensagem traduzida para português e a resposta original disponível em "detalhes"; o resto do lote
   continua.

@@ -11,6 +11,7 @@ export * from './repos/batches.js';
 export * from './repos/drafts.js';
 export * from './repos/batch-refs.js';
 export * from './repos/jobs.js';
+export * from './repos/locks.js';
 export * from './repos/meta-calls.js';
 export * from './repos/ai-generations.js';
 export { assertTruncateAllowed, truncateAllTables, TRUNCATE_OPT_IN } from './testing.js';
