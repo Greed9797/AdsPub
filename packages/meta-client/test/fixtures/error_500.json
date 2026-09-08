@@ -1,0 +1,8 @@
+{
+  "error": {
+    "message": "An unexpected error has occurred",
+    "type": "OAuthException",
+    "code": 2,
+    "fbtrace_id": "AbCdEf500"
+  }
+}

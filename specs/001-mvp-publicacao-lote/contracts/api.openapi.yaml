@@ -1,0 +1,494 @@
+openapi: 3.1.0
+info:
+  title: AdPub — API interna (feature 001)
+  version: 0.1.0
+  description: >
+    Contrato entre a UI (Next.js) e a API (Fastify). Toda rota exige sessão
+    (cookie Auth.js) e é filtrada por papel + escopo de conta.
+    Nenhuma rota chama a Meta para escrita de forma síncrona: escrita é enfileirada.
+servers:
+  - url: /api/v1
+security:
+  - session: []
+
+paths:
+  /connections:
+    get:
+      summary: Lista conexões com a BM (admin)
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Connection" } } } } } }
+    post:
+      summary: Cria conexão (testa token, cifra e salva)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [business_id, label, token]
+              properties:
+                business_id: { type: string }
+                label: { type: string }
+                token: { type: string, writeOnly: true }
+      responses:
+        "201": { description: Criada, content: { application/json: { schema: { $ref: "#/components/schemas/Connection" } } } }
+        "422": { $ref: "#/components/responses/Problem" }
+  /connections/{id}/test:
+    post:
+      summary: Reexecuta teste de conexão e atualiza tier/status
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Connection" } } } } }
+  /connections/{id}/sync:
+    post:
+      summary: Enfileira sincronização de contas, páginas, IGs, pixels, campanhas e conjuntos
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "202": { description: Enfileirado, content: { application/json: { schema: { $ref: "#/components/schemas/JobRef" } } } } }
+
+  /ad-accounts:
+    get:
+      summary: Contas visíveis ao usuário
+      parameters:
+        - { name: client_id, in: query, schema: { type: string, format: uuid } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/AdAccount" } } } } } }
+  /ad-accounts/{id}:
+    patch:
+      summary: Define padrões da conta (página, IG, pixel, cliente, teto/dia)
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/AdAccountDefaults" } } } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/AdAccount" } } } } }
+  /ad-accounts/{id}/campaigns:
+    get:
+      summary: Campanhas ativas (cache) para seletor
+      parameters: [{ $ref: "#/components/parameters/Id" }, { name: q, in: query, schema: { type: string } }]
+      responses: { "200": { description: OK } }
+  /ad-accounts/{id}/adsets:
+    get:
+      summary: Conjuntos ativos (cache) para seletor
+      parameters: [{ $ref: "#/components/parameters/Id" }, { name: campaign_id, in: query, schema: { type: string } }]
+      responses: { "200": { description: OK } }
+  /ad-accounts/{id}/health:
+    get:
+      summary: Uso de rate limit, tier, erros 24h, jobs pendentes (P3)
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/AccountHealth" } } } } }
+
+  /clients:
+    get: { summary: Lista clientes, responses: { "200": { description: OK } } }
+    post:
+      summary: Cria cliente
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Client" } } } }
+      responses: { "201": { description: Criado } }
+  /clients/{id}:
+    patch:
+      summary: Atualiza perfil de voz, nomenclatura, UTM, política
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Client" } } } }
+      responses: { "200": { description: OK } }
+
+  /assets:
+    get:
+      summary: Biblioteca do cliente
+      parameters:
+        - { name: client_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: kind, in: query, schema: { type: string, enum: [image, video] } }
+        - { name: status, in: query, schema: { type: string, enum: [ok, rejected] } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Asset" } } } } } }
+    post:
+      summary: Upload direto (multipart) — valida e deduplica
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                client_id: { type: string, format: uuid }
+                files: { type: array, items: { type: string, format: binary } }
+      responses: { "201": { description: Criados/reaproveitados, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Asset" } } } } } }
+  /assets/import-drive:
+    post:
+      summary: Enfileira importação de pasta do Google Drive
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [client_id, folder_url]
+              properties:
+                client_id: { type: string, format: uuid }
+                folder_url: { type: string }
+                recursive: { type: boolean, default: true }
+      responses: { "202": { description: Enfileirado, content: { application/json: { schema: { $ref: "#/components/schemas/JobRef" } } } } }
+
+  /batches:
+    get:
+      summary: Lista lotes (filtros por conta, status, autor)
+      responses: { "200": { description: OK } }
+    post:
+      summary: Cria lote em rascunho
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [client_id, ad_account_id, name, mode]
+              properties:
+                client_id: { type: string, format: uuid }
+                ad_account_id: { type: string }
+                name: { type: string }
+                mode: { type: string, enum: [ai, manual] }
+                briefing: { type: string }
+                asset_ids: { type: array, items: { type: string, format: uuid } }
+      responses: { "201": { description: Criado, content: { application/json: { schema: { $ref: "#/components/schemas/Batch" } } } } }
+  /batches/{id}:
+    get:
+      summary: Lote com itens
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Batch" } } } } }
+    patch:
+      summary: Atualiza nome/briefing/opções (bloqueio otimista por version)
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "200": { description: OK }, "409": { $ref: "#/components/responses/Problem" } }
+  /batches/{id}/plan:
+    post:
+      summary: Gera BatchPlan com IA (síncrono, ≤ 40 s) a partir de briefing + assets + conta
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                copies_per_creative: { type: integer, default: 3, minimum: 1, maximum: 5 }
+                regenerate: { type: boolean, default: false }
+      responses:
+        "200": { description: Plano gerado e itens criados/atualizados, content: { application/json: { schema: { $ref: "#/components/schemas/Batch" } } } }
+        "422": { $ref: "#/components/responses/Problem" }
+    put:
+      summary: Grava o BatchPlan do construtor manual (FR-008) e recria os itens do lote
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BatchPlan" }
+      responses:
+        "200": { description: Plano salvo e itens criados, content: { application/json: { schema: { $ref: "#/components/schemas/Batch" } } } }
+        "404": { $ref: "#/components/responses/Problem" }
+        "422": { $ref: "#/components/responses/Problem" }
+  /batches/{id}/items:
+    post:
+      summary: Adiciona itens manualmente (modo manual ou complemento)
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/AdDraftInput" } } } } }
+      responses: { "201": { description: OK } }
+  /batches/{id}/items/{itemId}:
+    patch:
+      summary: Edita item (copy, refs, criativo, nome)
+      parameters: [{ $ref: "#/components/parameters/Id" }, { name: itemId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/AdDraftInput" } } } }
+      responses: { "200": { description: OK }, "409": { $ref: "#/components/responses/Problem" } }
+    delete:
+      summary: Remove item (só se draft/blocked/ready/queued)
+      parameters: [{ $ref: "#/components/parameters/Id" }, { name: itemId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { "204": { description: Removido } }
+  /batches/{id}/validate:
+    post:
+      summary: Roda validação em todos os itens; retorna erros/avisos/política
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/ValidationReport" } } } } }
+  /batches/{id}/publish:
+    post:
+      summary: Enfileira publicação dos itens ready (status inicial sempre PAUSED no MVP)
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                only_failed: { type: boolean, default: false, description: "Reprocessar apenas itens failed" }
+                confirm_count: { type: integer, description: "Nº de itens que a UI mostrou ao usuário — deve bater com o servidor" }
+      responses:
+        "202": { description: Enfileirado }
+        "409": { description: "Lote bloqueado, teto diário atingido ou confirm_count divergente", $ref: "#/components/responses/Problem" }
+  /batches/{id}/duplicate:
+    post:
+      summary: Duplica lote para outra conta com remapeamento (P2)
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [ad_account_id], properties: { ad_account_id: { type: string } } } } } }
+      responses: { "201": { description: Novo lote draft } }
+  /batches/{id}/events:
+    get:
+      summary: SSE com progresso dos itens (status, etapa, erro)
+      parameters: [{ $ref: "#/components/parameters/Id" }]
+      responses: { "200": { description: text/event-stream } }
+
+  /audit:
+    get:
+      summary: Consulta auditoria por entidade/ator/período
+      parameters:
+        - { name: entity_type, in: query, schema: { type: string } }
+        - { name: entity_id, in: query, schema: { type: string } }
+        - { name: actor_id, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses: { "200": { description: OK } }
+
+components:
+  securitySchemes:
+    session: { type: apiKey, in: cookie, name: authjs.session-token }
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: string } }
+  responses:
+    Problem:
+      description: Erro (RFC 9457)
+      content:
+        application/problem+json:
+          schema:
+            type: object
+            properties:
+              type: { type: string }
+              title: { type: string }
+              status: { type: integer }
+              detail: { type: string }
+              errors: { type: array, items: { type: object } }
+  schemas:
+    JobRef:
+      type: object
+      properties: { job_id: { type: string }, queue: { type: string } }
+    Connection:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        business_id: { type: string }
+        label: { type: string }
+        api_tier: { type: string, enum: [limited, full, unknown] }
+        status: { type: string, enum: [active, needs_attention, revoked] }
+        token_expires_at: { type: [string, "null"], format: date-time }
+        last_checked_at: { type: string, format: date-time }
+    AdAccount:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        currency: { type: string }
+        timezone_name: { type: string }
+        client_id: { type: [string, "null"] }
+        default_page_id: { type: [string, "null"] }
+        default_ig_user_id: { type: [string, "null"] }
+        default_pixel_id: { type: [string, "null"] }
+        daily_ad_cap: { type: integer }
+        paused_until: { type: [string, "null"], format: date-time }
+        last_synced_at: { type: string, format: date-time }
+    AdAccountDefaults:
+      type: object
+      properties:
+        client_id: { type: string }
+        default_page_id: { type: string }
+        default_ig_user_id: { type: string }
+        default_pixel_id: { type: string }
+        daily_ad_cap: { type: integer }
+    AccountHealth:
+      type: object
+      properties:
+        api_tier: { type: string }
+        usage: { type: object }
+        errors_24h: { type: integer }
+        pending_jobs: { type: integer }
+        paused_until: { type: [string, "null"] }
+    Client:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        voice_profile:
+          type: object
+          properties:
+            tone: { type: string }
+            audience: { type: string }
+            forbidden_terms: { type: array, items: { type: string } }
+            allowed_claims: { type: array, items: { type: string } }
+            examples: { type: array, items: { type: string } }
+        naming_template: { type: string }
+        default_utm: { type: object, additionalProperties: { type: string } }
+        policy_mode: { type: string, enum: [warn, block] }
+        landing_domains: { type: array, items: { type: string } }
+        advantage_creative_optout: { type: boolean }
+    Asset:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [image, video] }
+        filename: { type: string }
+        width: { type: integer }
+        height: { type: integer }
+        aspect_ratio: { type: string }
+        duration_ms: { type: [integer, "null"] }
+        size_bytes: { type: integer }
+        thumbnail_url: { type: string }
+        validation:
+          type: object
+          properties:
+            status: { type: string, enum: [ok, rejected] }
+            errors: { type: array, items: { type: string } }
+            warnings: { type: array, items: { type: string } }
+    Copy:
+      type: object
+      required: [primary_text, headline, cta, link]
+      properties:
+        primary_text: { type: string }
+        headline: { type: string }
+        description: { type: string }
+        cta: { type: string, description: "Enum CTA da Meta, ex. SHOP_NOW, LEARN_MORE, SIGN_UP" }
+        link: { type: string, format: uri }
+        display_link: { type: string }
+        url_tags: { type: string, description: "utm_source={{site_source_name}}&..." }
+        cards:
+          type: array
+          description: Carrossel
+          items:
+            type: object
+            properties:
+              asset_id: { type: string, format: uuid }
+              headline: { type: string }
+              description: { type: string }
+              link: { type: string, format: uri }
+    ObjectRef:
+      oneOf:
+        - type: object
+          required: [kind, id]
+          properties: { kind: { const: existing }, id: { type: string } }
+        - type: object
+          required: [kind, key]
+          properties:
+            kind: { const: new }
+            key:
+              type: string
+              description: >
+                Chave local compartilhada entre itens; a especificação do objeto
+                novo vem em BatchPlan.campaigns/adsets com a mesma chave.
+    CampaignSpec:
+      type: object
+      required: [name, objective]
+      properties:
+        name: { type: string }
+        objective: { type: string, enum: [OUTCOME_SALES, OUTCOME_LEADS, OUTCOME_TRAFFIC, OUTCOME_ENGAGEMENT] }
+        buying_type: { const: AUCTION, default: AUCTION }
+        daily_budget_cents: { type: integer, minimum: 1 }
+        lifetime_budget_cents: { type: integer, minimum: 1 }
+        special_ad_categories: { type: array, items: { type: string } }
+    AdsetSpec:
+      type: object
+      required: [name, optimization_goal, billing_event]
+      properties:
+        name: { type: string }
+        optimization_goal: { type: string }
+        billing_event: { type: string }
+        advantage_audience: { type: boolean, default: true }
+        targeting: { type: object, additionalProperties: true }
+        daily_budget_cents: { type: integer, minimum: 1 }
+        start_time: { type: string }
+        end_time: { type: string }
+        promoted_object: { type: object, additionalProperties: true }
+        campaign_key: { type: string, description: "Chave da campanha nova a que o conjunto pertence" }
+    PlanItem:
+      type: object
+      required: [format, asset_ids, campaign_ref, adset_ref, copies]
+      properties:
+        format: { type: string, enum: [single_image, single_video, carousel] }
+        asset_ids: { type: array, items: { type: string, format: uuid }, minItems: 1, maxItems: 10 }
+        campaign_ref: { $ref: "#/components/schemas/ObjectRef" }
+        adset_ref: { $ref: "#/components/schemas/ObjectRef" }
+        copies: { type: array, items: { $ref: "#/components/schemas/Copy" }, minItems: 1, maxItems: 5 }
+        page_id: { type: string }
+        ig_user_id: { type: [string, "null"] }
+    BatchPlan:
+      type: object
+      required: [items]
+      description: Artefato único do modo IA e do construtor manual (FR-006/FR-008).
+      properties:
+        campaigns:
+          type: array
+          items:
+            allOf:
+              - $ref: "#/components/schemas/CampaignSpec"
+              - type: object
+                required: [key]
+                properties: { key: { type: string } }
+        adsets:
+          type: array
+          items:
+            allOf:
+              - $ref: "#/components/schemas/AdsetSpec"
+              - type: object
+                required: [key]
+                properties: { key: { type: string } }
+        items: { type: array, items: { $ref: "#/components/schemas/PlanItem" }, minItems: 1 }
+        pending:
+          type: array
+          items:
+            type: object
+            required: [field, reason]
+            properties:
+              field: { type: string }
+              reason: { type: string }
+              item_index: { type: integer }
+        notes: { type: string }
+    AdDraftInput:
+      type: object
+      required: [format, asset_ids, copy, campaign_ref, adset_ref]
+      description: >
+        `name` e `page_id` podem vir vazios: a nomenclatura e a página padrão da
+        conta são aplicadas pelo servidor e a ausência aparece na validação.
+      properties:
+        format: { type: string, enum: [single_image, single_video, carousel] }
+        asset_ids: { type: array, items: { type: string, format: uuid } }
+        copy: { $ref: "#/components/schemas/Copy" }
+        name: { type: string }
+        campaign_ref: { $ref: "#/components/schemas/ObjectRef" }
+        adset_ref: { $ref: "#/components/schemas/ObjectRef" }
+        page_id: { type: string }
+        ig_user_id: { type: [string, "null"] }
+        version: { type: integer }
+    AdDraft:
+      allOf:
+        - $ref: "#/components/schemas/AdDraftInput"
+        - type: object
+          properties:
+            id: { type: string, format: uuid }
+            position: { type: integer }
+            status: { type: string }
+            validation: { type: object }
+            meta_ids: { type: object }
+            effective_status: { type: [string, "null"] }
+            review_feedback: { type: [object, "null"] }
+            error: { type: [object, "null"] }
+            attempts: { type: integer }
+            edited_fields: { type: array, items: { type: string } }
+    Batch:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        client_id: { type: string }
+        ad_account_id: { type: string }
+        mode: { type: string, enum: [ai, manual] }
+        briefing: { type: [string, "null"] }
+        status: { type: string }
+        options: { type: object }
+        version: { type: integer }
+        pending: { type: array, items: { type: string }, description: "Campos que a IA não conseguiu inferir" }
+        items: { type: array, items: { $ref: "#/components/schemas/AdDraft" } }
+    ValidationReport:
+      type: object
+      properties:
+        can_publish: { type: boolean }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              item_id: { type: string }
+              status: { type: string, enum: [ready, blocked] }
+              errors: { type: array, items: { type: object, properties: { code: { type: string }, field: { type: string }, message: { type: string }, fix: { type: string } } } }
+              warnings: { type: array, items: { type: object } }
+              policy: { type: array, items: { type: object, properties: { category: { type: string }, excerpt: { type: string }, severity: { type: string } } } }

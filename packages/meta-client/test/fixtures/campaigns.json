@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "id": "23850000000000001",
+      "name": "loja-teste_outcome-sales_20260901",
+      "objective": "OUTCOME_SALES",
+      "status": "ACTIVE",
+      "effective_status": "ACTIVE"
+    }
+  ],
+  "paging": {
+    "cursors": {
+      "after": "MA"
+    }
+  }
+}

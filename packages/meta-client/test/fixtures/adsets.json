@@ -1,0 +1,17 @@
+{
+  "data": [
+    {
+      "id": "23850000000000101",
+      "name": "frio-advantage",
+      "campaign_id": "23850000000000001",
+      "optimization_goal": "OFFSITE_CONVERSIONS",
+      "status": "ACTIVE",
+      "effective_status": "ACTIVE"
+    }
+  ],
+  "paging": {
+    "cursors": {
+      "after": "MA"
+    }
+  }
+}

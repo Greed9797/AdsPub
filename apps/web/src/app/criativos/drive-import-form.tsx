@@ -1,0 +1,90 @@
+"use client";
+
+import { useState, type FormEvent } from 'react';
+import { buttonClass, Field, inputClass, secondaryButtonClass } from '@/components/ui';
+import { importarDoDrive, type ImportarDriveResult } from './actions';
+
+type DriveImportState = ImportarDriveResult | null;
+
+type DriveImportFormProps = {
+  clientId: string;
+};
+
+export function DriveImportForm({ clientId }: DriveImportFormProps) {
+  const [state, setState] = useState<DriveImportState>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+
+    setSaving(true);
+    try {
+      const result = await importarDoDrive(formData);
+      setState(result);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+      <h2 className="text-sm font-semibold">Importar do Google Drive</h2>
+
+      <form onSubmit={onSubmit} className="mt-3 space-y-3">
+        <input type="hidden" name="client_id" value={clientId} />
+
+        <Field label="URL da pasta">
+          <input
+            type="url"
+            name="folder_url"
+            required
+            placeholder="https://drive.google.com/drive/folders/..."
+            disabled={saving}
+            className={inputClass}
+          />
+        </Field>
+
+        <label className="flex items-center gap-2 text-sm text-[var(--color-muted)]">
+          <input type="checkbox" name="recursive" defaultChecked value="on" disabled={saving} />
+          <span>Importar subpastas também</span>
+        </label>
+
+        <div className="flex items-center gap-2">
+          <button className={buttonClass} type="submit" disabled={saving}>
+            {saving ? 'Iniciando...' : 'Iniciar importação'}
+          </button>
+          <button
+            type="button"
+            className={secondaryButtonClass}
+            onClick={() => setState(null)}
+            disabled={saving}
+          >
+            Limpar resultado
+          </button>
+        </div>
+      </form>
+
+      {state && 'erro' in state ? (
+        <p className="mt-3 rounded border border-[var(--color-danger)] bg-[var(--color-danger)]/10 p-2 text-sm text-[var(--color-danger)]">
+          {state.erro}
+        </p>
+      ) : null}
+
+      {state && 'sucesso' in state ? (
+        <div className="mt-4 rounded border border-[var(--color-border)] p-3 text-sm">
+          <p>
+            Importação enviada para a fila <span className="font-semibold">{state.queue}</span> com sucesso.
+          </p>
+          <p className="mt-1">
+            <span className="font-semibold">Job:</span> {state.job_id}
+          </p>
+          <p className="mt-2 text-[var(--color-muted)]">
+            O processo roda em fila e o resultado aparecerá quando a sincronização terminar.
+          </p>
+        </div>
+      ) : null}
+    </section>
+  );
+}

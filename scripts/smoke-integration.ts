@@ -1,0 +1,679 @@
+/**
+ * Smoke de integração (Constituição V): exercita o caminho real — API HTTP →
+ * validação → fila → pipeline → Graph API — contra Postgres/Redis/MinIO locais
+ * e uma Graph API falsa. Nenhuma chamada sai para a Meta.
+ *
+ *   docker compose -f infra/docker-compose.yml up -d
+ *   pnpm db:migrate && pnpm smoke:integration
+ *
+ * ATENÇÃO: apaga os dados do banco apontado por DATABASE_URL.
+ */
+import { AiClient } from '@adpub/ai';
+import { ingestFile } from '@adpub/assets';
+import { loadServerEnv } from '@adpub/config';
+import { mintSessionToken } from '@adpub/auth';
+import {
+  createConnection,
+  createDb,
+  getDraft,
+  listAudit,
+  setAccountPages,
+  updateAccountDefaults,
+  upsertAccounts,
+  upsertInstagramAccounts,
+  upsertPages,
+  upsertPixels,
+  truncateAllTables,
+  upsertUserFromLogin,
+} from '@adpub/db';
+import { MetaClient } from '@adpub/meta-client';
+import { Storage } from '@adpub/storage';
+import { buildApp } from '@adpub/api/app';
+import type { ApiDeps, JobRef, Queues } from '@adpub/api/lib/deps';
+import { runPublish } from '@adpub/worker/publish/pipeline';
+import { runStatusPoll } from '@adpub/worker/poll/status';
+import { runSync } from '@adpub/worker/sync/connection';
+import { createAlerter } from '@adpub/worker/alerts';
+import { createMetaFactory } from '@adpub/worker/meta';
+import type { WorkerContext } from '@adpub/worker/context';
+import { Redis } from 'ioredis';
+import pino from 'pino';
+import sharp from 'sharp';
+import { createFakeGraph } from './lib/fake-graph.js';
+
+const CLIENT_NAME = 'Loja Teste';
+const AD_ACCOUNT_ID = 'act_1030000000001';
+const PAGE_ID = '102030405060708';
+const IG_ID = '17841400000000001';
+const PIXEL_ID = '99887766554433';
+const LANDING = 'https://lojateste.com.br/inverno';
+
+let failures = 0;
+const started = Date.now();
+
+function check(label: string, condition: boolean, detail?: unknown): void {
+  if (condition) {
+    console.log(`  ok   ${label}`);
+    return;
+  }
+  failures += 1;
+  console.error(`  FAIL ${label}`);
+  if (detail !== undefined) console.error('       ', JSON.stringify(detail, null, 2).slice(0, 1200));
+}
+
+function phase(title: string): void {
+  console.log(`\n▸ ${title}`);
+}
+
+/** Falha ruidosamente quando a API responde fora do esperado. */
+function expect<T>(label: string, response: { statusCode: number; json: () => unknown }, status: number): T {
+  if (response.statusCode !== status) {
+    failures += 1;
+    console.error(`  FAIL ${label}: esperado ${status}, veio ${response.statusCode}`);
+    console.error('       ', JSON.stringify(response.json(), null, 2).slice(0, 1500));
+    throw new Error(`${label}: HTTP ${response.statusCode}`);
+  }
+  return response.json() as T;
+}
+
+/** Plano fixo devolvido pela IA falsa: 1 campanha, 1 conjunto, 1 criativo × 2 copies. */
+function fakeAiInvoker(assetId: string) {
+  return async () => ({
+    input: {
+      campaigns: [
+        {
+          key: 'c1',
+          name: 'Loja Teste_trafego_inverno',
+          objective: 'OUTCOME_TRAFFIC',
+          special_ad_categories: [],
+        },
+      ],
+      adsets: [
+        {
+          key: 'a1',
+          name: 'Frio - Advantage+',
+          optimization_goal: 'LINK_CLICKS',
+          billing_event: 'IMPRESSIONS',
+          advantage_audience: true,
+          campaign_key: 'c1',
+        },
+      ],
+      items: [
+        {
+          format: 'single_image',
+          asset_ids: [assetId],
+          campaign_ref: { kind: 'new', key: 'c1' },
+          adset_ref: { kind: 'new', key: 'a1' },
+          copies: [
+            {
+              primary_text: 'Coleção de inverno com 20% OFF até sexta. Use o cupom INVERNO20.',
+              headline: 'Inverno com 20% OFF',
+              description: 'Frete grátis acima de R$ 199',
+              cta: 'SHOP_NOW',
+              link: LANDING,
+            },
+            {
+              primary_text: 'Últimos dias: 20% OFF na coleção de inverno com o cupom INVERNO20.',
+              headline: 'Últimos dias de 20% OFF',
+              description: 'Estoque limitado',
+              cta: 'SHOP_NOW',
+              link: LANDING,
+            },
+          ],
+        },
+      ],
+      pending: [{ field: 'orcamento', reason: 'Orçamento diário não informado no briefing.' }],
+      notes: 'Plano do smoke.',
+    },
+    inputTokens: 1200,
+    outputTokens: 800,
+  });
+}
+
+async function main(): Promise<void> {
+  const env = loadServerEnv();
+  const { db, sql } = createDb(env.DATABASE_URL, { max: 4 });
+  const storage = new Storage({
+    endpoint: env.S3_ENDPOINT,
+    bucket: env.S3_BUCKET,
+    region: env.S3_REGION,
+    accessKey: env.S3_ACCESS_KEY,
+    secretKey: env.S3_SECRET_KEY,
+  });
+  const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
+  const graph = createFakeGraph();
+  const log = pino({ level: 'warn' });
+
+  phase('Preparando banco, storage e conexão');
+  await storage.ensureBucket();
+  await truncateAllTables(db);
+
+  const workerCtx: WorkerContext = {
+    env,
+    db,
+    sql,
+    redis,
+    storage,
+    log,
+    fetchImpl: graph.fetchImpl,
+  };
+  const alert = createAlerter(undefined, log);
+  const metaFactory = createMetaFactory(workerCtx, alert);
+
+  const publishedDrafts: string[] = [];
+  const queues: Queues = {
+    async enqueueSync(connectionId) {
+      await runSync(workerCtx, metaFactory, alert, { connectionId });
+      return { job_id: `sync-${connectionId}`, queue: 'adpub.sync' };
+    },
+    async enqueueImportDrive() {
+      return { job_id: 'drive-1', queue: 'adpub.drive-import' };
+    },
+    async enqueuePublish(items) {
+      const refs: JobRef[] = [];
+      for (const item of items) {
+        await runPublish(workerCtx, metaFactory, alert, item, 1);
+        publishedDrafts.push(item.draftId);
+        refs.push({ job_id: `draft-${item.draftId}`, queue: 'adpub.publish' });
+      }
+      return refs;
+    },
+    async close() {
+      /* nada a fechar no smoke */
+    },
+  };
+
+  const connection = await createConnection(db, {
+    businessId: '1789000000000001',
+    label: 'BM principal (smoke)',
+    token: 'EAA-token-de-smoke-nao-real-0123456789',
+    scopes: ['ads_management', 'business_management'],
+    apiTier: 'limited',
+  });
+
+  const admin = await upsertUserFromLogin(db, {
+    email: `admin@${env.AUTH_ALLOWED_DOMAIN}`,
+    name: 'Admin Smoke',
+    googleSub: 'google-sub-smoke',
+  });
+  check('primeiro usuário do domínio nasce admin', admin.role === 'admin', admin.role);
+  const token = await mintSessionToken(
+    { id: admin.id, email: admin.email, name: admin.name, role: admin.role },
+    env.AUTH_SECRET,
+  );
+  const auth = { authorization: `Bearer ${token}` };
+
+  function metaClientForToken(rawToken: string): MetaClient {
+    return new MetaClient({
+      version: env.META_API_VERSION,
+      appId: env.META_APP_ID,
+      appSecret: env.META_APP_SECRET,
+      token: rawToken,
+      fetchImpl: graph.fetchImpl,
+    });
+  }
+
+  const deps: ApiDeps = {
+    db,
+    storage,
+    queues,
+    env: {
+      authSecret: env.AUTH_SECRET,
+      allowedDomain: env.AUTH_ALLOWED_DOMAIN,
+      metaApiVersion: env.META_API_VERSION,
+      metaTier: env.META_TIER,
+      usePolicyAi: false,
+    },
+    metaClientFor: async () => metaClientForToken('EAA-token-de-smoke-nao-real-0123456789'),
+    metaClientForToken,
+  };
+
+  const app = await buildApp(deps, { logger: false });
+
+  phase('US6 — sessão e RBAC');
+  const noAuth = await app.inject({ method: 'GET', url: '/api/v1/ad-accounts' });
+  check('rota protegida sem sessão devolve 401', noAuth.statusCode === 401, noAuth.json());
+  check(
+    'erro segue problem+json',
+    noAuth.headers['content-type']?.toString().includes('application/problem+json') === true,
+    noAuth.headers['content-type'],
+  );
+
+  phase('US1 — sincronizar a BM');
+  const syncResponse = await app.inject({
+    method: 'POST',
+    url: `/api/v1/connections/${connection.id}/sync`,
+    headers: auth,
+  });
+  check('sync enfileirado (202)', syncResponse.statusCode === 202, syncResponse.json());
+  const accounts = await app
+    .inject({ method: 'GET', url: '/api/v1/ad-accounts', headers: auth })
+    .then((r) => r.json() as Array<{ id: string; name: string; ads_manager_url: string }>);
+  check('conta sincronizada aparece na listagem', accounts.some((a) => a.id === AD_ACCOUNT_ID), accounts);
+  check(
+    'link para o Gerenciador de Anúncios montado',
+    accounts[0]?.ads_manager_url.includes('act=1030000000001') === true,
+    accounts[0]?.ads_manager_url,
+  );
+
+  phase('US2 — cliente, defaults e criativo');
+  const client = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/clients',
+      headers: auth,
+      payload: {
+        name: CLIENT_NAME,
+        landing_domains: ['lojateste.com.br'],
+        default_utm: { utm_source: 'facebook', utm_medium: 'paid', utm_campaign: 'inverno' },
+        policy_mode: 'block',
+        voice_profile: {
+          tone: 'direto, urgência leve',
+          audience: 'mulheres 25-45',
+          forbidden_terms: ['barato'],
+          allowed_claims: [],
+          examples: [],
+        },
+      },
+    })
+    .then((r) => r.json())) as { id: string; name: string };
+  check('cliente criado', Boolean(client.id), client);
+
+  await updateAccountDefaults(db, AD_ACCOUNT_ID, {
+    client_id: client.id,
+    default_page_id: PAGE_ID,
+    default_ig_user_id: IG_ID,
+    default_pixel_id: PIXEL_ID,
+    daily_ad_cap: 3,
+  });
+
+  const png = await sharp({
+    create: { width: 1200, height: 1200, channels: 3, background: '#1d4ed8' },
+  })
+    .jpeg({ quality: 80 })
+    .toBuffer();
+
+  const ingested = await ingestFile(
+    { db, storage },
+    {
+      clientId: client.id,
+      file: { filename: 'inverno-01.jpg', bytes: new Uint8Array(png), mime: 'image/jpeg' },
+      source: 'upload',
+      actor: { id: admin.id, email: admin.email },
+    },
+  );
+  check('criativo aprovado na validação de mídia', ingested.asset.validation.status === 'ok', ingested.asset.validation);
+  check('proporção 1:1 detectada', ingested.asset.aspectRatio === '1:1', ingested.asset.aspectRatio);
+
+  const dedupe = await ingestFile(
+    { db, storage },
+    {
+      clientId: client.id,
+      file: { filename: 'inverno-01-copia.jpg', bytes: new Uint8Array(png), mime: 'image/jpeg' },
+      source: 'upload',
+    },
+  );
+  check('dedupe por sha256 reaproveita o criativo', dedupe.reused && dedupe.asset.id === ingested.asset.id, {
+    reused: dedupe.reused,
+  });
+
+  phase('US3 — briefing → plano de IA → itens');
+  deps.ai = new AiClient({
+    invoke: fakeAiInvoker(ingested.asset.id),
+    models: { generation: 'claude-sonnet-4-6', classify: 'claude-haiku-4-6' },
+  });
+
+  const batch = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/batches',
+      headers: auth,
+      payload: {
+        client_id: client.id,
+        ad_account_id: AD_ACCOUNT_ID,
+        name: 'Inverno - Semana 2',
+        mode: 'ai',
+        briefing: 'Vendas no site, 20% OFF na coleção de inverno, cupom INVERNO20.',
+      },
+    })
+    .then((r) => r.json())) as { id: string };
+  check('lote criado', Boolean(batch.id), batch);
+
+  const planned = expect<{
+    items: Array<{ id: string; name: string; status: string; copy: { url_tags: string } }>;
+    pending: string[];
+  }>(
+    'plano gerado',
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/batches/${batch.id}/plan`,
+      headers: auth,
+      payload: { asset_ids: [ingested.asset.id], copies_per_creative: 2 },
+    }),
+    200,
+  );
+  check('plano gerou 2 itens (1 criativo × 2 copies)', planned.items.length === 2, planned.items?.length);
+  check('nomenclatura preenchida automaticamente', Boolean(planned.items[0]?.name), planned.items[0]?.name);
+  check(
+    'UTMs do cliente aplicadas',
+    planned.items[0]?.copy.url_tags.includes('utm_source=facebook') === true,
+    planned.items[0]?.copy.url_tags,
+  );
+  check('pendência do plano exposta na UI', planned.pending.length === 1, planned.pending);
+
+  phase('FR-008 — construtor manual entrega o mesmo BatchPlan');
+  const manualBatch = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/batches',
+      headers: auth,
+      payload: {
+        client_id: client.id,
+        ad_account_id: AD_ACCOUNT_ID,
+        name: 'Inverno - manual',
+        mode: 'manual',
+      },
+    })
+    .then((r) => r.json())) as { id: string };
+
+  const manualCopy = (variant: string) => ({
+    primary_text: `Coleção de inverno com 20% OFF (${variant}). Cupom INVERNO20.`,
+    headline: 'Inverno com 20% OFF',
+    description: 'Frete grátis acima de R$ 199',
+    cta: 'SHOP_NOW',
+    link: LANDING,
+  });
+
+  const manualPlan = {
+    campaigns: [
+      {
+        key: 'manual-c1',
+        name: 'Loja Teste_trafego_manual',
+        objective: 'OUTCOME_TRAFFIC',
+        buying_type: 'AUCTION',
+        special_ad_categories: [],
+        daily_budget_cents: 5_000,
+      },
+    ],
+    adsets: [
+      {
+        key: 'manual-a1',
+        campaign_key: 'manual-c1',
+        name: 'Manual - Advantage+',
+        optimization_goal: 'LINK_CLICKS',
+        billing_event: 'IMPRESSIONS',
+        advantage_audience: true,
+      },
+    ],
+    items: [
+      {
+        format: 'single_image',
+        asset_ids: [ingested.asset.id],
+        campaign_ref: { kind: 'new', key: 'manual-c1' },
+        adset_ref: { kind: 'new', key: 'manual-a1' },
+        copies: [manualCopy('a'), manualCopy('b')],
+        page_id: PAGE_ID,
+      },
+    ],
+    pending: [],
+    notes: 'Montado no formulário.',
+  };
+
+  const manual = expect<{ items: Array<{ name: string; status: string; copy: { url_tags: string } }> }>(
+    'plano manual salvo',
+    await app.inject({
+      method: 'PUT',
+      url: `/api/v1/batches/${manualBatch.id}/plan`,
+      headers: auth,
+      payload: manualPlan,
+    }),
+    200,
+  );
+  check('formulário gera 2 itens (1 criativo × 2 copies)', manual.items.length === 2, manual.items.length);
+  check('itens do formulário nascem prontos', manual.items.every((item) => item.status === 'ready'), manual.items.map((i) => i.status));
+  check(
+    'nomenclatura e UTM aplicadas no caminho manual',
+    manual.items.every((item) => item.name.length > 0 && item.copy.url_tags.includes('utm_source=facebook')),
+    manual.items.map((item) => ({ name: item.name, url_tags: item.copy.url_tags })),
+  );
+
+  const orfao = await app.inject({
+    method: 'PUT',
+    url: `/api/v1/batches/${manualBatch.id}/plan`,
+    headers: auth,
+    payload: {
+      ...manualPlan,
+      campaigns: [],
+      items: [{ ...manualPlan.items[0], adset_ref: { kind: 'existing', id: graph.ids.adset } }],
+    },
+  });
+  check('ref nova sem especificação é recusada antes da fila', orfao.statusCode === 422, orfao.json());
+  check(
+    'erro aponta a campanha órfã',
+    JSON.stringify(orfao.json()).includes('manual-c1'),
+    orfao.json(),
+  );
+
+  phase('US4 — validação bloqueia antes da Meta');
+  const second = planned.items[1];
+  if (!second) throw new Error('smoke sem segundo item');
+  const blockedItem = second.id;
+  const blockedCopy = second.copy;
+  const patched = await app.inject({
+    method: 'PATCH',
+    url: `/api/v1/batches/${batch.id}/items/${blockedItem}`,
+    headers: auth,
+    payload: { copy: { ...blockedCopy, link: 'https://dominio-nao-permitido.com/x' } },
+  });
+  check('item editado', patched.statusCode === 200, patched.json());
+
+  const report = (await app
+    .inject({ method: 'POST', url: `/api/v1/batches/${batch.id}/validate`, headers: auth })
+    .then((r) => r.json())) as {
+    can_publish: boolean;
+    items: Array<{ item_id: string; status: string; errors: Array<{ code: string }> }>;
+  };
+  check('lote com link fora do domínio não pode publicar', report.can_publish === false, report.can_publish);
+  const blockedReport = report.items.find((item) => item.item_id === blockedItem);
+  check(
+    'erro aponta o domínio inválido',
+    blockedReport?.errors.some((error) => error.code === 'copy.link_domain') === true,
+    blockedReport?.errors,
+  );
+
+  const publishBlocked = await app.inject({
+    method: 'POST',
+    url: `/api/v1/batches/${batch.id}/publish`,
+    headers: auth,
+    payload: { confirm_count: 2, only_failed: false },
+  });
+  check('publicação recusa contagem divergente', publishBlocked.statusCode === 422, publishBlocked.json());
+
+  // Restaura o link válido e revalida.
+  await app.inject({
+    method: 'PATCH',
+    url: `/api/v1/batches/${batch.id}/items/${blockedItem}`,
+    headers: auth,
+    payload: { copy: { ...blockedCopy, link: LANDING } },
+  });
+  const report2 = (await app
+    .inject({ method: 'POST', url: `/api/v1/batches/${batch.id}/validate`, headers: auth })
+    .then((r) => r.json())) as { can_publish: boolean };
+  check('após correção o lote libera publicação', report2.can_publish === true, report2);
+
+  phase('US5 — publicar (tudo PAUSED, idempotente)');
+  const publish = (await app
+    .inject({
+      method: 'POST',
+      url: `/api/v1/batches/${batch.id}/publish`,
+      headers: auth,
+      payload: { confirm_count: 2, only_failed: false },
+    })
+    .then((r) => r.json())) as { queued: number; skipped: number; daily_remaining: number };
+  check('2 itens enfileirados e publicados', publish.queued === 2, publish);
+  check('teto diário respeitado no retorno', publish.daily_remaining === 1, publish);
+
+  const detail = (await app
+    .inject({ method: 'GET', url: `/api/v1/batches/${batch.id}`, headers: auth })
+    .then((r) => r.json())) as {
+    status: string;
+    items: Array<{ status: string; meta_ids: Record<string, string>; ads_manager_url: string | null }>;
+  };
+  check('todos os itens publicados', detail.items.every((item) => item.status === 'published'), detail.items.map((i) => i.status));
+  check('lote fechado como done', detail.status === 'done', detail.status);
+  check(
+    'IDs da Meta persistidos por item',
+    detail.items.every((item) => item.meta_ids.ad_id === graph.ids.ad && item.meta_ids.creative_id === graph.ids.creative),
+    detail.items.map((item) => item.meta_ids),
+  );
+  check('link direto para o anúncio disponível', Boolean(detail.items[0]?.ads_manager_url), detail.items[0]?.ads_manager_url);
+
+  check('campanha nova criada uma única vez (lock de ref)', graph.count('POST act_1030000000001/campaigns') === 1, graph.calls);
+  check('conjunto novo criado uma única vez', graph.count('POST act_1030000000001/adsets') === 1, graph.calls);
+  check('imagem enviada uma única vez para a conta', graph.count('POST act_1030000000001/adimages') === 1, graph.calls);
+  check('dois criativos e dois anúncios criados', graph.count('POST act_1030000000001/adcreatives') === 2 && graph.count('POST act_1030000000001/ads') === 2, graph.calls);
+
+  const callsBefore = new Map(graph.calls);
+  const first = publishedDrafts[0];
+  if (!first) throw new Error('smoke sem item publicado');
+  await runPublish(workerCtx, metaFactory, alert, { draftId: first, adAccountId: AD_ACCOUNT_ID, batchId: batch.id }, 2);
+  check(
+    'reprocessar item publicado não chama a Meta de novo',
+    graph.count('POST act_1030000000001/ads') === callsBefore.get('POST act_1030000000001/ads'),
+    { antes: callsBefore.get('POST act_1030000000001/ads'), depois: graph.count('POST act_1030000000001/ads') },
+  );
+
+  const republish = await app.inject({
+    method: 'POST',
+    url: `/api/v1/batches/${batch.id}/publish`,
+    headers: auth,
+    payload: { confirm_count: 0, only_failed: true },
+  });
+  check('republicar sem itens elegíveis é recusado', republish.statusCode === 422, republish.json());
+
+  phase('FR-018 — poller de revisão');
+  const poll = await runStatusPoll(workerCtx, metaFactory);
+  check('poller atualizou os 2 anúncios', poll.updated === 2, poll);
+  const polled = await getDraft(db, first);
+  check('status de revisão refletido', polled?.status === 'in_review', polled?.status);
+  check('effective_status salvo', polled?.effectiveStatus === 'PENDING_REVIEW', polled?.effectiveStatus);
+
+  phase('US6 — auditoria e teto diário');
+  const audit = await listAudit(db, { entityType: 'batch', entityId: batch.id, limit: 50 });
+  const actions = audit.map((row) => row.action);
+  check('auditoria registra plano, validação e publicação', ['batch.plan', 'batch.validate', 'batch.publish'].every((action) => actions.includes(action)), actions);
+
+  const capBatch = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/batches',
+      headers: auth,
+      payload: {
+        client_id: client.id,
+        ad_account_id: AD_ACCOUNT_ID,
+        name: 'Lote além do teto',
+        mode: 'manual',
+      },
+    })
+    .then((r) => r.json())) as { id: string };
+  const capItems = await app.inject({
+    method: 'POST',
+    url: `/api/v1/batches/${capBatch.id}/items`,
+    headers: auth,
+    payload: [
+      {
+        format: 'single_image',
+        asset_ids: [ingested.asset.id],
+        copy: {
+          primary_text: 'Coleção de inverno com 20% OFF até sexta.',
+          headline: 'Inverno com 20% OFF',
+          description: 'Frete grátis acima de R$ 199',
+          cta: 'SHOP_NOW',
+          link: LANDING,
+        },
+        campaign_ref: { kind: 'existing', id: graph.ids.campaign },
+        adset_ref: { kind: 'existing', id: graph.ids.adset },
+        page_id: PAGE_ID,
+        ig_user_id: IG_ID,
+      },
+      {
+        format: 'single_image',
+        asset_ids: [ingested.asset.id],
+        copy: {
+          primary_text: 'Últimos dias da coleção de inverno com 20% OFF.',
+          headline: 'Últimos dias',
+          description: 'Estoque limitado',
+          cta: 'SHOP_NOW',
+          link: LANDING,
+        },
+        campaign_ref: { kind: 'existing', id: graph.ids.campaign },
+        adset_ref: { kind: 'existing', id: graph.ids.adset },
+        page_id: PAGE_ID,
+        ig_user_id: IG_ID,
+      },
+    ],
+  });
+  check('itens manuais criados', capItems.statusCode === 201, capItems.json());
+  await app.inject({ method: 'POST', url: `/api/v1/batches/${capBatch.id}/validate`, headers: auth });
+  const capPublish = (await app
+    .inject({
+      method: 'POST',
+      url: `/api/v1/batches/${capBatch.id}/publish`,
+      headers: auth,
+      payload: { confirm_count: 2, only_failed: false },
+    })
+    .then((r) => r.json())) as { queued: number; skipped: number };
+  check('teto diário de 3 corta o excedente', capPublish.queued === 1 && capPublish.skipped === 1, capPublish);
+
+  phase('US7 — duplicar lote para outra conta');
+  await upsertAccounts(db, connection.id, [
+    {
+      id: 'act_1030000000002',
+      name: 'Loja Teste - SP',
+      currency: 'BRL',
+      timezoneName: 'America/Sao_Paulo',
+      accountStatus: 1,
+    },
+  ]);
+  await upsertPages(db, connection.id, [{ id: PAGE_ID, name: 'Loja Teste', instagramUserId: IG_ID, raw: {} }]);
+  await upsertInstagramAccounts(db, connection.id, [{ id: IG_ID, username: 'lojateste', raw: {} }]);
+  await upsertPixels(db, 'act_1030000000002', [{ id: '99887766554434', name: 'Pixel SP', raw: {} }]);
+  await setAccountPages(db, 'act_1030000000002', [PAGE_ID]);
+  await updateAccountDefaults(db, 'act_1030000000002', {
+    client_id: client.id,
+    default_page_id: PAGE_ID,
+    default_ig_user_id: IG_ID,
+    default_pixel_id: '99887766554434',
+  });
+
+  const duplicated = (await app
+    .inject({
+      method: 'POST',
+      url: `/api/v1/batches/${batch.id}/duplicate`,
+      headers: auth,
+      payload: { ad_account_id: 'act_1030000000002' },
+    })
+    .then((r) => r.json())) as { id: string; ad_account_id: string; items: Array<{ status: string }> };
+  check('lote duplicado para a outra conta', duplicated.ad_account_id === 'act_1030000000002', duplicated.ad_account_id);
+  check('itens duplicados voltam para validação', duplicated.items.length === 2, duplicated.items.length);
+
+  phase('US8 — painel de saúde');
+  const health = (await app
+    .inject({ method: 'GET', url: `/api/v1/ad-accounts/${AD_ACCOUNT_ID}/health`, headers: auth })
+    .then((r) => r.json())) as { published_today: number; daily_cap: number; error_rate_1h: number };
+  check('saúde reporta publicações do dia', health.published_today === 3, health);
+  check('teto diário exposto', health.daily_cap === 3, health);
+
+  await app.close();
+  redis.disconnect();
+  await sql.end({ timeout: 5 });
+
+  const seconds = ((Date.now() - started) / 1000).toFixed(1);
+  if (failures > 0) {
+    console.error(`\nSMOKE FALHOU: ${failures} verificação(ões) em ${seconds}s`);
+    process.exit(1);
+  }
+  console.log(`\nSMOKE OK em ${seconds}s — nenhuma chamada real à Meta.`);
+}
+
+await main();

@@ -1,0 +1,13 @@
+{
+  "data": [
+    {
+      "id": "9876543210",
+      "name": "Pixel Loja Teste"
+    }
+  ],
+  "paging": {
+    "cursors": {
+      "after": "MA"
+    }
+  }
+}

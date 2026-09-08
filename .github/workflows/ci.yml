@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: adpub
+          POSTGRES_PASSWORD: adpub
+          POSTGRES_DB: adpub
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U adpub -d adpub"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+
+    env:
+      DATABASE_URL: postgres://adpub:adpub@localhost:5432/adpub
+      REDIS_URL: redis://localhost:6379
+      MASTER_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      META_APP_ID: '000000000000000'
+      META_APP_SECRET: ci-app-secret
+      META_API_VERSION: v25.0
+      META_TIER: limited
+      AUTH_SECRET: ci-auth-secret-ci-auth-secret
+      AUTH_ALLOWED_DOMAIN: empresa.com.br
+      GOOGLE_CLIENT_ID: ci-google-client
+      GOOGLE_CLIENT_SECRET: ci-google-secret
+      ANTHROPIC_API_KEY: ci-anthropic-key
+      S3_ENDPOINT: http://localhost:9000
+      S3_BUCKET: adpub
+      S3_ACCESS_KEY: adpubminio
+      S3_SECRET_KEY: adpubminio123
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Scan de segredos (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - run: pnpm lint
+
+      - run: pnpm typecheck
+
+      - name: Testes com log capturado
+        run: pnpm test 2>&1 | tee /tmp/test-output.log
+
+      # SC-006: nenhum token pode aparecer em log. Falha se o padrão vazar.
+      - name: Scan de token nos logs de teste
+        run: |
+          if grep -nE '(EAA[A-Za-z0-9]{20,}|access_token=[A-Za-z0-9]|appsecret_proof=[a-f0-9]{16})' /tmp/test-output.log; then
+            echo '::error::Token ou prova de app secret vazou nos logs de teste (SC-006).'
+            exit 1
+          fi
+          echo 'Nenhum token nos logs.'
+
+      - name: MinIO para o smoke
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=adpubminio -e MINIO_ROOT_PASSWORD=adpubminio123 \
+            minio/minio:latest server /data
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:9000/minio/health/live; then break; fi
+            sleep 2
+          done
+
+      - run: pnpm db:migrate
+
+      - name: Smoke de integração (Meta em fixtures)
+        run: pnpm smoke:integration
+
+      - name: e2e Playwright (Meta em duplo local)
+        env:
+          # No runner os serviços ficam nas portas canônicas; o padrão local usa
+          # portas alternativas. O banco `adpub_e2e` é criado pelo próprio harness.
+          E2E_POSTGRES_BASE_URL: postgres://adpub:adpub@127.0.0.1:5432
+          E2E_REDIS_URL: redis://127.0.0.1:6379/3
+          E2E_S3_ENDPOINT: http://127.0.0.1:9000
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          pnpm test:e2e
+
+      - name: Scan de token nos artefatos do e2e
+        if: always()
+        run: |
+          if grep -rnE 'EAA[A-Za-z0-9]{20,}' playwright-report test-results 2>/dev/null; then
+            echo '::error::Token vazou nos artefatos do e2e (SC-006).'
+            exit 1
+          fi
+          echo 'Nenhum token nos artefatos.'

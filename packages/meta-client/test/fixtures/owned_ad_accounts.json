@@ -1,0 +1,26 @@
+{
+  "data": [
+    {
+      "id": "act_1030000000001",
+      "account_id": "1030000000001",
+      "name": "Loja Teste — BR",
+      "currency": "BRL",
+      "timezone_name": "America/Sao_Paulo",
+      "account_status": 1
+    },
+    {
+      "id": "act_1030000000002",
+      "account_id": "1030000000002",
+      "name": "Cliente 2 — BR",
+      "currency": "BRL",
+      "timezone_name": "America/Sao_Paulo",
+      "account_status": 1
+    }
+  ],
+  "paging": {
+    "cursors": {
+      "before": "MA",
+      "after": "MQ"
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "data": [
+    {
+      "id": "100000000000001",
+      "name": "Loja Teste",
+      "instagram_business_account": {
+        "id": "17841400000000001",
+        "username": "lojateste"
+      }
+    }
+  ],
+  "paging": {
+    "cursors": {
+      "after": "MA"
+    }
+  }
+}

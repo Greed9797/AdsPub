@@ -1,0 +1,61 @@
+import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
+import Fastify, { type FastifyInstance } from 'fastify';
+import { MAX_UPLOAD_BYTES } from '@adpub/config';
+import { registerAuth } from './plugins/auth.js';
+import { registerErrorHandler } from './plugins/errors.js';
+import { registerOpenApi } from './plugins/openapi.js';
+import { accountRoutes } from './routes/accounts.js';
+import { assetRoutes } from './routes/assets.js';
+import { auditRoutes } from './routes/audit.js';
+import { batchRoutes } from './routes/batches.js';
+import { clientRoutes } from './routes/clients.js';
+import { connectionRoutes } from './routes/connections.js';
+import { healthRoutes } from './routes/health.js';
+import { userRoutes } from './routes/users.js';
+import type { ApiDeps } from './lib/deps.js';
+
+export interface BuildOptions {
+  logger?: boolean;
+  corsOrigin?: string;
+  docs?: boolean;
+}
+
+/** Fábrica testável: nenhuma dependência global, tudo injetado. */
+export async function buildApp(deps: ApiDeps, options: BuildOptions = {}): Promise<FastifyInstance> {
+  const app = Fastify({
+    logger: options.logger ?? false,
+    bodyLimit: 2 * 1024 * 1024,
+    trustProxy: true,
+  });
+
+  registerErrorHandler(app);
+  await app.register(cors, {
+    origin: options.corsOrigin ?? true,
+    credentials: true,
+  });
+  await app.register(multipart, {
+    limits: { fileSize: MAX_UPLOAD_BYTES, files: 50 },
+  });
+  if (options.docs) await registerOpenApi(app);
+
+  registerAuth(app, deps);
+
+  app.get('/health', async () => ({ status: 'ok' }));
+
+  await app.register(
+    async (scope) => {
+      healthRoutes(scope, deps);
+      connectionRoutes(scope, deps);
+      accountRoutes(scope, deps);
+      clientRoutes(scope, deps);
+      assetRoutes(scope, deps);
+      batchRoutes(scope, deps);
+      userRoutes(scope, deps);
+      auditRoutes(scope, deps);
+    },
+    { prefix: '/api/v1' },
+  );
+
+  return app;
+}
