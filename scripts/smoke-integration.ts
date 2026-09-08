@@ -15,9 +15,12 @@ import { mintSessionToken } from '@adpub/auth';
 import {
   createConnection,
   createDb,
+  getBatch,
   getDraft,
   listAudit,
+  listDraftsOfBatch,
   setAccountPages,
+  swapBatchPlan,
   updateAccountDefaults,
   upsertAccounts,
   upsertInstagramAccounts,
@@ -25,7 +28,16 @@ import {
   upsertPixels,
   truncateAllTables,
   upsertUserFromLogin,
+  type DraftInsert,
 } from '@adpub/db';
+import {
+  batchPlanSchema,
+  copySchema,
+  IN_FLIGHT_STATUSES,
+  PUBLISHED_STATUSES,
+  type AdDraftStatus,
+  type BatchPlan,
+} from '@adpub/shared';
 import { MetaClient } from '@adpub/meta-client';
 import { Storage } from '@adpub/storage';
 import { buildApp } from '@adpub/api/app';
@@ -46,6 +58,7 @@ const AD_ACCOUNT_ID = 'act_1030000000001';
 const PAGE_ID = '102030405060708';
 const IG_ID = '17841400000000001';
 const PIXEL_ID = '99887766554433';
+const BLOCKING_STATUSES: readonly AdDraftStatus[] = [...IN_FLIGHT_STATUSES, ...PUBLISHED_STATUSES];
 const LANDING = 'https://lojateste.com.br/inverno';
 
 let failures = 0;
@@ -686,6 +699,100 @@ async function main(): Promise<void> {
     .then((r) => r.json())) as { published_today: number; daily_cap: number; error_rate_1h: number };
   check('saúde reporta publicações do dia', health.published_today === 3, health);
   check('teto diário exposto', health.daily_cap === 3, health);
+
+  phase('FR-006 — troca de plano é atômica');
+  const atomBatch = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/batches',
+      headers: auth,
+      payload: {
+        client_id: client.id,
+        ad_account_id: AD_ACCOUNT_ID,
+        name: 'Lote da troca atômica',
+        mode: 'manual',
+      },
+    })
+    .then((r) => r.json())) as { id: string };
+  await app.inject({
+    method: 'PUT',
+    url: `/api/v1/batches/${atomBatch.id}/plan`,
+    headers: auth,
+    payload: manualPlan,
+  });
+  const linha = (position: number, tag: string): DraftInsert => ({
+    batchId: atomBatch.id,
+    position,
+    campaignRef: { kind: 'existing', id: graph.ids.campaign },
+    adsetRef: { kind: 'existing', id: graph.ids.adset },
+    format: 'single_image',
+    assetIds: [ingested.asset.id],
+    copy: copySchema.parse(manualCopy(tag)),
+    name: `troca-${tag}-${position}`,
+    pageId: PAGE_ID,
+    igUserId: IG_ID,
+    idempotencyKey: `troca-${tag}-${position}-${Date.now()}`,
+  });
+  const planoDe = (notes: string): BatchPlan => batchPlanSchema.parse({ ...manualPlan, notes });
+
+  // Falha depois do delete (duas linhas na mesma `position` violam o unique):
+  // sem transação isso apagaria o lote inteiro.
+  const antes = await listDraftsOfBatch(db, atomBatch.id);
+  let estourou = false;
+  try {
+    await swapBatchPlan(db, {
+      batchId: atomBatch.id,
+      plan: planoDe('nunca-grava'),
+      drafts: [linha(0, 'x'), linha(0, 'y')],
+      blockingStatuses: BLOCKING_STATUSES,
+    });
+  } catch {
+    estourou = true;
+  }
+  check('inserção inválida estoura a troca', estourou);
+  const sobreviveram = await listDraftsOfBatch(db, atomBatch.id);
+  check('itens antigos sobrevivem ao rollback', sobreviveram.length === antes.length, {
+    antes: antes.length,
+    depois: sobreviveram.length,
+  });
+  const loteApos = await getBatch(db, atomBatch.id);
+  check('plano antigo preservado no rollback', loteApos?.plan?.notes !== 'nunca-grava', loteApos?.plan?.notes);
+
+  // Trocas concorrentes: o lock do lote as serializa. Sem ele, uma apaga os
+  // itens que a outra acabou de inserir e o plano gravado deixa de bater com
+  // os itens do lote.
+  const problemas: string[] = [];
+  for (let rodada = 0; rodada < 10; rodada += 1) {
+    const disputa = await Promise.allSettled([
+      swapBatchPlan(db, {
+        batchId: atomBatch.id,
+        plan: planoDe(`plano-a${rodada}`),
+        drafts: [0, 1, 2].map((i) => linha(i, `a${rodada}`)),
+        blockingStatuses: BLOCKING_STATUSES,
+      }),
+      swapBatchPlan(db, {
+        batchId: atomBatch.id,
+        plan: planoDe(`plano-b${rodada}`),
+        drafts: [0, 1, 2, 3, 4].map((i) => linha(i, `b${rodada}`)),
+        blockingStatuses: BLOCKING_STATUSES,
+      }),
+    ]);
+    const recusada = disputa.find((r) => r.status === 'rejected');
+    if (recusada?.status === 'rejected') {
+      problemas.push(`rodada ${rodada}: ${String(recusada.reason).slice(0, 90)}`);
+      continue;
+    }
+    const itens = await listDraftsOfBatch(db, atomBatch.id);
+    const lote = await getBatch(db, atomBatch.id);
+    const notas = lote?.plan?.notes ?? '';
+    const vencedor = notas === `plano-a${rodada}` ? `a${rodada}` : `b${rodada}`;
+    const esperado = vencedor.startsWith('a') ? 3 : 5;
+    const misturado = itens.some((item) => !item.name.startsWith(`troca-${vencedor}-`));
+    if (itens.length !== esperado || misturado) {
+      problemas.push(`rodada ${rodada}: plano ${notas} com ${itens.map((i) => i.name).join(',')}`);
+    }
+  }
+  check('10 pares de trocas concorrentes sem perda nem mistura', problemas.length === 0, problemas.slice(0, 3));
 
   await app.close();
   redis.disconnect();

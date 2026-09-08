@@ -1,7 +1,9 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import {
   assertTransition,
+  deriveBatchStatus,
   type AdDraftStatus,
+  type BatchPlan,
   type Copy,
   type DraftError,
   type ItemValidation,
@@ -32,58 +34,99 @@ export interface DraftInsert {
 
 const EMPTY_META_IDS: MetaIds = { image_hashes: {}, video_ids: {}, thumbnail_hashes: {} };
 
+function draftValues(rows: DraftInsert[]) {
+  return rows.map((r) => ({
+    batchId: r.batchId,
+    position: r.position,
+    campaignRef: r.campaignRef,
+    adsetRef: r.adsetRef,
+    format: r.format,
+    assetIds: r.assetIds,
+    copy: r.copy,
+    name: r.name,
+    pageId: r.pageId,
+    igUserId: r.igUserId,
+    idempotencyKey: r.idempotencyKey,
+    validation: r.validation ?? null,
+    status: r.status ?? 'draft',
+    metaIds: EMPTY_META_IDS,
+  }));
+}
+
 export async function insertDrafts(db: Database, rows: DraftInsert[]): Promise<AdDraftRow[]> {
   if (rows.length === 0) return [];
-  return db
-    .insert(adDrafts)
-    .values(
-      rows.map((r) => ({
-        batchId: r.batchId,
-        position: r.position,
-        campaignRef: r.campaignRef,
-        adsetRef: r.adsetRef,
-        format: r.format,
-        assetIds: r.assetIds,
-        copy: r.copy,
-        name: r.name,
-        pageId: r.pageId,
-        igUserId: r.igUserId,
-        idempotencyKey: r.idempotencyKey,
-        validation: r.validation ?? null,
-        status: r.status ?? 'draft',
-        metaIds: EMPTY_META_IDS,
-      })),
-    )
-    .returning();
+  return db.insert(adDrafts).values(draftValues(rows)).returning();
 }
 
 export async function deleteDraftsOfBatch(db: Database, batchId: string): Promise<void> {
   await db.delete(adDrafts).where(eq(adDrafts.batchId, batchId));
 }
 
+export interface PlanSwap {
+  batchId: string;
+  plan: BatchPlan;
+  drafts: DraftInsert[];
+  blockingStatuses: readonly AdDraftStatus[];
+}
+
+export interface PlanSwapResult {
+  /** Status que impediram a troca; vazio = trocou. */
+  blocked: AdDraftStatus[];
+  items: AdDraftRow[];
+}
+
 /**
- * Apaga os itens do lote **só** se nenhum estiver em publicação ou publicado.
+ * Troca o plano do lote e seus itens **numa transação só**: checagem, delete,
+ * inserção e gravação do plano/status vivem juntos.
  *
- * O `for update` trava as linhas dentro da transação: um `POST /publish`
- * concorrente (que faz `UPDATE ... status = 'queued'`) fica bloqueado até o
- * commit, então não existe janela entre a checagem e o delete. Devolve os
- * status que impediram a limpeza (vazio = apagou).
+ * - `select ... for update` no lote serializa duas trocas concorrentes (a
+ *   segunda espera o commit da primeira e revalida os status);
+ * - `for update` nos itens bloqueia um `POST /publish` concorrente, então não
+ *   existe janela entre a checagem e o delete;
+ * - qualquer falha depois do delete (inserção, plano) faz rollback e os itens
+ *   antigos continuam lá.
  */
-export async function deleteReplaceableDraftsOfBatch(
-  db: Database,
-  batchId: string,
-  blockingStatuses: readonly AdDraftStatus[],
-): Promise<AdDraftStatus[]> {
+export async function swapBatchPlan(db: Database, input: PlanSwap): Promise<PlanSwapResult> {
   return db.transaction(async (tx) => {
-    const rows = await tx
+    const [locked] = await tx
+      .select({ id: batches.id })
+      .from(batches)
+      .where(eq(batches.id, input.batchId))
+      .for('update');
+    // O lote sumiu enquanto a IA respondia: não há o que trocar; quem chamou
+    // devolve 404 ao ler o lote de novo.
+    if (!locked) return { blocked: [], items: [] };
+
+    const existing = await tx
       .select({ status: adDrafts.status })
       .from(adDrafts)
-      .where(eq(adDrafts.batchId, batchId))
+      .where(eq(adDrafts.batchId, input.batchId))
       .for('update');
-    const blocking = rows.map((row) => row.status).filter((s) => blockingStatuses.includes(s));
-    if (blocking.length > 0) return blocking;
-    if (rows.length > 0) await tx.delete(adDrafts).where(eq(adDrafts.batchId, batchId));
-    return [];
+    const blocked = existing
+      .map((row) => row.status)
+      .filter((status) => input.blockingStatuses.includes(status));
+    if (blocked.length > 0) return { blocked, items: [] };
+
+    if (existing.length > 0) await tx.delete(adDrafts).where(eq(adDrafts.batchId, input.batchId));
+
+    const items =
+      input.drafts.length > 0
+        ? await tx.insert(adDrafts).values(draftValues(input.drafts)).returning()
+        : [];
+
+    const status =
+      items.length > 0 ? deriveBatchStatus(items.map((item) => item.status)) : 'blocked';
+    await tx
+      .update(batches)
+      .set({
+        plan: input.plan,
+        status,
+        updatedAt: new Date(),
+        version: sql`${batches.version} + 1`,
+      })
+      .where(eq(batches.id, input.batchId));
+
+    return { blocked: [], items };
   });
 }
 

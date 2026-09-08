@@ -2,17 +2,17 @@ import { idempotencyKey } from '@adpub/crypto';
 import {
   audit,
   batchWithItems,
-  deleteReplaceableDraftsOfBatch,
   getBatch,
   insertDrafts,
   listDraftsOfBatch,
-  patchBatch,
   refreshBatchStatus,
   saveGeneration,
   findCachedGeneration,
+  swapBatchPlan,
   type AdDraftRow,
   type AssetRow,
   type BatchRow,
+  type DraftInsert,
 } from '@adpub/db';
 import { applyAutoFields, statusFromValidation, validateItem } from '@adpub/rules';
 import {
@@ -66,13 +66,17 @@ function travadoError(quantos: number): ProblemError {
 }
 
 /**
- * Troca os itens do lote pelos do plano novo. A limpeza é atômica (trava as
- * linhas e recusa se alguém enfileirou no meio): entre a checagem de cima e
- * este ponto há a chamada da IA, que leva segundos.
+ * Troca os itens do lote pelos do plano novo numa transação só (checagem,
+ * delete, inserção e gravação do plano): entre a checagem de cima e este ponto
+ * há a chamada da IA, que leva segundos.
  */
-async function replaceDrafts(deps: ApiDeps, batchId: string): Promise<void> {
-  const travados = await deleteReplaceableDraftsOfBatch(deps.db, batchId, BLOCKING_STATUSES);
-  if (travados.length > 0) throw travadoError(travados.length);
+async function swapPlan(
+  deps: ApiDeps,
+  input: { batchId: string; plan: BatchPlan; drafts: DraftInsert[] },
+): Promise<AdDraftRow[]> {
+  const swap = await swapBatchPlan(deps.db, { ...input, blockingStatuses: BLOCKING_STATUSES });
+  if (swap.blocked.length > 0) throw travadoError(swap.blocked.length);
+  return swap.items;
 }
 
 /** FR-006: briefing + criativos + conta → BatchPlan → itens persistidos. */
@@ -133,11 +137,8 @@ export async function generatePlan(
   const { plan, meta } = await deps.ai.generatePlan(planContext);
   assertPlanRefs(plan);
 
-  await replaceDrafts(deps, batch.id);
-  const items = await materializePlan(deps, { batch, plan, assets });
-
-  await patchBatch(deps.db, batch.id, { plan, status: items.length > 0 ? 'draft' : 'blocked' });
-  await refreshBatchStatus(deps.db, batch.id);
+  const drafts = await buildPlanDrafts(deps, { batch, plan, assets });
+  const items = await swapPlan(deps, { batchId: batch.id, plan, drafts });
 
   await audit(deps.db, {
     actor: { id: actor.id, email: actor.email },
@@ -209,14 +210,8 @@ export async function setManualPlan(
     throw unprocessable(`Criativos não encontrados neste cliente: ${missing.join(', ')}.`);
   }
 
-  await replaceDrafts(deps, batch.id);
-  const items = await materializePlan(deps, { batch, plan: input.plan, assets });
-
-  await patchBatch(deps.db, batch.id, {
-    plan: input.plan,
-    status: items.length > 0 ? 'draft' : 'blocked',
-  });
-  await refreshBatchStatus(deps.db, batch.id);
+  const drafts = await buildPlanDrafts(deps, { batch, plan: input.plan, assets });
+  const items = await swapPlan(deps, { batchId: batch.id, plan: input.plan, drafts });
 
   await audit(deps.db, {
     actor: { id: actor.id, email: actor.email },
@@ -235,11 +230,11 @@ export async function setManualPlan(
   return result;
 }
 
-/** Expande o plano em itens: 1 AdDraft por (criativo × variação de copy). */
-export async function materializePlan(
+/** Expande o plano em linhas: 1 AdDraft por (criativo × variação de copy). */
+async function buildPlanDrafts(
   deps: ApiDeps,
   input: { batch: BatchRow; plan: BatchPlan; assets: AssetRow[] },
-): Promise<AdDraftRow[]> {
+): Promise<DraftInsert[]> {
   const ctx = await loadBatchContext(deps, {
     clientId: input.batch.clientId,
     adAccountId: input.batch.adAccountId,
@@ -247,7 +242,7 @@ export async function materializePlan(
   const objectiveByCampaignKey = new Map(input.plan.campaigns.map((c) => [c.key, c.objective]));
   const now = deps.now?.() ?? new Date();
 
-  const drafts: Array<Parameters<typeof insertDrafts>[1][number]> = [];
+  const drafts: DraftInsert[] = [];
   let position = 0;
 
   input.plan.items.forEach((item: PlanItem) => {
@@ -300,7 +295,7 @@ export async function materializePlan(
     });
   });
 
-  return insertDrafts(deps.db, drafts);
+  return drafts;
 }
 
 /** FR-008: modo formulário produz os mesmos AdDrafts. */

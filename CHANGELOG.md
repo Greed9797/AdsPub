@@ -122,8 +122,10 @@ sendo decisão humana no Ads Manager.
 - `truncateAllTables` (usado só por fumaça e e2e) exige `ADPUB_ALLOW_TRUNCATE=1` **e** banco em
   loopback ou com sufixo `_test`/`_e2e`; a fumaça em sandbox mascara token e app secret em console,
   log estruturado e erro fatal.
-- Recriar o plano de um lote (IA ou construtor manual) apaga e recria os itens numa transação que
-  trava as linhas: se algum item estiver em publicação ou publicado, a troca é recusada com 422.
+- Recriar o plano de um lote (IA ou construtor manual) roda numa transação só - checagem, delete dos
+  itens antigos, inserção dos novos e gravação do plano: falha no meio faz rollback (o lote nunca
+  fica sem itens) e o lock do lote serializa duas recriações simultâneas. Se algum item estiver em
+  publicação ou publicado, a troca é recusada com 422.
 - Infra local por Docker Compose (Postgres, Redis e MinIO), com portas configuráveis para conviver
   com serviços já instalados na máquina.
 - Documentação técnica: `README.md`, `docs/spike-meta.md`, `docs/erros-meta.md`,
