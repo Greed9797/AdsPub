@@ -73,9 +73,11 @@ sendo decisão humana no Ads Manager.
 - Uma execução por item, garantida por lease em `ad_drafts` (`lease_owner`/`lease_until`): duas
   entregas simultâneas do mesmo job — o BullMQ reentrega job que considera travado, e worker
   reiniciado deixa o anterior terminando — leriam `meta_ids` vazio ao mesmo tempo e criariam dois
-  anúncios na Meta, com um ficando órfão. A perdedora é recusada e reagendada em 2s. O dono é por
-  execução, não por worker: com `publishConcurrency > 1` dois jobs do mesmo processo dividiriam o
-  lease.
+  anúncios na Meta, com um ficando órfão. A perdedora é recusada e reagendada **sem consumir
+  tentativa** (`moveToDelayed`): contenção não é falha do item, e quando o dono morre sem liberar a
+  espera é a expiração do lease — maior que todas as tentativas somadas, então gastar tentativa
+  mataria em `failed` um item que só precisava esperar. O dono é por execução, não por worker: com
+  `publishConcurrency > 1` dois jobs do mesmo processo dividiriam o lease.
 - Erros transientes fazem retry com backoff exponencial; erros permanentes param no item, com
   mensagem traduzida para português e a resposta original disponível em "detalhes"; o resto do lote
   continua.

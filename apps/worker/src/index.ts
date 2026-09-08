@@ -14,12 +14,8 @@ import { createContext } from './context.js';
 import { createMetaFactory } from './meta.js';
 import { runDriveImport, type DriveImportJobData } from './drive/import.js';
 import { runStatusPoll } from './poll/status.js';
-import {
-  AccountPausedError,
-  DraftBusyError,
-  runPublish,
-  type PublishJobData,
-} from './publish/pipeline.js';
+import { AccountPausedError, type PublishJobData } from './publish/pipeline.js';
+import { createPublishProcessor } from './publish/handler.js';
 import { VideoNotReadyError } from './publish/media.js';
 import { RefPendingError } from './publish/refs.js';
 import { runSync, type SyncJobData } from './sync/connection.js';
@@ -42,7 +38,7 @@ const publishConcurrency = CONCURRENCY_BY_TIER[ctx.env.META_TIER];
 
 const publishWorker = new Worker<PublishJobData>(
   QUEUES.publish,
-  async (job: Job<PublishJobData>) => runPublish(ctx, meta, alert, job.data, job.attemptsMade + 1),
+  createPublishProcessor(ctx, meta, alert),
   {
     connection,
     concurrency: publishConcurrency,
@@ -52,13 +48,13 @@ const publishWorker = new Worker<PublishJobData>(
 );
 
 /**
- * Vídeo processando, lock de referência e item já em publicação por outro
- * worker não são "erro": reagendam rápido. Conta pausada espera o fim da
- * pausa. O resto usa backoff exponencial.
+ * Vídeo processando e lock de referência não são "erro": reagendam rápido.
+ * Conta pausada espera o fim da pausa. O resto usa backoff exponencial.
+ * `DraftBusyError` não chega aqui: é reagendado sem consumir tentativa.
  */
 function publishBackoff(attemptsMade: number, _type?: string, err?: Error): number {
   if (err instanceof VideoNotReadyError) return VIDEO_POLL_INTERVAL_MS;
-  if (err instanceof RefPendingError || err instanceof DraftBusyError) return 2_000;
+  if (err instanceof RefPendingError) return 2_000;
   if (err instanceof AccountPausedError) {
     return Math.max(5_000, err.until.getTime() - Date.now());
   }

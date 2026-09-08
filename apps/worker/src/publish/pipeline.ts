@@ -51,7 +51,10 @@ export class AccountPausedError extends Error {
 }
 
 export class DraftBusyError extends Error {
-  constructor(readonly draftId: string) {
+  constructor(
+    readonly draftId: string,
+    readonly until: Date | null,
+  ) {
     super(`Item ${draftId} já está em publicação por outro worker. Reagendado.`);
     this.name = 'DraftBusyError';
   }
@@ -73,7 +76,8 @@ export async function runPublish(
   // vazio ao mesmo tempo e criam dois anúncios na Meta (SC-004). O dono é por
   // execução — dois jobs do mesmo worker não podem compartilhar o lease.
   const owner = `${process.pid}:${randomUUID()}`;
-  if (!(await claimDraft(ctx.db, data.draftId, owner))) throw new DraftBusyError(data.draftId);
+  const claim = await claimDraft(ctx.db, data.draftId, owner);
+  if (!claim.ok) throw new DraftBusyError(data.draftId, claim.until);
   try {
     return await publishLocked(ctx, meta, alert, data, attempt);
   } finally {

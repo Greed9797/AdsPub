@@ -25,12 +25,14 @@ export const DRAFT_LEASE_MS = 10 * 60 * 1000;
  * dono e as duas passariam pelo `where`. Por isso não há ramo de reentrância
  * por dono — retomada normal libera no `finally` e crash cai na expiração.
  */
+export type DraftClaim = { ok: true } | { ok: false; until: Date | null };
+
 export async function claimDraft(
   db: Database,
   draftId: string,
   owner: string,
   leaseMs: number = DRAFT_LEASE_MS,
-): Promise<boolean> {
+): Promise<DraftClaim> {
   const until = new Date(Date.now() + leaseMs);
   const rows = await db
     .update(adDrafts)
@@ -42,7 +44,16 @@ export async function claimDraft(
       ),
     )
     .returning({ id: adDrafts.id });
-  return rows.length > 0;
+  if (rows.length > 0) return { ok: true };
+
+  // Quem perdeu precisa saber até quando esperar: se o dono morrer sem liberar,
+  // a retomada só é possível depois da expiração — e esperar não pode consumir
+  // as tentativas do job, senão o item morre em `failed` antes da hora.
+  const [atual] = await db
+    .select({ until: adDrafts.leaseUntil })
+    .from(adDrafts)
+    .where(eq(adDrafts.id, draftId));
+  return { ok: false, until: atual?.until ?? null };
 }
 
 export async function releaseDraft(db: Database, draftId: string, owner: string): Promise<void> {

@@ -10,13 +10,14 @@
  */
 import { AiClient } from '@adpub/ai';
 import { ingestFile } from '@adpub/assets';
-import { loadServerEnv } from '@adpub/config';
+import { QUEUES, RETRY, loadServerEnv } from '@adpub/config';
 import { mintSessionToken } from '@adpub/auth';
 import {
   createConnection,
   createDb,
   deleteDraftsOfBatch,
   getBatch,
+  claimDraft,
   getDraft,
   markDraftsQueued,
   listAudit,
@@ -49,6 +50,9 @@ import { runStatusPoll } from '@adpub/worker/poll/status';
 import { runSync } from '@adpub/worker/sync/connection';
 import { createAlerter } from '@adpub/worker/alerts';
 import { createMetaFactory } from '@adpub/worker/meta';
+import { createPublishProcessor } from '@adpub/worker/publish/handler';
+import type { PublishJobData } from '@adpub/worker/publish/pipeline';
+import { Queue, Worker } from 'bullmq';
 import type { WorkerContext } from '@adpub/worker/context';
 import { Redis } from 'ioredis';
 import pino from 'pino';
@@ -893,9 +897,13 @@ async function main(): Promise<void> {
     graph.count(`POST ${stressAccount}/ads`) - adsAntes === 1,
     { antes: adsAntes, depois: graph.count(`POST ${stressAccount}/ads`) },
   );
+  // Não fixamos "3 rejeitadas": se o vencedor liberar o lease antes de um
+  // perdedor chegar ao claim, esse perdedor claima e sai pelo curto-circuito de
+  // `published`. O invariante é o de cima (um anúncio só); aqui só exigimos que
+  // toda recusa seja contenção, nunca falha de verdade.
   check(
-    'as entregas perdedoras são recusadas como transitórias',
-    entregas.filter((e) => e.status === 'rejected').length === 3 &&
+    'as entregas perdedoras são recusadas como contenção',
+    entregas.some((e) => e.status === 'rejected') &&
       entregas.every(
         (e) => e.status === 'fulfilled' || (e.reason as Error).name === 'DraftBusyError',
       ),
@@ -911,6 +919,107 @@ async function main(): Promise<void> {
     !dupFinal?.leaseOwner && !dupFinal?.leaseUntil,
     { leaseOwner: dupFinal?.leaseOwner, leaseUntil: dupFinal?.leaseUntil },
   );
+  phase('R3 — dono do lease morre: retomada automática sem gastar tentativas');
+  // Único ponto do smoke com BullMQ real: o comportamento em prova é do
+  // *processador da fila*, não do pipeline. Sem `moveToDelayed` a contenção
+  // consome tentativa e o item morre em `failed` antes do lease expirar.
+  const LEASE_CURTO_MS = 4_000;
+  const crashBatch = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/batches',
+      headers: auth,
+      payload: {
+        client_id: client.id,
+        ad_account_id: stressAccount,
+        name: 'Lote retomada pós-crash',
+        mode: 'manual',
+      },
+    })
+    .then((r) => r.json())) as { id: string };
+  expect(
+    'lote de retomada com 1 item',
+    await app.inject({
+      method: 'PUT',
+      url: `/api/v1/batches/${crashBatch.id}/plan`,
+      headers: auth,
+      payload: {
+        ...manualPlan,
+        campaigns: [{ ...manualPlan.campaigns[0], key: 'crash-c1' }],
+        adsets: [{ ...manualPlan.adsets[0], key: 'crash-a1', campaign_key: 'crash-c1' }],
+        items: [
+          {
+            ...manualPlan.items[0],
+            campaign_ref: { kind: 'new', key: 'crash-c1' },
+            adset_ref: { kind: 'new', key: 'crash-a1' },
+            copies: [manualCopy('c1')],
+          },
+        ],
+      },
+    }),
+    200,
+  );
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/batches/${crashBatch.id}/validate`,
+    headers: auth,
+  });
+  const crashItem = (await listDraftsOfBatch(db, crashBatch.id))[0]!;
+  await markDraftsQueued(db, [crashItem.id]);
+
+  // Worker que morreu sem liberar: lease cravado num dono que nunca volta.
+  const cravado = await claimDraft(db, crashItem.id, 'worker-que-morreu:1', LEASE_CURTO_MS);
+  check('lease do dono morto ficou cravado', cravado.ok, cravado);
+
+  const fila = new Queue<PublishJobData>(QUEUES.publish, { connection: redis });
+  await fila.obliterate({ force: true });
+  let tentativaMax = 0;
+  const crashWorker = new Worker<PublishJobData>(
+    QUEUES.publish,
+    async (job, token) => {
+      tentativaMax = Math.max(tentativaMax, job.attemptsMade + 1);
+      return createPublishProcessor(workerCtx, metaFactory, alert)(job, token);
+    },
+    { connection: redis, concurrency: 1 },
+  );
+  const adsAntesCrash = graph.count(`POST ${stressAccount}/ads`);
+  const inicioCrash = Date.now();
+  await fila.add(
+    'publish',
+    { draftId: crashItem.id, adAccountId: stressAccount, batchId: crashBatch.id },
+    { attempts: RETRY.maxAttempts, backoff: { type: 'fixed', delay: 500 } },
+  );
+  let crashPublicado = false;
+  for (let i = 0; i < 40; i += 1) {
+    const atual = await getDraft(db, crashItem.id);
+    if (atual?.status === 'published') {
+      crashPublicado = true;
+      break;
+    }
+    if (atual?.status === 'failed') break;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  const crashSegundos = (Date.now() - inicioCrash) / 1000;
+  const crashFinal = await getDraft(db, crashItem.id);
+  await crashWorker.close();
+  await fila.obliterate({ force: true });
+  await fila.close();
+
+  check('item publica sozinho após o lease expirar', crashPublicado, {
+    status: crashFinal?.status,
+    segundos: crashSegundos,
+  });
+  check('esperou a expiração, não passou por cima do lease', crashSegundos >= 3, crashSegundos);
+  check('contenção não consumiu tentativas', tentativaMax === 1, {
+    tentativaMax,
+    maxAttempts: RETRY.maxAttempts,
+  });
+  check(
+    'a retomada criou um anúncio, não dois',
+    graph.count(`POST ${stressAccount}/ads`) - adsAntesCrash === 1,
+    { antes: adsAntesCrash, depois: graph.count(`POST ${stressAccount}/ads`) },
+  );
+
 
   phase('FR-006 — troca de plano é atômica');
   const atomBatch = (await app
