@@ -10,6 +10,7 @@ allowBuilds:
   sharp: true
   "@tailwindcss/oxide": true
   msgpackr-extract: false
+  protobufjs: false
 
 onlyBuiltDependencies:
   - sharp

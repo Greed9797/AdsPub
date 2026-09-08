@@ -53,6 +53,11 @@ export const serverEnvSchema = z.object({
   WEB_URL: nonEmpty.default('http://localhost:3000'),
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+
+  /** Observabilidade opcional (T019): sem estas variáveis nada é carregado. */
+  SENTRY_DSN: z.string().url().optional(),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
+  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

@@ -7,6 +7,7 @@ import {
   VIDEO_POLL_INTERVAL_MS,
 } from '@adpub/config';
 import { listConnections, purgeOldMetaCalls } from '@adpub/db';
+import { initTelemetry } from '@adpub/telemetry';
 import { Queue, Worker, type Job } from 'bullmq';
 import { createAlerter } from './alerts.js';
 import { createContext } from './context.js';
@@ -19,6 +20,14 @@ import { RefPendingError } from './publish/refs.js';
 import { runSync, type SyncJobData } from './sync/connection.js';
 
 const ctx = createContext();
+/** T019: rastros e erros só quando configurados; sem DSN/endpoint é no-op. */
+const telemetry = await initTelemetry({
+  service: 'adpub-worker',
+  sentryDsn: ctx.env.SENTRY_DSN,
+  otlpEndpoint: ctx.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+  environment: ctx.env.NODE_ENV,
+  tracesSampleRate: ctx.env.SENTRY_TRACES_SAMPLE_RATE,
+});
 const alert = createAlerter(ctx.env.SLACK_WEBHOOK_URL, ctx.log);
 const meta = createMetaFactory(ctx, alert);
 const connection = ctx.redis;
@@ -81,6 +90,7 @@ for (const worker of [publishWorker, syncWorker, driveWorker, statusWorker]) {
       { queue: worker.name, job: job?.id, attempts: job?.attemptsMade, err: error.message },
       'job falhou',
     );
+    telemetry.captureError(error, { queue: worker.name, job: job?.id, attempts: job?.attemptsMade });
   });
   worker.on('completed', (job) => {
     ctx.log.debug({ queue: worker.name, job: job.id }, 'job concluído');
@@ -122,6 +132,7 @@ async function shutdown(signal: string): Promise<void> {
     syncQueue.close(),
   ]);
   ctx.redis.disconnect();
+  await telemetry.shutdown();
   await ctx.sql.end({ timeout: 5 });
   process.exit(0);
 }

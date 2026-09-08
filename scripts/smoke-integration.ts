@@ -186,7 +186,14 @@ async function main(): Promise<void> {
     async enqueuePublish(items) {
       const refs: JobRef[] = [];
       for (const item of items) {
-        await runPublish(workerCtx, metaFactory, alert, item, 1);
+        // No BullMQ o produtor só enfileira: uma falha do worker não sobe para
+        // quem chamou `POST /publish`, o job é reagendado. O stub roda o
+        // worker inline, então precisa engolir o erro do mesmo jeito.
+        try {
+          await runPublish(workerCtx, metaFactory, alert, item, 1);
+        } catch {
+          /* job falho: reprocessado adiante, como o BullMQ faria */
+        }
         publishedDrafts.push(item.draftId);
         refs.push({ job_id: `draft-${item.draftId}`, queue: 'adpub.publish' });
       }
@@ -700,6 +707,118 @@ async function main(): Promise<void> {
     .then((r) => r.json())) as { published_today: number; daily_cap: number; error_rate_1h: number };
   check('saúde reporta publicações do dia', health.published_today === 3, health);
   check('teto diário exposto', health.daily_cap === 3, health);
+
+  phase('SC-004/T070/T071 — falhas injetadas, retomada e zero duplicata');
+  const stressAccount = 'act_1030000000002';
+  const stressBatch = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/batches',
+      headers: auth,
+      payload: {
+        client_id: client.id,
+        ad_account_id: stressAccount,
+        name: 'Lote de estresse',
+        mode: 'manual',
+      },
+    })
+    .then((r) => r.json())) as { id: string };
+  // 5 itens (1 criativo × 5 copies) compartilhando UMA campanha e UM conjunto novos.
+  const stressItems = expect<{ items: Array<{ id: string }> }>(
+    'lote de estresse com 5 itens',
+    await app.inject({
+      method: 'PUT',
+      url: `/api/v1/batches/${stressBatch.id}/plan`,
+      headers: auth,
+      payload: {
+        ...manualPlan,
+        campaigns: [{ ...manualPlan.campaigns[0], key: 'stress-c1' }],
+        adsets: [{ ...manualPlan.adsets[0], key: 'stress-a1', campaign_key: 'stress-c1' }],
+        items: [
+          {
+            ...manualPlan.items[0],
+            campaign_ref: { kind: 'new', key: 'stress-c1' },
+            adset_ref: { kind: 'new', key: 'stress-a1' },
+            copies: ['v1', 'v2', 'v3', 'v4', 'v5'].map((v) => manualCopy(v)),
+          },
+        ],
+      },
+    }),
+    200,
+  ).items;
+  check('plano de estresse gerou 5 itens', stressItems.length === 5, stressItems.length);
+  await app.inject({ method: 'POST', url: `/api/v1/batches/${stressBatch.id}/validate`, headers: auth });
+
+  // Falha transitória em toda etapa de escrita: cada item precisa reentrar na
+  // etapa salva em `publish_jobs.step` sem repetir o que já criou.
+  graph.failNext(`POST ${stressAccount}/campaigns`, 2);
+  graph.failNext(`POST ${stressAccount}/adsets`, 2);
+  graph.failNext(`POST ${stressAccount}/adimages`, 2);
+  graph.failNext(`POST ${stressAccount}/adcreatives`, 3);
+  graph.failNext(`POST ${stressAccount}/ads`, 3);
+
+  const enfileirados = (await app
+    .inject({
+      method: 'POST',
+      url: `/api/v1/batches/${stressBatch.id}/publish`,
+      headers: auth,
+      payload: { confirm_count: 5, only_failed: false },
+    })
+    .then((r) => r.json())) as { queued: number };
+  check('5 itens enfileirados', enfileirados.queued === 5, enfileirados);
+
+  // O stub de fila roda `runPublish` uma vez por item; aqui emulamos o BullMQ
+  // reagendando até 100 execuções, como o `RETRY` faria.
+  let execucoes = 0;
+  let erros = 0;
+  for (let volta = 0; volta < 20 && execucoes < 100; volta += 1) {
+    const pendentes = (await listDraftsOfBatch(db, stressBatch.id)).filter(
+      (item) => item.status !== 'published',
+    );
+    if (pendentes.length === 0) break;
+    for (const item of pendentes) {
+      if (execucoes >= 100) break;
+      execucoes += 1;
+      try {
+        await runPublish(
+          workerCtx,
+          metaFactory,
+          alert,
+          { draftId: item.id, adAccountId: stressAccount, batchId: stressBatch.id },
+          volta + 2,
+        );
+      } catch {
+        erros += 1;
+      }
+    }
+  }
+  const stressFinal = await listDraftsOfBatch(db, stressBatch.id);
+  check('falhas injetadas realmente aconteceram', erros >= 5, { execucoes, erros });
+  check(
+    'os 5 itens terminam publicados',
+    stressFinal.length === 5 && stressFinal.every((item) => item.status === 'published'),
+    stressFinal.map((item) => item.status),
+  );
+  check(
+    'campanha e conjunto novos criados uma única vez para os 5 itens (T071)',
+    graph.count(`POST ${stressAccount}/campaigns`) === 3 &&
+      graph.count(`POST ${stressAccount}/adsets`) === 3,
+    {
+      campanhas: graph.count(`POST ${stressAccount}/campaigns`),
+      conjuntos: graph.count(`POST ${stressAccount}/adsets`),
+    },
+  );
+  check(
+    'nenhum anúncio duplicado apesar das falhas (SC-004)',
+    graph.count(`POST ${stressAccount}/ads`) === 8 &&
+      graph.count(`POST ${stressAccount}/adcreatives`) === 8,
+    {
+      anuncios: graph.count(`POST ${stressAccount}/ads`),
+      criativos: graph.count(`POST ${stressAccount}/adcreatives`),
+      execucoes,
+      erros,
+    },
+  );
 
   phase('FR-006 — troca de plano é atômica');
   const atomBatch = (await app

@@ -3,6 +3,7 @@ import { loadServerEnv } from '@adpub/config';
 import { createDb, getConnectionToken, recordMetaCall } from '@adpub/db';
 import { MetaClient } from '@adpub/meta-client';
 import { Storage } from '@adpub/storage';
+import { initTelemetry } from '@adpub/telemetry';
 import { Redis } from 'ioredis';
 import { buildApp } from './app.js';
 import { aiCacheFor } from './services/batch-plan.js';
@@ -10,6 +11,14 @@ import { createQueues } from './queues.js';
 import type { ApiDeps } from './lib/deps.js';
 
 const env = loadServerEnv();
+/** T019: rastros e erros só quando configurados; sem DSN/endpoint é no-op. */
+const telemetry = await initTelemetry({
+  service: 'adpub-api',
+  sentryDsn: env.SENTRY_DSN,
+  otlpEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT,
+  environment: env.NODE_ENV,
+  tracesSampleRate: env.SENTRY_TRACES_SAMPLE_RATE,
+});
 const { db, sql } = createDb(env.DATABASE_URL);
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const queues = createQueues(redis);
@@ -78,6 +87,7 @@ async function shutdown(signal: string): Promise<void> {
   app.log.info({ signal }, 'encerrando API');
   await app.close();
   await queues.close();
+  await telemetry.shutdown();
   redis.disconnect();
   await sql.end({ timeout: 5 });
   process.exit(0);

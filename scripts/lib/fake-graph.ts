@@ -15,6 +15,8 @@ export interface FakeGraph {
   fetchImpl: typeof fetch;
   calls: Map<string, number>;
   count(key: string): number;
+  /** Faz as próximas `times` chamadas a `key` (`"POST act_x/ads"`) falharem com erro transitório. */
+  failNext(key: string, times: number): void;
   ids: {
     campaign: string;
     adset: string;
@@ -72,6 +74,8 @@ export function createFakeGraph(options: FakeGraphOptions = {}): FakeGraph {
   const calls = new Map<string, number>();
   let adFailuresLeft = options.failCreateAdTimes ?? 0;
   let videoChecksLeft = options.videoProcessingChecks ?? 0;
+  /** Falhas transientes pendentes por endpoint, alimentadas por `failNext`. */
+  const failuresLeft = new Map<string, number>();
 
   function hit(key: string): number {
     const next = (calls.get(key) ?? 0) + 1;
@@ -96,7 +100,15 @@ export function createFakeGraph(options: FakeGraphOptions = {}): FakeGraph {
       }
     }
 
-    hit(`${method} ${path || 'batch'}`);
+    const key = `${method} ${path || 'batch'}`;
+    hit(key);
+
+    const pendente = failuresLeft.get(key) ?? 0;
+    if (pendente > 0) {
+      failuresLeft.set(key, pendente - 1);
+      // Código 2 = erro transitório da plataforma: o pipeline deve reagendar.
+      return graphError({ message: 'Serviço temporariamente indisponível.', code: 2, status: 500 });
+    }
 
     if (method === 'GET' && path === 'me') {
       return json({ id: '61550000000001', name: 'AdPub System User' });
@@ -247,6 +259,7 @@ export function createFakeGraph(options: FakeGraphOptions = {}): FakeGraph {
     fetchImpl,
     calls,
     count: (key) => calls.get(key) ?? 0,
+    failNext: (key, times) => failuresLeft.set(key, times),
     ids,
   };
 }
