@@ -13,6 +13,15 @@ export interface AccountHealth {
   ad_account_id: string;
   name: string;
   connection_status: string;
+  /** T-001-2: diagnóstico da conexão sem publicar nada (AC-001-02). */
+  connection: {
+    status: string;
+    api_tier_observed: string;
+    api_tier_configured: string;
+    last_checked_at: string | null;
+    last_error: string | null;
+    scopes: string[];
+  };
   rate_usage: AdAccountRow['rateUsage'];
   paused_until: string | null;
   published_today: number;
@@ -42,6 +51,14 @@ export async function accountsHealth(
         ad_account_id: account.id,
         name: account.name,
         connection_status: connection?.status ?? 'unknown',
+        connection: {
+          status: connection?.status ?? 'unknown',
+          api_tier_observed: connection?.apiTier ?? 'unknown',
+          api_tier_configured: deps.env.metaTier ?? 'unknown',
+          last_checked_at: connection?.lastCheckedAt?.toISOString() ?? null,
+          last_error: connection?.lastError ?? null,
+          scopes: connection?.scopes ?? [],
+        },
         rate_usage: account.rateUsage,
         paused_until: account.pausedUntil?.toISOString() ?? null,
         published_today: publishedToday,

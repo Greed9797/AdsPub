@@ -2,6 +2,7 @@ import { GRAPH_BATCH_MAX } from '@adpub/config';
 import { actPath, type MetaClient } from '../client.js';
 
 /** Leituras da Graph API (T014). Nenhuma escrita aqui. */
+export * from './insights.js';
 
 export interface Paged<T> {
   data: T[];
@@ -64,6 +65,8 @@ export interface AdStatus {
   effective_status?: string;
   configured_status?: string;
   ad_review_feedback?: Record<string, unknown>;
+  /** T-002-2: identidade do criativo para detectar troca fora do app. */
+  creative?: { id?: string };
 }
 
 async function readAllPages<T>(
@@ -172,7 +175,7 @@ export async function getAdsStatus(client: MetaClient, adIds: readonly string[])
     const responses = await client.batch<AdStatus>(
       chunk.map((id) => ({
         method: 'GET' as const,
-        relative_url: `${id}?fields=effective_status,configured_status,ad_review_feedback`,
+        relative_url: `${id}?fields=effective_status,configured_status,ad_review_feedback,creative{id}`,
       })),
     );
     responses.forEach((response, index) => {

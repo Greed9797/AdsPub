@@ -15,6 +15,76 @@
       "when": 1788890646309,
       "tag": "0001_soft_amphibian",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789051985331,
+      "tag": "0002_soft_clea",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789052236754,
+      "tag": "0003_past_starhawk",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789056418027,
+      "tag": "0004_broken_blue_shield",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789058434537,
+      "tag": "0005_massive_warstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789059679494,
+      "tag": "0006_simple_manta",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789061569654,
+      "tag": "0007_dusty_marvex",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789062027710,
+      "tag": "0008_silly_riptide",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789062559293,
+      "tag": "0009_tired_young_avengers",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789062817990,
+      "tag": "0010_charming_firebird",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789063355942,
+      "tag": "0011_chemical_swarm",
+      "breakpoints": true
     }
   ]
 }

@@ -13,13 +13,16 @@
   },
   "dependencies": {
     "@adpub/ai": "workspace:*",
+    "@adpub/analytics": "workspace:*",
     "@adpub/assets": "workspace:*",
     "@adpub/auth": "workspace:*",
     "@adpub/config": "workspace:*",
+    "@adpub/creative-intel": "workspace:*",
     "@adpub/crypto": "workspace:*",
     "@adpub/db": "workspace:*",
     "@adpub/media": "workspace:*",
     "@adpub/meta-client": "workspace:*",
+    "@adpub/reports": "workspace:*",
     "@adpub/rules": "workspace:*",
     "@adpub/shared": "workspace:*",
     "@adpub/storage": "workspace:*",
@@ -36,9 +39,9 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "typescript": "^5.9.3",
     "@types/node": "^26.5.0",
-    "tsx": "^4.23.13"
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3"
   },
   "exports": {
     ".": {

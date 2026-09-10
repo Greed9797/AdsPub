@@ -19,6 +19,8 @@ import {
   batchOptionsSchema,
   batchPlanSchema,
   batchStatusSchema,
+  metaIdsSchema,
+  publishStepSchema,
   type AdDraftInput,
 } from '@adpub/shared';
 import { applyAutoFields, statusFromValidation, validateItem } from '@adpub/rules';
@@ -33,7 +35,7 @@ import {
 } from '../services/batch-context.js';
 import { addManualItems, generatePlan, setManualPlan } from '../services/batch-plan.js';
 import { duplicateBatch } from '../services/duplicate.js';
-import { publishBatch, retryDraft } from '../services/publish.js';
+import { publishBatch, resolveReconciliation, retryDraft } from '../services/publish.js';
 import { validateBatch } from '../services/validation.js';
 import type { ApiDeps } from '../lib/deps.js';
 
@@ -64,8 +66,19 @@ const planBody = z
   })
   .default({ asset_ids: [], copies_per_creative: 3, regenerate: false });
 
-const publishBody = z
+/** T-000-1: contrato de publicação não tem campo de status — ACTIVE nem chega a existir. */
+export const publishBody = z
   .object({ only_failed: z.boolean().default(false), confirm_count: z.number().int().min(0) })
+  .strict();
+
+/** T-000-2: adotar exige IDs + etapa; descartar exige motivo. */
+const resolveBody = z
+  .object({
+    decision: z.enum(['adopt', 'discard']),
+    meta_ids: metaIdsSchema.optional(),
+    step: publishStepSchema.optional(),
+    motive: z.string().min(1),
+  })
   .strict();
 
 export function batchRoutes(app: FastifyInstance, deps: ApiDeps): void {
@@ -278,6 +291,24 @@ export function batchRoutes(app: FastifyInstance, deps: ApiDeps): void {
     return reply.status(202).send(job);
   });
 
+  /** T-000-2 (AC-000-03): resolução humana de reconciliação, auditada, sem recriar às cegas. */
+  app.post('/batches/:id/items/:itemId/resolve', async (request, reply) => {
+    const user = currentUser(request);
+    const { id, itemId } = itemParam.parse(request.params);
+    const batch = await batchInScope(deps, user, id);
+    const body = resolveBody.parse(request.body);
+    const result = await resolveReconciliation(deps, user, {
+      batchId: id,
+      itemId,
+      adAccountId: batch.adAccountId,
+      decision: body.decision,
+      ...(body.meta_ids ? { metaIds: body.meta_ids } : {}),
+      ...(body.step ? { step: body.step } : {}),
+      motive: body.motive,
+    });
+    return reply.status(202).send(result);
+  });
+
   app.post('/batches/:id/validate', async (request) => {
     const user = currentUser(request);
     const { id } = idParam.parse(request.params);
@@ -379,4 +410,4 @@ export function batchRoutes(app: FastifyInstance, deps: ApiDeps): void {
   });
 }
 
-const TERMINAL = new Set(['published', 'in_review', 'approved', 'disapproved', 'failed', 'blocked', 'draft', 'ready']);
+const TERMINAL = new Set(['published', 'in_review', 'approved', 'disapproved', 'failed', 'blocked', 'draft', 'ready', 'needs_reconciliation']);

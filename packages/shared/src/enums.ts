@@ -40,6 +40,8 @@ export const adDraftStatusSchema = z.enum([
   'approved',
   'disapproved',
   'failed',
+  /** T-000-2 (AC-000-03): possível create externo sem resposta — exige resolução humana. */
+  'needs_reconciliation',
 ]);
 export type AdDraftStatus = z.infer<typeof adDraftStatusSchema>;
 

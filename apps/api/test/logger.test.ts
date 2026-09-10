@@ -12,6 +12,9 @@ const deps = {
     metaApiVersion: 'v25.0',
     metaTier: 'limited',
     usePolicyAi: false,
+    featureAiAnalysis: true,
+    featureReports: true,
+    featureInsights: true,
   },
 } as unknown as ApiDeps;
 

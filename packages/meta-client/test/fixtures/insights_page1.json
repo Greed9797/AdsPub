@@ -1,0 +1,7 @@
+{
+  "data": [
+    {"ad_id": "23850000000000903", "ad_name": "Ad A", "spend": "100.50", "impressions": "1000", "date_start": "2026-09-01", "date_stop": "2026-09-01"},
+    {"ad_id": "23850000000000904", "ad_name": "Ad B", "spend": "50.25", "impressions": "500", "date_start": "2026-09-01", "date_stop": "2026-09-01"}
+  ],
+  "paging": {"cursors": {"after": "QVJD"}, "next": "https://graph.facebook.com/v25.0/act_1/insights?after=QVJD"}
+}

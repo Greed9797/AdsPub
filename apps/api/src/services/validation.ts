@@ -1,7 +1,9 @@
 import {
   audit,
   getBatch,
+  getOrCreateVariant,
   listDraftsOfBatch,
+  patchBatch,
   patchDraft,
   refreshBatchStatus,
   type AdDraftRow,
@@ -16,6 +18,7 @@ import {
 import { notFound } from '../lib/problem.js';
 import type { ApiDeps } from '../lib/deps.js';
 import { assetsForDrafts, loadBatchContext, validateContextFrom } from './batch-context.js';
+import { approvalFingerprint } from './approval.js';
 
 /** FR-009: valida todos os itens do lote e devolve o relatório. */
 export async function validateBatch(
@@ -76,6 +79,18 @@ export async function validateBatch(
     }
 
     const status = statusFromValidation(validation);
+    // T-002-1: variante deriva do conteúdo validado; sem conteúdo válido, sem variante.
+    const variant =
+      status === 'ready'
+        ? await getOrCreateVariant(deps.db, batch.clientId, {
+            format: filled.format,
+            assetIds: filled.asset_ids,
+            copy: filled.copy,
+            pageId: filled.page_id,
+            igUserId: filled.ig_user_id,
+            offerContext: null,
+          })
+        : null;
     await patchDraft(deps.db, draft.id, {
       copy: filled.copy,
       name: filled.name,
@@ -83,6 +98,8 @@ export async function validateBatch(
       igUserId: filled.ig_user_id,
       validation,
       status,
+      validatedAt: now,
+      variantId: variant?.id ?? null,
       editedFields: mergeEdited(draft.editedFields, applied),
     });
 
@@ -98,6 +115,13 @@ export async function validateBatch(
 
   await refreshBatchStatus(deps.db, batchId);
   const canPublish = reportItems.length > 0 && reportItems.every((item) => item.status === 'ready');
+
+  // T-000-3: congela a revisão aprovada — publicar exige este fingerprint.
+  const fresh = await listDraftsOfBatch(deps.db, batchId);
+  await patchBatch(deps.db, batchId, {
+    approvalFingerprint: approvalFingerprint(fresh),
+    validatedAt: now,
+  });
 
   await audit(deps.db, {
     actor: { id: actor.id, email: actor.email },

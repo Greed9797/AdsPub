@@ -151,8 +151,7 @@ export const validationReportSchema = z.object({
 });
 export type ValidationReport = z.infer<typeof validationReportSchema>;
 
-export const metaIdsSchema = z.object({
-  campaign_id: z.string().optional(),
+export const metaIdsSchema = z.object({  campaign_id: z.string().optional(),
   adset_id: z.string().optional(),
   creative_id: z.string().optional(),
   ad_id: z.string().optional(),
@@ -171,6 +170,24 @@ export const draftErrorSchema = z.object({
   step: z.string().optional(),
 });
 export type DraftError = z.infer<typeof draftErrorSchema>;
+
+/**
+ * T-002-1 (FR-002-02): manifesto imutável da variante de comunicação. Nome do
+ * anúncio/item fica de fora de propósito: nome é rótulo, não identidade
+ * (AC-002-03). Mídias em ordem: carrossel reordenado é outra variante.
+ */
+export const variantManifestSchema = z.object({
+  format: adFormatSchema,
+  assetIds: z.array(z.string().uuid()),
+  copy: copySchema,
+  pageId: z.string().default(''),
+  igUserId: z.string().nullable().default(null),
+  offerContext: z.string().nullable().default(null),
+});
+export type VariantManifest = z.infer<typeof variantManifestSchema>;
+
+export const bindingPrecisionSchema = z.enum(['confirmed', 'manual', 'ambiguous_intraday', 'media_missing']);
+export type BindingPrecision = z.infer<typeof bindingPrecisionSchema>;
 
 export const voiceProfileSchema = z.object({
   tone: z.string().default(''),

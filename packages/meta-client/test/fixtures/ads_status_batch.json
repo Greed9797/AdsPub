@@ -1,10 +1,10 @@
 [
   {
     "code": 200,
-    "body": "{\"id\":\"23850000000000903\",\"effective_status\":\"PENDING_REVIEW\",\"configured_status\":\"PAUSED\"}"
+    "body": "{\"id\": \"23850000000000903\", \"effective_status\": \"PENDING_REVIEW\", \"configured_status\": \"PAUSED\", \"creative\": {\"id\": \"23850000000000801\"}}"
   },
   {
     "code": 200,
-    "body": "{\"id\":\"23850000000000904\",\"effective_status\":\"DISAPPROVED\",\"configured_status\":\"PAUSED\",\"ad_review_feedback\":{\"global\":{\"MISLEADING_CLAIMS\":\"A copy promete resultado garantido.\"}}}"
+    "body": "{\"id\": \"23850000000000904\", \"effective_status\": \"DISAPPROVED\", \"configured_status\": \"PAUSED\", \"ad_review_feedback\": {\"global\": {\"MISLEADING_CLAIMS\": \"A copy promete resultado garantido.\"}}, \"creative\": {\"id\": \"23850000000000802\"}}"
   }
 ]

@@ -19,6 +19,7 @@ import { createPublishProcessor } from './publish/handler.js';
 import { VideoNotReadyError } from './publish/media.js';
 import { RefPendingError } from './publish/refs.js';
 import { runSync, type SyncJobData } from './sync/connection.js';
+import { runInsightsSync, type InsightsSyncData } from './insights/sync.js';
 
 const ctx = createContext();
 /** T019: rastros e erros só quando configurados; sem DSN/endpoint é no-op. */
@@ -83,10 +84,17 @@ const statusWorker = new Worker(
   { connection, concurrency: 1 },
 );
 
+/** T-004-3: fila separada do publish — vídeo/IA nunca travam publicação (009). */
+const insightsWorker = new Worker<InsightsSyncData>(
+  QUEUES.insightsSync,
+  async (job: Job<InsightsSyncData>) => runInsightsSync(ctx, meta, alert, job.data),
+  { connection, concurrency: 1 },
+);
+
 const statusQueue = new Queue(QUEUES.statusPoll, { connection });
 const syncQueue = new Queue<SyncJobData>(QUEUES.sync, { connection });
 
-for (const worker of [publishWorker, syncWorker, driveWorker, statusWorker]) {
+for (const worker of [publishWorker, syncWorker, driveWorker, statusWorker, insightsWorker]) {
   worker.on('failed', (job, error) => {
     ctx.log.warn(
       { queue: worker.name, job: job?.id, attempts: job?.attemptsMade, err: error.message },
@@ -130,6 +138,7 @@ async function shutdown(signal: string): Promise<void> {
     syncWorker.close(),
     driveWorker.close(),
     statusWorker.close(),
+    insightsWorker.close(),
     statusQueue.close(),
     syncQueue.close(),
   ]);

@@ -11,12 +11,20 @@ export const metadata: Metadata = {
 const NAV = [
   { href: '/', label: 'Lotes' },
   { href: '/criativos', label: 'Criativos' },
+  { href: '/relatorios', label: 'Relatórios', flag: 'FEATURE_REPORTS' },
+  { href: '/performance', label: 'Performance' },
+  { href: '/inteligencia', label: 'Inteligência', flag: 'FEATURE_AI_ANALYSIS' },
   { href: '/contas', label: 'Contas' },
   { href: '/clientes', label: 'Clientes' },
   { href: '/saude', label: 'Saúde' },
   { href: '/auditoria', label: 'Auditoria' },
   { href: '/usuarios', label: 'Usuários' },
-];
+] as const;
+
+/** T-009-3: funcionalidade desligada some da navegação (API dá 503). */
+function visibleNav(): Array<{ href: string; label: string }> {
+  return NAV.filter((item) => !('flag' in item) || process.env[item.flag] !== '0');
+}
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await currentSession();
@@ -31,7 +39,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 AdPub
               </Link>
               <nav className="flex flex-1 gap-4 text-sm text-[var(--color-muted)]">
-                {NAV.map((item) => (
+                {visibleNav().map((item) => (
                   <Link key={item.href} href={item.href} className="hover:text-[var(--color-text)]">
                     {item.label}
                   </Link>

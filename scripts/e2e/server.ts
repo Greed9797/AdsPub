@@ -177,6 +177,12 @@ const queues: Queues = {
   async enqueueImportDrive() {
     return { job_id: 'drive-e2e', queue: 'adpub.drive-import' };
   },
+  async enqueueInsights(input: { adAccountId: string; since: string; until: string }) {
+    return { job_id: `insights-e2e-${input.adAccountId}-${input.since}`, queue: 'adpub.insights-sync' };
+  },
+  async queueCounts() {
+    return {};
+  },
   async enqueuePublish(items) {
     const refs: JobRef[] = [];
     for (const item of items) {
@@ -201,6 +207,9 @@ const deps: ApiDeps = {
     metaTier: env.META_TIER,
     // Classificação de política por IA fica desligada: o e2e não fala com a Anthropic.
     usePolicyAi: false,
+    featureAiAnalysis: true,
+    featureReports: true,
+    featureInsights: true,
   },
   async metaClientFor() {
     return metaClientForToken(FAKE_META_TOKEN);
@@ -306,8 +315,24 @@ if (ingested.asset.validation.status !== 'ok') {
 }
 
 // Só agora o copiloto entra: o invoker devolve um plano fixo com o criativo semeado.
+const planInvoker = fakeAiInvoker(ingested.asset.id);
 deps.ai = new AiClient({
-  invoke: fakeAiInvoker(ingested.asset.id),
+  invoke: (async (request: { toolName: string }) => {
+    if (request.toolName === 'submit_analysis_report') {
+      return {
+        input: {
+          performance_findings: [],
+          content_observations: [],
+          hypotheses: [],
+          recommended_tests: [],
+          limitations: ['sem dados no período'],
+        },
+        inputTokens: 10,
+        outputTokens: 10,
+      };
+    }
+    return planInvoker();
+  }) as never,
   models: { generation: 'claude-sonnet-4-6', classify: 'claude-haiku-4-6' },
 });
 

@@ -217,6 +217,29 @@ describe('escrita na Meta', () => {
     const sent = body(stub.calls[0]!.body);
     expect(JSON.parse(sent.get('object_story_spec')!)).toMatchObject({ page_id: '100' });
     expect(sent.get('url_tags')).toBe(copy.url_tags);
+    // T-000-1a: criativo não tem campo de status — arquitetura proíbe inventar um.
+    expect(sent.has('status')).toBe(false);
+  });
+
+  it('nenhum corpo de criação carrega outro status além de PAUSED', async () => {
+    const campaign = stubFetch([{ match: /campaigns/, json: fixture('campaign_created') }]);
+    await createCampaign(makeClient(campaign), 'act_1', {
+      name: 'c',
+      objective: 'OUTCOME_SALES',
+      buying_type: 'AUCTION',
+      special_ad_categories: [],
+    });
+    const adset = stubFetch([{ match: /adsets/, json: fixture('adset_created') }]);
+    await createAdSet(makeClient(adset), 'act_1', {
+      campaignId: 'c1',
+      spec: { name: 'a', optimization_goal: 'OFFSITE_CONVERSIONS', billing_event: 'IMPRESSIONS' },
+    });
+    const ad = stubFetch([{ match: /\/ads$|\/ads\?/, json: fixture('ad_created') }]);
+    await createAd(makeClient(ad), 'act_1', { name: 'ad', adsetId: 'as1', creativeId: 'cr1' });
+    for (const stub of [campaign, adset, ad]) {
+      // exatamente um status por corpo, sempre PAUSED — ACTIVE não tem por onde entrar.
+      expect(stub.calls[0]!.body ? body(stub.calls[0]!.body).getAll('status') : []).toEqual(['PAUSED']);
+    }
   });
 
   it('uploadImage devolve o hash e manda multipart com credenciais', async () => {

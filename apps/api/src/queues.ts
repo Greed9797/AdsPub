@@ -20,11 +20,19 @@ export interface DriveImportJobData {
   actorId: string | null;
 }
 
+export interface InsightsSyncJobData {
+  adAccountId: string;
+  since: string;
+  until: string;
+  backfill?: boolean;
+}
+
 /** Produtores BullMQ. O consumo (workers) vive em apps/worker. */
 export function createQueues(connection: Redis): Queues {
   const publish = new Queue<PublishJobData>(QUEUES.publish, { connection });
   const sync = new Queue<SyncJobData>(QUEUES.sync, { connection });
   const drive = new Queue<DriveImportJobData>(QUEUES.driveImport, { connection });
+  const insights = new Queue<InsightsSyncJobData>(QUEUES.insightsSync, { connection });
 
   const defaultJobOptions = {
     attempts: RETRY.maxAttempts,
@@ -53,8 +61,21 @@ export function createQueues(connection: Redis): Queues {
       );
       return added.map<JobRef>((job) => ({ job_id: String(job.id), queue: QUEUES.publish }));
     },
+    async enqueueInsights(input) {
+      const job = await insights.add('sync', input, {
+        ...defaultJobOptions,
+        jobId: `insights:${input.adAccountId}:${input.since}:${input.until}`,
+      });
+      return { job_id: String(job.id), queue: QUEUES.insightsSync };
+    },
+    async queueCounts() {
+      const entries = await Promise.all(
+        [publish, sync, drive, insights].map(async (queue) => [queue.name, await queue.getJobCounts()] as const),
+      );
+      return Object.fromEntries(entries);
+    },
     async close() {
-      await Promise.all([publish.close(), sync.close(), drive.close()]);
+      await Promise.all([publish.close(), sync.close(), drive.close(), insights.close()]);
     },
   };
 }

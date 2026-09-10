@@ -1,8 +1,8 @@
-import { DelayedError, type Job } from 'bullmq';
+import { DelayedError, UnrecoverableError, type Job } from 'bullmq';
 import type { Alerter } from '../alerts.js';
 import type { WorkerContext } from '../context.js';
 import type { MetaFactory } from '../meta.js';
-import { DraftBusyError, runPublish, type PublishJobData } from './pipeline.js';
+import { DraftBusyError, AccountAuthError, ReconciliationRequiredError, runPublish, type PublishJobData } from './pipeline.js';
 
 /** Espera até o lease do dono expirar, com piso para contenção normal. */
 export const CONTENTION_MIN_MS = 2_000;
@@ -35,6 +35,10 @@ export function createPublishProcessor(
         await job.moveToDelayed(Date.now() + contentionDelayMs(error.until), token);
         throw new DelayedError();
       }
+      // T-000-2: reconciliação não é falha transitória — encerra o job sem gastar tentativas.
+      if (error instanceof ReconciliationRequiredError) throw new UnrecoverableError(error.message);
+      // T-001-1: sem autorização não há o que reagendar — humano reconecta.
+      if (error instanceof AccountAuthError) throw new UnrecoverableError(error.message);
       throw error;
     }
   };

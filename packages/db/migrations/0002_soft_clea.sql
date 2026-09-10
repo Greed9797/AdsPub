@@ -1,0 +1,1 @@
+ALTER TYPE "public"."ad_draft_status" ADD VALUE 'needs_reconciliation';

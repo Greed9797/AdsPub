@@ -211,6 +211,19 @@ export function isTransientError(error: unknown): boolean {
   return false;
 }
 
+/**
+ * T-000-2 (AC-000-03): erro ambíguo = resposta perdida, a Meta pode ter criado
+ * o objeto. Repetir o create às cegas duplica. `MetaApiError` sempre carrega
+ * uma resposta (mesmo 5xx = "não fiz") — segue no retry transiente normal.
+ */
+export function isAmbiguousError(error: unknown): boolean {
+  if (error instanceof MetaTimeoutError) return true;
+  if (error instanceof Error && /fetch failed|ECONNRESET|ETIMEDOUT|socket hang up/i.test(error.message)) {
+    return true;
+  }
+  return false;
+}
+
 /** Mapa completo, usado para gerar docs/erros-meta.md. */
 export function translationTable(): Array<{ key: string } & Translation> {
   return Object.entries(TRANSLATIONS).map(([key, value]) => ({ key, ...value }));

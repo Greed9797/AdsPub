@@ -3,6 +3,7 @@ import {
   bigserial,
   boolean,
   customType,
+  date,
   index,
   integer,
   jsonb,
@@ -24,8 +25,60 @@ import type {
   ItemValidation,
   MetaIds,
   ObjectRef,
+  VariantManifest,
   VoiceProfile,
 } from '@adpub/shared';
+import type {
+  ReportImportContext,
+  RowIssue,
+  StagedObservation,
+} from '@adpub/reports';
+
+/** T-007-2: espelho estrutural (canônico em @adpub/creative-intel). */
+export interface ReportFilterLike {
+  from: string;
+  to: string;
+  source: string;
+  level: string;
+}
+export interface ReportSnapshotLike {
+  accountId: string;
+  from: string;
+  to: string;
+  source: string;
+  totals: { spend: number; results: number | null };
+  rows: Array<{ id: string; name: string; spend: number; results: number | null; cpa: number | null }>;
+  hasMetrics: boolean;
+  hasMedia: boolean;
+  selectionCoverage: string;
+  content: Array<{ assetId: string; observations: Array<{ tipo: string; texto: string }> }>;
+}
+export interface ReportOutputLike {
+  performance_findings: unknown[];
+  content_observations: string[];
+  hypotheses: unknown[];
+  recommended_tests: unknown[];
+  limitations: string[];
+}
+
+/** T-006-2: espelho estrutural (canônico em @adpub/creative-intel). */
+export interface ContentAnalysisLike {
+  observations: Array<{
+    tipo: string;
+    texto: string;
+    evidence_refs: Array<{ kind: string; t?: number; detail: string }>;
+  }>;
+  limitations: string[];
+}
+
+/** T-005-2: espelho estrutural da política (versão canônica em @adpub/analytics). */
+export interface SufficiencyPolicyLike {
+  version: string;
+  minSpend: number;
+  minResults: number;
+  minDays: number;
+  maturityDays: number;
+}
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType() {
@@ -71,6 +124,7 @@ export const adDraftStatusEnum = pgEnum('ad_draft_status', [
   'approved',
   'disapproved',
   'failed',
+  'needs_reconciliation',
 ]);
 export const publishStepEnum = pgEnum('publish_step', [
   'upload_media',
@@ -133,6 +187,8 @@ export const clients = pgTable('clients', {
   policyMode: policyModeEnum('policy_mode').notNull().default('warn'),
   landingDomains: text('landing_domains').array().notNull().default(sql`'{}'::text[]`),
   advantageCreativeOptout: boolean('advantage_creative_optout').notNull().default(true),
+  /** T-005-2: política de suficiência versionada (nula = ranking descritivo). */
+  metricPolicy: jsonb('metric_policy').$type<SufficiencyPolicyLike | null>(),
   createdAt,
   updatedAt,
 });
@@ -321,7 +377,12 @@ export const batches = pgTable(
     status: batchStatusEnum('status').notNull().default('draft'),
     options: jsonb('options').$type<BatchOptions>().notNull(),
     duplicatedFrom: uuid('duplicated_from'),
+    /** T-007-2: rascunho nascido de relatório (SPEC-008 continua o ciclo). */
+    sourceReportId: uuid('source_report_id').references(() => analysisReports.id, { onDelete: 'set null' }),
     version: integer('version').notNull().default(1),
+    /** T-000-3: aprovação vinculada à revisão — publicar exige fingerprint igual. */
+    approvalFingerprint: text('approval_fingerprint'),
+    validatedAt: timestamp('validated_at', { withTimezone: true }),
     createdAt,
     updatedAt,
   },
@@ -356,6 +417,12 @@ export const adDrafts = pgTable(
     editedFields: text('edited_fields').array().notNull().default(sql`'{}'::text[]`),
     version: integer('version').notNull().default(1),
     publishedAt: timestamp('published_at', { withTimezone: true }),
+    /** T-002-1: variante de comunicação derivada na validação (nulável p/ legado). */
+    variantId: uuid('variant_id').references(() => creativeVariants.id, { onDelete: 'set null' }),
+    /** T-000-3: tempos de estágio (FR-000-06) — humano/fila/Meta separados. */
+    validatedAt: timestamp('validated_at', { withTimezone: true }),
+    queuedAt: timestamp('queued_at', { withTimezone: true }),
+    processingStartedAt: timestamp('processing_started_at', { withTimezone: true }),
     /** Dono da execução em curso (por job, não por worker) e validade do lease. */
     leaseOwner: text('lease_owner'),
     leaseUntil: timestamp('lease_until', { withTimezone: true }),
@@ -365,6 +432,314 @@ export const adDrafts = pgTable(
   (t) => [
     unique('ad_drafts_batch_position_unique').on(t.batchId, t.position),
     index('ad_drafts_status_idx').on(t.status),
+  ],
+);
+
+/**
+ * T-003-2: importação de relatório tabular. Arquivo bruto privado + contexto
+ * + mapping versionado + staging. Commit grava observações imutáveis.
+ */
+export const reportImports = pgTable(
+  'report_imports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    adAccountId: text('ad_account_id').references(() => adAccounts.id, { onDelete: 'set null' }),
+    filename: text('filename').notNull(),
+    mime: text('mime').notNull().default('text/csv'),
+    sizeBytes: integer('size_bytes').notNull().default(0),
+    sha256: text('sha256').notNull(),
+    storageKey: text('storage_key').notNull(),
+    status: text('status').notNull().default('uploaded'),
+    context: jsonb('context').$type<ReportImportContext>().notNull(),
+    mapping: jsonb('mapping').$type<Record<string, string | null>>().notNull().default({}),    mappingVersion: text('mapping_version').notNull().default('v1'),
+    revision: integer('revision').notNull().default(1),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [index('report_imports_client_idx').on(t.clientId)],
+);
+
+export const reportRows = pgTable(
+  'report_rows',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    importId: uuid('import_id')
+      .notNull()
+      .references(() => reportImports.id, { onDelete: 'cascade' }),
+    rowNumber: integer('row_number').notNull(),
+    raw: jsonb('raw').$type<Record<string, string>>().notNull(),
+    mapped: jsonb('mapped').$type<StagedObservation | null>(),
+    status: text('status').notNull().default('pending'),
+    errors: jsonb('errors').$type<RowIssue[]>().notNull().default([]),
+  },
+  (t) => [unique('report_rows_import_row_unique').on(t.importId, t.rowNumber)],
+);
+
+export const metricObservations = pgTable(
+  'metric_observations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    adAccountId: text('ad_account_id').references(() => adAccounts.id, { onDelete: 'set null' }),
+    importId: uuid('import_id').references(() => reportImports.id, { onDelete: 'restrict' }),
+    localRowId: text('local_row_id').notNull(),
+    adId: text('ad_id'),
+    adName: text('ad_name').notNull().default(''),
+    entityLevel: text('entity_level').notNull(),
+    dateStart: date('date_start').notNull(),
+    dateStop: date('date_stop').notNull(),
+    grain: text('grain').notNull(),
+    attribution: text('attribution').notNull().default('unknown'),
+    coverage: text('coverage').notNull().default('unknown'),
+    /** T-005-2: sem moeda não há ranking entre fontes (AC-005-05). */
+    currency: text('currency').notNull().default('unknown'),
+    breakdownSignature: text('breakdown_signature').notNull().default(''),
+    metricDefinitionVersion: text('metric_definition_version').notNull().default('v1'),
+    metrics: jsonb('metrics').$type<Record<string, number | string>>().notNull(),
+    source: text('source').notNull().default('file'),
+    /** T-004-2: extração que gerou a linha (relatório salvo segue no antigo). */
+    snapshotId: uuid('snapshot_id').references(() => insightSnapshots.id, { onDelete: 'set null' }),
+    observedAt: timestamp('observed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique('metric_observations_import_row_unique').on(t.importId, t.localRowId),
+    unique('metric_observations_canonical_unique').on(t.clientId, t.source, t.localRowId),
+    index('metric_observations_client_idx').on(t.clientId, t.adId),
+  ],
+);
+
+/**
+ * T-004-2: snapshot de extração da API — identidade de uma consulta
+ * (conta+nível+campos+janela+atribuição+breakdowns). Reextração cria outro
+ * snapshot; a canônica aponta p/ o novo sem reescrever relatório salvo.
+ */
+export const insightSnapshots = pgTable(
+  'insight_snapshots',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    adAccountId: text('ad_account_id').references(() => adAccounts.id, { onDelete: 'set null' }),
+    fingerprint: text('fingerprint').notNull(),
+    level: text('level').notNull(),
+    fields: text('fields').array().notNull().default(sql`'{}'::text[]`),
+    dateStart: date('date_start').notNull(),
+    dateStop: date('date_stop').notNull(),
+    grain: text('grain').notNull().default('daily'),
+    attribution: text('attribution').notNull().default('unknown'),
+    breakdownSignature: text('breakdown_signature').notNull().default(''),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+    completeness: text('completeness').notNull().default('complete'),
+    pages: integer('pages').notNull().default(1),
+    sourceParams: jsonb('source_params').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+  },
+  (t) => [
+    unique('insight_snapshots_client_fp_unique').on(t.clientId, t.fingerprint),
+    index('insight_snapshots_account_idx').on(t.adAccountId),
+  ],
+);
+
+/** T-004-2: checkpoint de sincronização por conta. */
+export const accountSyncState = pgTable('account_sync_state', {
+  adAccountId: text('ad_account_id')
+    .primaryKey()
+    .references(() => adAccounts.id, { onDelete: 'cascade' }),
+  lastDailyCovered: date('last_daily_covered'),
+  movingWindowStart: date('moving_window_start'),
+  movingWindowEnd: date('moving_window_end'),
+  pendingReportRunId: text('pending_report_run_id'),
+  consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+  updatedAt,
+});
+
+/**
+ * T-007-2: relatório imutável com cópia dos valores usados. Dado novo =
+ * nova versão (`supersedes`); antigo segue reproduzível (AC-007-06).
+ */
+export const analysisReports = pgTable(
+  'analysis_reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    adAccountId: text('ad_account_id').references(() => adAccounts.id, { onDelete: 'set null' }),
+    filter: jsonb('filter').$type<ReportFilterLike>().notNull(),
+    inputSnapshot: jsonb('input_snapshot').$type<ReportSnapshotLike>().notNull(),
+    output: jsonb('output').$type<ReportOutputLike>().notNull(),
+    modelId: text('model_id').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    schemaVersion: text('schema_version').notNull(),
+    costUsd: numeric('cost_usd', { precision: 12, scale: 6 }).notNull().default('0'),
+    latencyMs: integer('latency_ms').notNull().default(0),
+    version: integer('version').notNull().default(1),
+    supersedes: uuid('supersedes'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt,
+  },
+  (t) => [index('analysis_reports_client_idx').on(t.clientId)],
+);
+
+export const reportFeedbacks = pgTable('report_feedbacks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  reportId: uuid('report_id')
+    .notNull()
+    .references(() => analysisReports.id, { onDelete: 'cascade' }),
+  actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  text: text('text').notNull(),
+  createdAt,
+});
+
+/**
+ * T-009-1: eventos de alerta com dedup (regra+entidade+janela). Mesmo
+ * incidente = 1 linha `open`; retry não realerta. Ack/resolve humanos.
+ */
+export const alertEvents = pgTable(
+  'alert_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    rule: text('rule').notNull(),
+    ruleVersion: text('rule_version').notNull(),
+    adAccountId: text('ad_account_id').references(() => adAccounts.id, { onDelete: 'set null' }),
+    entity: text('entity').notNull().default(''),
+    fingerprint: text('fingerprint').notNull(),
+    windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+    state: text('state').notNull().default('open'),
+    detail: jsonb('detail').$type<Record<string, unknown>>().notNull().default({}),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    createdAt,
+  },
+  (t) => [
+    unique('alert_events_fingerprint_unique').on(t.fingerprint),
+    index('alert_events_state_idx').on(t.state),
+  ],
+);
+
+/**
+ * T-008-1: aprendizado por marca/conta. Hipótese vira observação consistente
+ * e depois teste controlado — só por registro humano, nunca automático.
+ * Negativo/inconclusivo permanece.
+ */
+export const learnings = pgTable(
+  'learnings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    adAccountId: text('ad_account_id').references(() => adAccounts.id, { onDelete: 'set null' }),
+    sourceReportId: uuid('source_report_id').references(() => analysisReports.id, { onDelete: 'set null' }),
+    originVariantIds: uuid('origin_variant_ids').array().notNull().default(sql`'{}'::uuid[]`),
+    hypothesis: text('hypothesis').notNull(),
+    evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),
+    limitations: text('limitations').array().notNull().default(sql`'{}'::text[]`),
+    evidenceLevel: text('evidence_level').notNull().default('hypothesis'),
+    controlVariantId: uuid('control_variant_id').references(() => creativeVariants.id, { onDelete: 'set null' }),
+    primaryMetric: text('primary_metric'),
+    testConditions: text('test_conditions'),
+    testBatchId: uuid('test_batch_id').references(() => batches.id, { onDelete: 'set null' }),
+    activatedAt: timestamp('activated_at', { withTimezone: true }),
+    testDesign: text('test_design'),
+    resultSummary: text('result_summary'),
+    outcome: text('outcome'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [index('learnings_client_idx').on(t.clientId)],
+);
+
+/**
+ * T-002-1 (FR-002-02): variante de comunicação — composição imutável de
+ * mídia + copy + destino. Mesmo conteúdo = mesma linha (fingerprint por
+ * cliente). Nunca atualizada, só inserida ou reutilizada.
+ */
+export const creativeVariants = pgTable(
+  'creative_variants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    fingerprint: text('fingerprint').notNull(),
+    manifest: jsonb('manifest').$type<VariantManifest>().notNull(),
+    createdAt,
+  },
+  (t) => [
+    unique('creative_variants_client_fp_unique').on(t.clientId, t.fingerprint),
+    index('creative_variants_client_idx').on(t.clientId),
+  ],
+);
+
+/**
+ * T-002-2 (FR-002-03/05): vínculo observado entre anúncio Meta e variante.
+ * Um ativo por item (`observed_to` nulo). `precision` diz o quanto o vínculo
+ * prova: `confirmed` (publicado pelo app), `manual` (operador),
+ * `ambiguous_intraday` (criativo trocado com métrica só diária),
+ * `media_missing` (assets indisponíveis — sem descrever nada).
+ */
+export const adCreativeBindings = pgTable(
+  'ad_creative_bindings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    adDraftId: uuid('ad_draft_id').references(() => adDrafts.id, { onDelete: 'cascade' }),
+    adAccountId: text('ad_account_id')
+      .notNull()
+      .references(() => adAccounts.id, { onDelete: 'cascade' }),
+    metaAdId: text('meta_ad_id'),
+    metaCreativeId: text('meta_creative_id'),
+    variantId: uuid('variant_id')
+      .notNull()
+      .references(() => creativeVariants.id, { onDelete: 'restrict' }),
+    observedFrom: timestamp('observed_from', { withTimezone: true }).notNull().defaultNow(),
+    observedTo: timestamp('observed_to', { withTimezone: true }),
+    precision: text('precision').notNull().default('confirmed'),
+    ambiguityReason: text('ambiguity_reason'),
+    createdAt,
+  },
+  (t) => [
+    index('ad_bindings_draft_idx').on(t.adDraftId),
+    index('ad_bindings_meta_ad_idx').on(t.metaAdId),
+  ],
+);
+
+/**
+ * T-006-2: análise de conteúdo versionada. Correção humana = nova revisão;
+ * original preservado via `superseded_by`. Cache por (asset, input_hash).
+ */
+export const contentAnalyses = pgTable(
+  'content_analyses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    assetId: uuid('asset_id')
+      .notNull()
+      .references(() => assets.id, { onDelete: 'cascade' }),
+    assetSha: text('asset_sha').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    modelId: text('model_id').notNull(),
+    schemaVersion: text('schema_version').notNull(),
+    inputHash: text('input_hash').notNull(),
+    findings: jsonb('findings').$type<ContentAnalysisLike>().notNull(),
+    coverage: jsonb('coverage')
+      .$type<{ observed: Array<[number, number]>; transcript: string }>()
+      .notNull(),
+    costUsd: numeric('cost_usd', { precision: 12, scale: 6 }).notNull().default('0'),
+    latencyMs: integer('latency_ms').notNull().default(0),
+    revision: integer('revision').notNull().default(1),
+    supersededBy: uuid('superseded_by'),
+    createdAt,
+  },
+  (t) => [
+    unique('content_analyses_asset_input_unique').on(t.assetId, t.inputHash),
+    index('content_analyses_asset_idx').on(t.assetId),
   ],
 );
 

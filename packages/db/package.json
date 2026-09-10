@@ -25,6 +25,7 @@
   "dependencies": {
     "@adpub/config": "workspace:*",
     "@adpub/crypto": "workspace:*",
+    "@adpub/reports": "workspace:*",
     "@adpub/shared": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.9"

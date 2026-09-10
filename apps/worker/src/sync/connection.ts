@@ -50,6 +50,15 @@ export async function runSync(
 ): Promise<SyncResult> {
   const connection = await getConnectionRow(ctx.db, data.connectionId);
   if (!connection) throw new Error(`Conexão ${data.connectionId} não existe mais.`);
+  // T-001-3: conexão sem autorização não reagenda nem gira em loop — o agendamento
+  // periódico tenta de novo sozinho quando humano reconectar.
+  if (connection.status !== 'active') {
+    ctx.log.info(
+      { connection: connection.id, status: connection.status },
+      'sync pulado: conexão sem autorização',
+    );
+    return { accounts: 0, pages: 0, instagram: 0, pixels: 0, campaigns: 0, adsets: 0 };
+  }
   const graph = await meta.forConnection(connection.id);
 
   try {

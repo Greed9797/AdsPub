@@ -3,16 +3,19 @@ import {
   countPublishedToday,
   getAccount,
   getBatch,
+  getDraft,
   listDraftsOfBatch,
   markDraftsQueued,
   patchBatch,
   refreshBatchStatus,
+  transitionDraft,
   type AdDraftRow,
 } from '@adpub/db';
 import { DEFAULT_DAILY_AD_CAP } from '@adpub/config';
-import type { SessionUser } from '@adpub/shared';
+import type { MetaIds, PublishStep, SessionUser } from '@adpub/shared';
 import { conflict, notFound, unprocessable } from '../lib/problem.js';
 import type { ApiDeps, JobRef } from '../lib/deps.js';
+import { approvalFingerprint } from './approval.js';
 
 export interface PublishResult {
   batch_id: string;
@@ -61,6 +64,12 @@ export async function publishBatch(
     throw unprocessable(
       `Confirmação divergente: você confirmou ${input.confirmCount} item(ns), mas ${eligible.length} está(ão) pronto(s).`,
     );
+  }
+
+  // T-000-3 (AC-000-04): a aprovação vale para a revisão validada. Qualquer
+  // edição após validar muda o conteúdo e exige revalidar — sem exceção.
+  if (!batch.approvalFingerprint || approvalFingerprint(drafts) !== batch.approvalFingerprint) {
+    throw unprocessable('Lote mudou após a validação — revalide antes de publicar.');
   }
 
   const cap = account.dailyAdCap ?? DEFAULT_DAILY_AD_CAP;
@@ -134,4 +143,76 @@ export async function retryDraft(
   });
   if (!job) throw unprocessable('Não foi possível enfileirar o reprocessamento.');
   return job;
+}
+
+/**
+ * T-000-2 (AC-000-03): resolve reconciliação com decisão humana auditada.
+ * `adopt` retoma do passo informado com os IDs conferidos na Meta;
+ * `discard` encerra como falha com motivo. Nunca recria às cegas.
+ */
+export async function resolveReconciliation(
+  deps: ApiDeps,
+  actor: SessionUser,
+  input: {
+    batchId: string;
+    itemId: string;
+    adAccountId: string;
+    decision: 'adopt' | 'discard';
+    metaIds?: MetaIds;
+    step?: PublishStep;
+    motive: string;
+  },
+): Promise<{ status: string; job?: JobRef }> {
+  const draft = await getDraft(deps.db, input.itemId);
+  if (!draft || draft.batchId !== input.batchId) {
+    throw notFound(`Item ${input.itemId} não encontrado.`);
+  }
+  if (draft.status !== 'needs_reconciliation') {
+    throw unprocessable(`Item em ${draft.status} — só itens em reconciliação podem ser resolvidos.`);
+  }
+
+  if (input.decision === 'adopt') {
+    if (!input.metaIds || !input.step || input.step === 'done') {
+      throw unprocessable('Adotar exige meta_ids conferidos e etapa de retomada (diferente de done).');
+    }
+    const updated = await transitionDraft(deps.db, draft.id, 'queued', {
+      step: input.step,
+      metaIds: input.metaIds,
+      error: null,
+      attempts: draft.attempts,
+    });
+    const [job] = await deps.queues.enqueuePublish([
+      { draftId: draft.id, adAccountId: input.adAccountId, batchId: input.batchId },
+    ]);
+    await audit(deps.db, {
+      actor: { id: actor.id, email: actor.email },
+      action: 'item.resolve',
+      entityType: 'ad_draft',
+      entityId: draft.id,
+      before: { status: draft.status, step: draft.step, error: draft.error },
+      after: { decision: 'adopt', step: input.step, meta_ids: input.metaIds, motive: input.motive },
+    });
+    if (!job) throw unprocessable('Não foi possível enfileirar a retomada.');
+    return { status: updated.status, job };
+  }
+
+  const updated = await transitionDraft(deps.db, draft.id, 'failed', {
+    error: {
+      message: input.motive,
+      translated: 'Descartado na reconciliação pelo operador.',
+      action: '',
+      step: draft.step ?? undefined,
+    },
+    attempts: draft.attempts,
+  });
+  await refreshBatchStatus(deps.db, input.batchId);
+  await audit(deps.db, {
+    actor: { id: actor.id, email: actor.email },
+    action: 'item.resolve',
+    entityType: 'ad_draft',
+    entityId: draft.id,
+    before: { status: draft.status, step: draft.step, error: draft.error },
+    after: { decision: 'discard', motive: input.motive },
+  });
+  return { status: updated.status };
 }

@@ -1,5 +1,12 @@
 import { STATUS_POLL } from '@adpub/config';
-import { draftsForStatusPoll, getDraft, transitionDraft } from '@adpub/db';
+import {
+  activeBindingForDraft,
+  draftsForStatusPoll,
+  getDraft,
+  openBinding,
+  transitionDraft,
+  type BindingRow,
+} from '@adpub/db';
 import { getAdsStatus } from '@adpub/meta-client';
 import type { AdDraftStatus } from '@adpub/shared';
 import type { WorkerContext } from '../context.js';
@@ -11,8 +18,7 @@ export interface StatusPollResult {
 }
 
 /** FR-018: reflete o resultado da revisão da Meta no item. */
-export function statusFromEffective(effective: string | undefined): AdDraftStatus {
-  switch ((effective ?? '').toUpperCase()) {
+export function statusFromEffective(effective: string | undefined): AdDraftStatus {  switch ((effective ?? '').toUpperCase()) {
     case 'ACTIVE':
     case 'PAUSED':
     case 'CAMPAIGN_PAUSED':
@@ -28,6 +34,20 @@ export function statusFromEffective(effective: string | undefined): AdDraftStatu
     default:
       return 'in_review';
   }
+}
+
+/**
+ * T-002-2 (AC-002-05): criativo trocado fora do app com métrica só diária não
+ * pode ser atribuído por versão — marca ambíguo em vez de dividir número.
+ * Pura para teste sem banco.
+ */
+export function detectCreativeChange(
+  binding: Pick<BindingRow, 'metaCreativeId' | 'variantId'> | undefined,
+  observedCreativeId: string | undefined,
+): { changed: boolean; variantId?: string } {
+  if (!binding?.metaCreativeId || !observedCreativeId) return { changed: false };
+  if (binding.metaCreativeId === observedCreativeId) return { changed: false };
+  return { changed: true, variantId: binding.variantId };
 }
 
 export async function runStatusPoll(
@@ -66,7 +86,12 @@ export async function runStatusPoll(
       const target = statusFromEffective(effective);
       const draft = await getDraft(ctx.db, item.id);
       if (!draft) continue;
-      if (draft.status === target && draft.effectiveStatus === effective) continue;
+      // T-002-2: checa troca de criativo antes do atalho — status igual não
+      // significa vínculo igual.
+      const observedCreativeId = status.creative?.id;
+      const binding = await activeBindingForDraft(ctx.db, item.id);
+      const change = detectCreativeChange(binding, observedCreativeId);
+      if (draft.status === target && draft.effectiveStatus === effective && !change.changed) continue;
 
       try {
         await transitionDraft(ctx.db, item.id, target, {
@@ -76,6 +101,21 @@ export async function runStatusPoll(
         updated += 1;
       } catch (error) {
         ctx.log.warn({ err: error, draft: item.id, target }, 'transição de revisão recusada');
+      }
+
+      // Troca de criativo observada → vínculo ambíguo, sem dividir métrica.
+      if (change.changed && change.variantId) {
+        await openBinding(ctx.db, {
+          draftId: item.id,
+          adAccountId,
+          metaAdId: item.adId,
+          metaCreativeId: observedCreativeId ?? null,
+          variantId: change.variantId,
+          precision: 'ambiguous_intraday',
+          ambiguityReason:
+            'criativo do anúncio trocado fora do app; métrica diária não atribuível por versão',
+        });
+        updated += 1;
       }
     }
   }

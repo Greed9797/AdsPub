@@ -6,6 +6,116 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não publicado]
 
+### Adicionado (SPEC-009 — alertas e operação)
+
+- `alert_events` com dedup por regra+entidade+janela (retry nunca realerta)
+  + rotas ack/resolve; regra de fadiga versionada e informativa; sync
+  atrasado vigiado. Migração `0011`.
+- Flags `FEATURE_AI_ANALYSIS/FEATURE_REPORTS/FEATURE_INSIGHTS` (503 com
+  motivo; publish intacto; nav esconde).
+- `GET /ops/metrics` (filas, custo IA, falha terminal vs 2%, itens);
+  `docs/restore.md` + ondas 009 no piloto.
+
+### Adicionado (SPEC-008 — aprendizados e testes)
+
+- `learnings`: hipótese → observação consistente → teste controlado só por
+  registro; briefing determinístico por template; rascunho vinculado ao
+  publicador (PAUSED normal); ativação/resultado manuais, negativo permanece.
+  Rotas + bloco em `/inteligencia`. Migração `0010`.
+
+### Adicionado (SPEC-007 — inteligência e relatórios)
+
+- Relatório imutável com cópia dos valores usados (reproduzível após
+  revisão de conversões); validador bloqueia número inventado, ref
+  inexistente, causa sem mídia e viés não declarado (422).
+- Rotas gerar/ver/feedback/export(html,csv); `POST .../test-drafts` cria
+  lote draft com briefing e vínculo, zero Meta. Tabelas
+  `analysis_reports`, `report_feedbacks`, `batches.source_report_id`.
+  Migração `0009`. Página `/inteligencia` + jornada e2e.
+
+### Adicionado (SPEC-006 — análise multimodal)
+
+- Pacote `@adpub/creative-intel`: amostragem ffmpeg (grade abertura-densa,
+  tetos), adaptador de transcrição (`unavailable` visível, sem provedor
+  aprovado), análise visual via Anthropic com tool use forçado, JSON
+  validado, custo/latência e cache por conteúdo.
+- Invoker com `images[]` (compatível); `AiClient.contentBackend()`.
+- `content_analyses` versionada (correção = nova revisão, original
+  preservado). Rotas `POST/GET/PATCH`, botão Analisar em `/criativos`.
+  Migração `0008`.
+
+### Adicionado (SPEC-005 — motor de métricas e dashboard)
+
+- Pacote `@adpub/analytics`: fórmulas §5 (`metric_version v1`), soma de
+  numeradores, denominador zero = indisponível com motivo, alcance não soma,
+  coorte compatível ou limitação, veredicto só com política versionada.
+- `GET /performance` (conta, período, fonte, nível) com totais, ranking,
+  coorte, veredicto, fontes/snapshots e definições. Moeda nas observações
+  (contexto/API) + `metric_policy` no cliente. Migração `0007`.
+- Página `/performance` + jornada e2e.
+
+### Adicionado (SPEC-004 — sync Meta Insights)
+
+- Cliente Insights no `meta-client`: `getInsights` paginado (parcial nunca
+  vira concluído), job assíncrono (`start/get/fetch`), campo inválido vira
+  erro permanente com diagnóstico.
+- `insight_snapshots` + `account_sync_state` + `snapshot_id` nas observações;
+  upsert canônico por célula+fonte, histórico no snapshot. Migração `0006`.
+- Fila `adpub.insights-sync` separada do publish; `POST /insights/sync-jobs`
+  (backfill 90d em 3 janelas), `GET` estado e `GET /observations`.
+  Janela móvel por atribuição; auth segue `needs_attention` sem loop.
+
+### Adicionado (SPEC-003 — importação de relatórios)
+
+- Pacote `@adpub/reports`: CSV próprio (separador farejado, decimal BR,
+  utf-8→latin1) + XLSX (`xlsx`, só leitura), dicionário PT/EN versionado,
+  regras duras (total excluído, vazio é ausente, consolidado é `period`,
+  ID inexato sem vínculo).
+- Importação em 3 passos: `POST /report-imports` (prévia), `PATCH .../mapping`
+  (ajuste), `POST .../commit` (idempotente; re-upload = 409). Tabelas
+  `report_imports`, `report_rows`, `metric_observations`. Migração `0005`.
+- Página `/relatorios` + jornada e2e.
+
+### Adicionado (SPEC-002 — biblioteca e linhagem)
+
+- `creative_variants`: composição imutável (mídias ordenadas, copy, destino)
+  com fingerprint por cliente, derivada no validate; nome nunca é identidade.
+- `ad_creative_bindings`: vínculo observado com janela e precision
+  (`confirmed|manual|ambiguous_intraday|media_missing`); publish abre
+  `confirmed`, poller marca ambíguo em troca fora do app sem dividir métrica.
+- Rotas `GET /variants` e `POST /ad-accounts/:id/bindings` (manual
+  auditado); seção de variantes em `/criativos`. Migração `0004`.
+
+### Adicionado (SPEC-001 — conexões e diagnóstico)
+
+- Gate de autorização no worker: publish recusa conexão não-ativa antes de
+  qualquer create (`AccountAuthError` → `failed`, sem gastar tentativas);
+  `getMe` remoto só se última verificação > 15 min.
+- Sync pula conexão sem autorização sem girar em loop; retoma sozinho no
+  próximo ciclo após reconectar.
+- Rotação de token: `POST /connections/:id/rotate` (testa antes de salvar) +
+  botão **Trocar token** em `/contas`, auditado (`connection.rotate`).
+- Diagnóstico por conta no `/health`: tier configurado vs observado, última
+  verificação, erro, escopos — sem chamar a Meta.
+- `docs/capability-matrix.md` testada: `validada` exige evidência; SDK-only
+  segue `não-validada`. Causas e ações em `docs/conexoes-operacao.md`.
+
+### Adicionado (SPEC-000 — preservação da publicação)
+
+- Estado `needs_reconciliation`: timeout ou resposta perdida após possível create
+  para o item em vez de retry cego; operador adota os IDs (`POST
+  /batches/:id/items/:itemId/resolve` com `decision: adopt`) ou descarta com
+  motivo (`discard`), tudo auditado (`item.resolve`). Migração `0002`.
+- Aprovação vinculada à revisão: `validateBatch` congela `approval_fingerprint`
+  (sha256 do conteúdo publicável) no lote; `publishBatch` recusa com 422 se
+  qualquer edição aconteceu após validar. Migração `0003`.
+- Tempos de estágio no item (`validated_at`, `queued_at`,
+  `processing_started_at`, `published_at`) para separar esforço humano, fila e
+  Meta (FR-000-06).
+- Testes de caracterização: corpos de create sempre `PAUSED` e criativo sem
+  campo de status; contrato de publish rejeita `ACTIVE`; transições de
+  reconciliação; fingerprint; fase nova no `smoke:integration`.
+
 ## [0.1.0] — 2026-09-08
 
 Primeira versão do AdPub: publicação em lote de anúncios da Meta a partir de um briefing, com

@@ -27,6 +27,7 @@ export async function createBatch(
     briefing?: string | null;
     options: BatchOptions;
     duplicatedFrom?: string | null;
+    sourceReportId?: string | null;
   },
 ): Promise<BatchRow> {
   const [row] = await db
@@ -40,6 +41,7 @@ export async function createBatch(
       briefing: input.briefing ?? null,
       options: input.options,
       duplicatedFrom: input.duplicatedFrom ?? null,
+      sourceReportId: input.sourceReportId ?? null,
       status: 'draft',
     })
     .returning();
@@ -80,6 +82,8 @@ export async function patchBatch(
     options?: BatchOptions;
     plan?: BatchPlan | null;
     status?: BatchRow['status'];
+    approvalFingerprint?: string | null;
+    validatedAt?: Date | null;
     expectedVersion?: number;
   },
 ): Promise<BatchRow> {
@@ -89,6 +93,8 @@ export async function patchBatch(
   if (patch.options !== undefined) set.options = patch.options;
   if (patch.plan !== undefined) set.plan = patch.plan;
   if (patch.status !== undefined) set.status = patch.status;
+  if (patch.approvalFingerprint !== undefined) set.approvalFingerprint = patch.approvalFingerprint;
+  if (patch.validatedAt !== undefined) set.validatedAt = patch.validatedAt;
 
   const where =
     patch.expectedVersion === undefined

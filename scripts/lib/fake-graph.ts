@@ -252,6 +252,39 @@ export function createFakeGraph(options: FakeGraphOptions = {}): FakeGraph {
       return json({ success: true });
     }
 
+    // T-004-3: Insights síncrono (2 páginas) e job assíncrono.
+    if (method === 'GET' && path.endsWith('/insights')) {
+      if (path === '99900000000000001/insights') {
+        return json({
+          data: [
+            { ad_id: ids.ad, ad_name: 'Ad app', spend: '100.50', impressions: '1000', date_start: '2026-09-01', date_stop: '2026-09-01' },
+          ],
+        });
+      }
+      if (url.searchParams.get('after')) {
+        return json({
+          data: [
+            { ad_id: '23850000000000505', ad_name: 'Ad fora', spend: '10.00', impressions: '100', date_start: '2026-09-01', date_stop: '2026-09-01' },
+          ],
+        });
+      }
+      return json({
+        data: [
+          { ad_id: ids.ad, ad_name: 'Ad app', spend: '100.50', impressions: '1000', date_start: '2026-09-01', date_stop: '2026-09-01' },
+          { ad_id: ids.ad, ad_name: 'Ad app', spend: '200.00', impressions: '2000', date_start: '2026-09-02', date_stop: '2026-09-02' },
+        ],
+        paging: { cursors: { after: 'QVJD' }, next: 'https://graph.facebook.com/v25.0/x/insights?after=QVJD' },
+      });
+    }
+
+    if (method === 'POST' && path.endsWith('/insights')) {
+      return json({ report_run_id: '99900000000000001' });
+    }
+
+    if (method === 'GET' && path === '99900000000000001') {
+      return json({ async_status: 'Job Completed', async_percent_completion: 100 });
+    }
+
     return graphError({ message: `Endpoint não mapeado no fake: ${method} ${path}`, code: 803 });
   };
 

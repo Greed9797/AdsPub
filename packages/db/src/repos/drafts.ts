@@ -154,6 +154,8 @@ export async function patchDraft(
     validation?: ItemValidation | null;
     status?: AdDraftStatus;
     editedFields?: string[];
+    validatedAt?: Date | null;
+    variantId?: string | null;
     expectedVersion?: number;
   },
 ): Promise<AdDraftRow> {
@@ -172,6 +174,8 @@ export async function patchDraft(
   if (patch.validation !== undefined) set.validation = patch.validation;
   if (patch.status !== undefined) set.status = patch.status;
   if (patch.editedFields !== undefined) set.editedFields = patch.editedFields;
+  if (patch.validatedAt !== undefined) set.validatedAt = patch.validatedAt;
+  if (patch.variantId !== undefined) set.variantId = patch.variantId;
 
   const where =
     patch.expectedVersion === undefined
@@ -205,6 +209,7 @@ export async function transitionDraft(
     effectiveStatus?: string | null;
     reviewFeedback?: Record<string, unknown> | null;
     publishedAt?: Date | null;
+    processingStartedAt?: Date | null;
   } = {},
 ): Promise<AdDraftRow> {
   const current = await getDraft(db, id);
@@ -219,6 +224,7 @@ export async function transitionDraft(
   if (extra.effectiveStatus !== undefined) set.effectiveStatus = extra.effectiveStatus;
   if (extra.reviewFeedback !== undefined) set.reviewFeedback = extra.reviewFeedback;
   if (extra.publishedAt !== undefined) set.publishedAt = extra.publishedAt;
+  if (extra.processingStartedAt !== undefined) set.processingStartedAt = extra.processingStartedAt;
 
   const [row] = await db.update(adDrafts).set(set).where(eq(adDrafts.id, id)).returning();
   if (!row) throw new Error(`Falha ao atualizar item ${id}.`);
@@ -301,6 +307,7 @@ export async function markDraftsQueued(db: Database, ids: readonly string[]): Pr
     .set({
       status: 'queued',
       error: null,
+      queuedAt: new Date(),
       updatedAt: new Date(),
       version: sql`${adDrafts.version} + 1`,
     })

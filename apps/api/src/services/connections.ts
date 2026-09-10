@@ -4,6 +4,7 @@ import {
   getConnectionRow,
   listConnections,
   pauseAccountsOfConnection,
+  rotateConnectionToken,
   toPublicConnection,
   updateConnectionStatus,
   type PublicConnection,
@@ -139,4 +140,31 @@ export async function markNeedsAttention(
 
 export async function listAllConnections(deps: ApiDeps): Promise<PublicConnection[]> {
   return listConnections(deps.db);
+}
+
+/** T-001-3: rotação com re-teste imediato — token novo só entra se a Meta aceitar. */
+export async function rotateAndTestConnection(
+  deps: ApiDeps,
+  actor: SessionUser,
+  connectionId: string,
+  token: string,
+): Promise<PublicConnection> {
+  const row = await getConnectionRow(deps.db, connectionId);
+  if (!row) throw unprocessable(`Conexão ${connectionId} não encontrada.`);
+  const test = await testToken(deps, { businessId: row.businessId, token });
+  if (!test.ok) {
+    throw unprocessable(test.detail ?? 'Token recusado pela Meta.');
+  }
+  await rotateConnectionToken(deps.db, connectionId, token);
+  const updated = await updateConnectionStatus(deps.db, connectionId, {
+    apiTier: test.tier,
+  });
+  await audit(deps.db, {
+    actor: { id: actor.id, email: actor.email },
+    action: 'connection.rotate',
+    entityType: 'meta_connection',
+    entityId: connectionId,
+    after: { api_tier: test.tier, accounts: test.accounts },
+  });
+  return updated ?? toPublicConnection(row);
 }

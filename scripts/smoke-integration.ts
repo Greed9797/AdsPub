@@ -13,10 +13,13 @@ import { ingestFile } from '@adpub/assets';
 import { QUEUES, RETRY, loadServerEnv } from '@adpub/config';
 import { mintSessionToken } from '@adpub/auth';
 import {
+  activeBindingForDraft,
   createConnection,
   createDb,
   deleteDraftsOfBatch,
   getBatch,
+  getAccount,
+  getConnectionRow,
   claimDraft,
   getDraft,
   markDraftsQueued,
@@ -24,7 +27,9 @@ import {
   listDraftsOfBatch,
   setAccountPages,
   swapBatchPlan,
+  transitionDraft,
   updateAccountDefaults,
+  updateConnectionStatus,
   upsertAccounts,
   upsertInstagramAccounts,
   upsertPages,
@@ -41,11 +46,13 @@ import {
   type AdDraftStatus,
   type BatchPlan,
 } from '@adpub/shared';
-import { MetaClient } from '@adpub/meta-client';
+import { MetaClient, MetaApiError, MetaTimeoutError } from '@adpub/meta-client';
 import { Storage } from '@adpub/storage';
 import { buildApp } from '@adpub/api/app';
 import type { ApiDeps, JobRef, Queues } from '@adpub/api/lib/deps';
-import { runPublish } from '@adpub/worker/publish/pipeline';
+import { AccountAuthError, runPublish } from '@adpub/worker/publish/pipeline';
+import { runInsightsSync } from '@adpub/worker/insights/sync';
+import type { MetaFactory } from '@adpub/worker/meta';
 import { runStatusPoll } from '@adpub/worker/poll/status';
 import { runSync } from '@adpub/worker/sync/connection';
 import { createAlerter } from '@adpub/worker/alerts';
@@ -204,6 +211,17 @@ async function main(): Promise<void> {
       }
       return refs;
     },
+    async enqueueInsights(input) {
+      try {
+        await runInsightsSync(workerCtx, metaFactory, alert, input);
+      } catch {
+        /* job falho: como o BullMQ faria */
+      }
+      return { job_id: `insights-${input.adAccountId}-${input.since}`, queue: 'adpub.insights-sync' };
+    },
+    async queueCounts() {
+      return {};
+    },
     async close() {
       /* nada a fechar no smoke */
     },
@@ -249,6 +267,9 @@ async function main(): Promise<void> {
       metaApiVersion: env.META_API_VERSION,
       metaTier: env.META_TIER,
       usePolicyAi: false,
+    featureAiAnalysis: true,
+    featureReports: true,
+    featureInsights: true,
     },
     metaClientFor: async () => metaClientForToken('EAA-token-de-smoke-nao-real-0123456789'),
     metaClientForToken,
@@ -527,6 +548,25 @@ async function main(): Promise<void> {
     .then((r) => r.json())) as { can_publish: boolean };
   check('após correção o lote libera publicação', report2.can_publish === true, report2);
 
+  // T-000-3: edição após validar invalida a aprovação até revalidar.
+  await app.inject({
+    method: 'PATCH',
+    url: `/api/v1/batches/${batch.id}/items/${blockedItem}`,
+    headers: auth,
+    payload: { copy: { ...blockedCopy, link: LANDING, headline: 'Título pós-validação' } },
+  });
+  const publishStale = await app.inject({
+    method: 'POST',
+    url: `/api/v1/batches/${batch.id}/publish`,
+    headers: auth,
+    payload: { confirm_count: 2, only_failed: false },
+  });
+  check('publicar após edição sem revalidar é recusado', publishStale.statusCode === 422, publishStale.json());
+  const report3 = (await app
+    .inject({ method: 'POST', url: `/api/v1/batches/${batch.id}/validate`, headers: auth })
+    .then((r) => r.json())) as { can_publish: boolean };
+  check('revalidar restaura a aprovação', report3.can_publish === true, report3);
+
   phase('US5 — publicar (tudo PAUSED, idempotente)');
   const publish = (await app
     .inject({
@@ -558,6 +598,124 @@ async function main(): Promise<void> {
   check('conjunto novo criado uma única vez', graph.count('POST act_1030000000001/adsets') === 1, graph.calls);
   check('imagem enviada uma única vez para a conta', graph.count('POST act_1030000000001/adimages') === 1, graph.calls);
   check('dois criativos e dois anúncios criados', graph.count('POST act_1030000000001/adcreatives') === 2 && graph.count('POST act_1030000000001/ads') === 2, graph.calls);
+
+  phase('T-002 — variante imutável e vínculo observado');
+  const variants = (await app
+    .inject({ method: 'GET', url: `/api/v1/variants?client_id=${client.id}`, headers: auth })
+    .then((r) => r.json())) as Array<{ id: string; manifest: { copy: { headline: string }; assetIds: string[] } }>;
+  const publishedItems = (await listDraftsOfBatch(db, batch.id)).filter((i) => i.status === 'published');
+  const publishedVariantIds = new Set(publishedItems.map((i) => i.variantId));
+  check(
+    '2 copies viram 2 variantes distintas',
+    publishedItems.length === 2 && publishedVariantIds.size === 2 && ![...publishedVariantIds].includes(null),
+    publishedItems.map((i) => i.variantId),
+  );
+  let vinculosOk = 0;
+  for (const item of publishedItems) {
+    const binding = await activeBindingForDraft(db, item.id);
+    if (
+      binding?.precision === 'confirmed' &&
+      binding.metaAdId === item.metaIds?.ad_id &&
+      binding.metaCreativeId === item.metaIds?.creative_id &&
+      binding.variantId === item.variantId &&
+      variants.some((v) => v.id === binding.variantId && v.manifest.assetIds.length === item.assetIds.length)
+    ) {
+      vinculosOk += 1;
+    }
+  }
+  check('publish cria vínculo confirmed com composição completa', vinculosOk === 2, vinculosOk);
+
+  // Vínculo manual para anúncio fora do app; nome repetido não auto-vincula.
+  const manualBind = (headline: string, link: string, tag: string) => ({
+    meta_ad_id: `9990000000000${tag}`,
+    meta_creative_id: `9980000000000${tag}`,
+    manifest: {
+      format: 'single_image',
+      assetIds: [ingested.asset.id],
+      copy: { ...manualCopy('m'), headline, link },
+      pageId: PAGE_ID,
+      igUserId: null,
+      offerContext: null,
+    },
+  });
+  const bind = async (headline: string, link: string, tag: string) =>
+    (await app
+      .inject({
+        method: 'POST',
+        url: `/api/v1/ad-accounts/${AD_ACCOUNT_ID}/bindings`,
+        headers: auth,
+        payload: manualBind(headline, link, tag),
+      })
+      .then((r) => r.json())) as { variant_id: string; precision: string };
+  const bind1 = await bind('Mesmo Nome', LANDING, '11');
+  const bind2 = await bind('Mesmo Nome', LANDING, '22');
+  const bind3 = await bind('Mesmo Nome', 'https://lojateste.com.br/verao', '33');
+  check('vínculo manual criado', bind1.precision === 'manual' && bind2.precision === 'manual', bind1.precision);
+  check('mesmo manifesto reutiliza a variante', bind1.variant_id === bind2.variant_id, bind1.variant_id);
+  check('mesmo nome + conteúdo diferente é outra variante', bind3.variant_id !== bind1.variant_id, bind3.variant_id);
+
+  phase('T-003 — CSV real vira observação sem inventar número');
+  const csv = [
+    'Nome do anúncio;Gasto (BRL);Impressões;Data de início;Data de término;ID do anúncio',
+    `Anúncio A;1.234,56;10000;01/09/2026;01/09/2026;${graph.ids.ad}`,
+    'Total da conta;1.234,56;10000;01/09/2026;07/09/2026;',
+    'Anúncio sem compras;;;01/09/2026;01/09/2026;',
+  ].join('\n');
+  const boundary = '----smoke-relatorio';
+  const part = (name: string, value: string | Buffer, filename?: string, type = 'text/plain'): Buffer => {
+    const head = `--${boundary}\r\nContent-Disposition: form-data; name="${name}"${filename ? `; filename="${filename}"` : ''}\r\nContent-Type: ${type}\r\n\r\n`;
+    return Buffer.concat([Buffer.from(head), Buffer.isBuffer(value) ? value : Buffer.from(value), Buffer.from('\r\n')]);
+  };
+  const contexto = JSON.stringify({
+    currency: 'BRL',
+    timezone: 'America/Sao_Paulo',
+    entity_level: 'ad',
+    attribution: '7d_click',
+    coverage: 'selected',
+  });
+  const corpo = Buffer.concat([
+    part('client_id', client.id),
+    part('context', contexto, undefined, 'application/json'),
+    part('relatorio', Buffer.from(csv, 'utf8'), 'relatorio.csv', 'text/csv'),
+    Buffer.from(`--${boundary}--\r\n`),
+  ]);
+  const subidoResp = await app.inject({
+    method: 'POST',
+    url: '/api/v1/report-imports',
+    headers: { ...auth, 'content-type': `multipart/form-data; boundary=${boundary}` },
+    payload: corpo,
+  });
+  if (subidoResp.statusCode !== 201) {
+    check('upload de CSV (201)', false, { status: subidoResp.statusCode, body: subidoResp.body.slice(0, 800) });
+    throw new Error('upload de relatório falhou');
+  }
+  const subido = subidoResp.json() as {
+    import_id: string;
+    valid: number;
+    invalid: number;
+    unmapped: string[];
+    rows: Array<{ status: string; observation: { adId: string | null; grain: string; metrics: Record<string, number> } | null }>;
+  };
+  check('prévia: 2 válidas + 1 total excluído', subido.valid === 2 && subido.invalid === 1, { valid: subido.valid, invalid: subido.invalid });
+  check('sem coluna não-mapeada', subido.unmapped.length === 0, subido.unmapped);
+  const linhaA = subido.rows[0]?.observation;
+  check('decimal BR e ad_id exato', linhaA?.metrics.spend === 1234.56 && linhaA?.adId === graph.ids.ad, linhaA);
+  check('sem compras = sem CPA inventado', subido.rows[2]?.observation?.metrics.primary_results === undefined, subido.rows[2]?.observation?.metrics);
+  const commit1 = (await app
+    .inject({ method: 'POST', url: `/api/v1/report-imports/${subido.import_id}/commit`, headers: auth })
+    .then((r) => ({ status: r.statusCode, body: r.json() as { observations: number } })));
+  check('commit grava 2 observações', commit1.status === 202 && commit1.body.observations === 2, commit1);
+  const recommit = await app.inject({ method: 'POST', url: `/api/v1/report-imports/${subido.import_id}/commit`, headers: auth });
+  check('recommit não dobra', (recommit.json() as { observations: number }).observations === 2, recommit.json());
+  const redup = await app.inject({
+    method: 'POST',
+    url: '/api/v1/report-imports',
+    headers: { ...auth, 'content-type': `multipart/form-data; boundary=${boundary}` },
+    payload: corpo,
+  });
+  const redupId = (redup.json() as { import_id: string }).import_id;
+  const commitDup = await app.inject({ method: 'POST', url: `/api/v1/report-imports/${redupId}/commit`, headers: auth });
+  check('re-upload confirmado dá 409', commitDup.statusCode === 409, commitDup.statusCode);
 
   const callsBefore = new Map(graph.calls);
   const first = publishedDrafts[0];
@@ -707,11 +865,37 @@ async function main(): Promise<void> {
   check('itens duplicados voltam para validação', duplicated.items.length === 2, duplicated.items.length);
 
   phase('US8 — painel de saúde');
+  const totalCalls = () => [...graph.calls.values()].reduce((a, b) => a + b, 0);
+  const writesAntesDiag = totalCalls();
   const health = (await app
     .inject({ method: 'GET', url: `/api/v1/ad-accounts/${AD_ACCOUNT_ID}/health`, headers: auth })
-    .then((r) => r.json())) as { published_today: number; daily_cap: number; error_rate_1h: number };
+    .then((r) => r.json())) as {
+    published_today: number;
+    daily_cap: number;
+    error_rate_1h: number;
+    connection: {
+      status: string;
+      api_tier_observed: string;
+      api_tier_configured: string;
+      last_checked_at: string | null;
+      last_error: string | null;
+      scopes: string[];
+    };
+  };
   check('saúde reporta publicações do dia', health.published_today === 3, health);
   check('teto diário exposto', health.daily_cap === 3, health);
+  // T-001-2: diagnóstico expõe conexão/tier/verificação sem publicar nada.
+  check('diagnóstico mostra tier configurado vs observado', health.connection.api_tier_configured === 'limited', health.connection);
+  check(
+    'diagnóstico lista escopos da conexão',
+    health.connection.scopes.includes('ads_management') && health.connection.last_checked_at !== null,
+    health.connection,
+  );
+  check(
+    'diagnóstico não chama a Meta',
+    totalCalls() === writesAntesDiag,
+    totalCalls() - writesAntesDiag,
+  );
 
   phase('SC-004/T070/T071 — falhas injetadas, retomada e zero duplicata');
   const stressAccount = 'act_1030000000002';
@@ -1027,6 +1211,620 @@ async function main(): Promise<void> {
     { antes: adsAntesCrash, depois: graph.count(`POST ${stressAccount}/ads`) },
   );
 
+
+  phase('T-000-2 — timeout após create não duplica: reconciliação + retomada auditada');
+  const recBatch = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/batches',
+      headers: auth,
+      payload: {
+        client_id: client.id,
+        ad_account_id: stressAccount,
+        name: 'Lote reconciliação',
+        mode: 'manual',
+      },
+    })
+    .then((r) => r.json())) as { id: string };
+  expect(
+    'lote de reconciliação com 2 itens',
+    await app.inject({
+      method: 'PUT',
+      url: `/api/v1/batches/${recBatch.id}/plan`,
+      headers: auth,
+      payload: {
+        ...manualPlan,
+        campaigns: [],
+        adsets: [],
+        items: [0, 1].map((i) => ({
+          format: 'single_image',
+          asset_ids: [ingested.asset.id],
+          campaign_ref: { kind: 'existing', id: graph.ids.campaign },
+          adset_ref: { kind: 'existing', id: graph.ids.adset },
+          copies: [manualCopy(`r${i}`)],
+          page_id: PAGE_ID,
+        })),
+      },
+    }),
+    200,
+  );
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/batches/${recBatch.id}/validate`,
+    headers: auth,
+  });
+  const recItems = await listDraftsOfBatch(db, recBatch.id);
+  await markDraftsQueued(db, recItems.map((item) => item.id));
+
+  // Graph que perde a resposta do primeiro create de anúncio.
+  let timeoutInjected = false;
+  const flakyFactory: MetaFactory = {
+    ...metaFactory,
+    forAccount: async (accountId, draftId) => {
+      const client = await metaFactory.forAccount(accountId, draftId);
+      const originalPost = client.post.bind(client);
+      client.post = (async <T>(path: string, body: Record<string, unknown> = {}): Promise<T> => {
+        if (!timeoutInjected && /\/ads$/.test(path)) {
+          timeoutInjected = true;
+          throw new MetaTimeoutError(path, 1);
+        }
+        return originalPost(path, body);
+      }) as typeof client.post;
+      return client;
+    },
+  };
+
+  const adsAntesRec = graph.count(`POST ${stressAccount}/ads`);
+  let reconciliacao = '';
+  try {
+    await runPublish(
+      workerCtx,
+      flakyFactory,
+      alert,
+      { draftId: recItems[0]!.id, adAccountId: stressAccount, batchId: recBatch.id },
+      1,
+    );
+  } catch (error) {
+    reconciliacao = (error as Error).name;
+  }
+  const recTravado = await getDraft(db, recItems[0]!.id);
+  check('timeout no create_ad para em reconciliação', reconciliacao === 'ReconciliationRequiredError', reconciliacao);
+  check('item marca needs_reconciliation, não failed', recTravado?.status === 'needs_reconciliation', recTravado?.status);
+  check(
+    'nenhum anúncio criado no timeout',
+    graph.count(`POST ${stressAccount}/ads`) - adsAntesRec === 0,
+    graph.count(`POST ${stressAccount}/ads`) - adsAntesRec,
+  );
+  check('sem retry cego: tentativa continua 1', recTravado?.attempts === 1, recTravado?.attempts);
+
+  // Operador confere na Meta e adota os IDs: retoma do create_ad sem duplicar.
+  const adotados = {
+    ...(recTravado?.metaIds ?? {}),
+    image_hashes: recTravado?.metaIds?.image_hashes ?? {},
+    video_ids: recTravado?.metaIds?.video_ids ?? {},
+    thumbnail_hashes: recTravado?.metaIds?.thumbnail_hashes ?? {},
+  };
+  expect(
+    'adotar reconciliação (202)',
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/batches/${recBatch.id}/items/${recItems[0]!.id}/resolve`,
+      headers: auth,
+      payload: { decision: 'adopt', meta_ids: adotados, step: 'create_ad', motive: 'criativo existe, anúncio não' },
+    }),
+    202,
+  );
+  await runPublish(
+    workerCtx,
+    metaFactory,
+    alert,
+    { draftId: recItems[0]!.id, adAccountId: stressAccount, batchId: recBatch.id },
+    1,
+  );
+  const recRetomado = await getDraft(db, recItems[0]!.id);
+  check(
+    'retomada cria um anúncio só',
+    recRetomado?.status === 'published' &&
+      graph.count(`POST ${stressAccount}/ads`) - adsAntesRec === 1,
+    { status: recRetomado?.status, criados: graph.count(`POST ${stressAccount}/ads`) - adsAntesRec },
+  );
+
+  // Segundo item: descarte com motivo encerra sem tocar na Meta.
+  await transitionDraft(db, recItems[1]!.id, 'creating_ad', { step: 'create_ad', attempts: 1 });
+  await transitionDraft(db, recItems[1]!.id, 'needs_reconciliation', {
+    step: 'create_ad',
+    attempts: 1,
+  });
+  expect(
+    'descartar reconciliação (202)',
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/batches/${recBatch.id}/items/${recItems[1]!.id}/resolve`,
+      headers: auth,
+      payload: { decision: 'discard', motive: 'duplicado conferido na Meta' },
+    }),
+    202,
+  );
+  const recDescartado = await getDraft(db, recItems[1]!.id);
+  check('descarte encerra como failed', recDescartado?.status === 'failed', recDescartado?.status);
+  const resolucoes = await listAudit(db, { entityType: 'ad_draft', entityId: recItems[0]!.id, limit: 20 });
+  check(
+    'resolução fica na auditoria',
+    resolucoes.some((a) => a.action === 'item.resolve'),
+    resolucoes.map((a) => a.action),
+  );
+
+  phase('T-001-1 — revogação pós-enqueue barra execução sem tocar na Meta');
+  const authBatch = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/batches',
+      headers: auth,
+      payload: {
+        client_id: client.id,
+        ad_account_id: stressAccount,
+        name: 'Lote gate de autorização',
+        mode: 'manual',
+      },
+    })
+    .then((r) => r.json())) as { id: string };
+  expect(
+    'lote de autorização com 2 itens',
+    await app.inject({
+      method: 'PUT',
+      url: `/api/v1/batches/${authBatch.id}/plan`,
+      headers: auth,
+      payload: {
+        ...manualPlan,
+        campaigns: [],
+        adsets: [],
+        items: [0, 1].map((i) => ({
+          format: 'single_image',
+          asset_ids: [ingested.asset.id],
+          campaign_ref: { kind: 'existing', id: graph.ids.campaign },
+          adset_ref: { kind: 'existing', id: graph.ids.adset },
+          copies: [manualCopy(`g${i}`)],
+          page_id: PAGE_ID,
+        })),
+      },
+    }),
+    200,
+  );
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/batches/${authBatch.id}/validate`,
+    headers: auth,
+  });
+  const authItems = await listDraftsOfBatch(db, authBatch.id);
+  await markDraftsQueued(db, authItems.map((item) => item.id));
+
+  // Janela vencida: última checagem velha → revalida remoto e publica.
+  await sql`UPDATE meta_connections SET last_checked_at = NOW() - INTERVAL '1 hour' WHERE id = ${connection.id}`;
+  const adsAntesAuth = graph.count(`POST ${stressAccount}/ads`);
+  await runPublish(
+    workerCtx,
+    metaFactory,
+    alert,
+    { draftId: authItems[0]!.id, adAccountId: stressAccount, batchId: authBatch.id },
+    1,
+  );
+  const authOk = await getDraft(db, authItems[0]!.id);
+  const connRecheck = await getConnectionRow(db, connection.id);
+  check('revalidação remota publica normal', authOk?.status === 'published', authOk?.status);
+  check(
+    'última verificação foi atualizada',
+    !!connRecheck?.lastCheckedAt && Date.now() - connRecheck.lastCheckedAt.getTime() < 60_000,
+    connRecheck?.lastCheckedAt,
+  );
+
+  // Revogação depois do enqueue: recusa antes de qualquer create.
+  await updateConnectionStatus(db, connection.id, { status: 'needs_attention', lastError: 'revogado no teste' });
+  let authErro = '';
+  try {
+    await runPublish(
+      workerCtx,
+      metaFactory,
+      alert,
+      { draftId: authItems[1]!.id, adAccountId: stressAccount, batchId: authBatch.id },
+      1,
+    );
+  } catch (error) {
+    authErro = error instanceof AccountAuthError ? error.name : `inesperado: ${(error as Error).name}`;
+  }
+  const authTravado = await getDraft(db, authItems[1]!.id);
+  check('revogado pós-enqueue recusa com AccountAuthError', authErro === 'AccountAuthError', authErro);
+  check('item vai a failed sem publicar', authTravado?.status === 'failed', authTravado?.status);
+  check(
+    'zero creates após revogação',
+    graph.count(`POST ${stressAccount}/ads`) - adsAntesAuth === 1,
+    graph.count(`POST ${stressAccount}/ads`) - adsAntesAuth,
+  );
+  await updateConnectionStatus(db, connection.id, { status: 'active', lastError: null });
+
+  phase('T-001-3 — sync com token inválido marca, pausa e não gira em loop');
+  const badConn = await createConnection(db, {
+    businessId: '1789000000000002',
+    label: 'BM quebrada (smoke)',
+    token: 'EAA-token-revogado-nao-real-0123456789',
+    scopes: ['ads_management', 'business_management'],
+    apiTier: 'limited',
+  });
+  await upsertAccounts(db, badConn.id, [
+    {
+      id: 'act_1030000000009',
+      name: 'Conta quebrada',
+      currency: 'BRL',
+      timezoneName: 'America/Sao_Paulo',
+      accountStatus: 1,
+    },
+  ]);
+  const tokenRecusado = new MetaApiError({
+    httpStatus: 400,
+    endpoint: 'v25.0/me',
+    method: 'GET',
+    body: { message: 'Invalid OAuth access token.', code: 190 } as never,
+  });
+  // `forConnection` roda fora do try do sync (falha local, não da Meta):
+  // o token recusado aparece no `getMe`, dentro do try.
+  const badFactory: MetaFactory = {
+    ...metaFactory,
+    forConnection: async (connectionId) => {
+      const client = await metaFactory.forConnection(connectionId);
+      const originalGet = client.get.bind(client);
+      client.get = (async <T>(path: string, params?: Record<string, string | number | boolean | undefined | null>): Promise<T> => {
+        if (/(^|\/)me(\?|$)/.test(path)) throw tokenRecusado;
+        return originalGet(path, params);
+      }) as typeof client.get;
+      return client;
+    },
+  };
+  let syncErro = '';
+  try {
+    await runSync(workerCtx, badFactory, alert, { connectionId: badConn.id });
+  } catch (error) {
+    syncErro = (error as Error).name;
+  }
+  const badRow = await getConnectionRow(db, badConn.id);
+  const contaPausada = await getAccount(db, 'act_1030000000009');
+  check('job de sync termina com o erro (não engole)', syncErro === 'MetaApiError', syncErro);
+  check('token inválido marca needs_attention', badRow?.status === 'needs_attention', badRow?.status);
+  check(
+    'contas da conexão pausadas',
+    !!contaPausada?.pausedUntil && contaPausada.pausedUntil.getTime() > Date.now(),
+    contaPausada?.pausedUntil,
+  );
+  // Segunda rodada: pula sem chamar a Meta e sem falhar — o agendamento tenta
+  // de novo sozinho quando humano reconectar.
+  const chamadasAntesSkip = totalCalls();
+  const pulado = await runSync(workerCtx, metaFactory, alert, { connectionId: badConn.id });
+  check(
+    'sync pula conexão sem autorização',
+    pulado.accounts === 0 && totalCalls() === chamadasAntesSkip,
+    { contas: pulado.accounts, chamadas: totalCalls() - chamadasAntesSkip },
+  );
+  // Rotação com token aceito reativa a conexão.
+  const girada = await app.inject({
+    method: 'POST',
+    url: `/api/v1/connections/${badConn.id}/rotate`,
+    headers: auth,
+    payload: { token: 'EAA-token-novo-nao-real-0123456789012345' },
+  });
+  check('rotação com token aceito reativa (200)', girada.statusCode === 200, girada.json());
+  const tokenRuim = await app.inject({
+    method: 'POST',
+    url: `/api/v1/connections/${badConn.id}/rotate`,
+    headers: auth,
+    payload: { token: 'curto' },
+  });
+  check('rotação recusa token inválido (422)', tokenRuim.statusCode === 422, tokenRuim.statusCode);
+
+  phase('T-004 — sync de Insights vira observação canônica');
+  await sql`UPDATE ad_accounts SET client_id = ${client.id} WHERE id = ${stressAccount}`;
+  const mutacoesAntes =
+    graph.count(`POST ${stressAccount}/ads`) +
+    graph.count(`POST ${stressAccount}/campaigns`) +
+    graph.count(`POST ${stressAccount}/adsets`);
+  const syncJob = await app.inject({
+    method: 'POST',
+    url: '/api/v1/insights/sync-jobs',
+    headers: auth,
+    payload: { ad_account_id: stressAccount, since: '2026-09-01', until: '2026-09-02' },
+  });
+  check('sync de insights aceito (202)', syncJob.statusCode === 202, syncJob.statusCode);
+  const obs = (await app
+    .inject({
+      method: 'GET',
+      url: `/api/v1/observations?ad_account_id=${stressAccount}&source=api`,
+      headers: auth,
+    })
+    .then((r) => r.json())) as Array<{
+    ad_id: string | null;
+    source: string;
+    snapshot_id: string;
+    metrics: Record<string, number | string>;
+  }>;
+  check('2 páginas viram 3 observações', obs.length === 3, obs.length);
+  check('números saem numéricos, fonte api', obs.every((o) => o.source === 'api' && typeof o.metrics.spend === 'number'), obs.map((o) => o.metrics.spend));
+  check('snapshot vinculado', obs.every((o) => typeof o.snapshot_id === 'string'), obs[0]);
+  const estado = (await app
+    .inject({ method: 'GET', url: `/api/v1/insights/sync-jobs?ad_account_id=${stressAccount}`, headers: auth })
+    .then((r) => r.json())) as { last_daily_covered: string; consecutive_failures: number };
+  check('checkpoint gravado sem falhas', estado.last_daily_covered === '2026-09-02' && estado.consecutive_failures === 0, estado);
+  // Repetir a mesma janela não duplica a canônica (retomada idempotente).
+  await app.inject({
+    method: 'POST',
+    url: '/api/v1/insights/sync-jobs',
+    headers: auth,
+    payload: { ad_account_id: stressAccount, since: '2026-09-01', until: '2026-09-02' },
+  });
+  const obs2 = (await app
+    .inject({
+      method: 'GET',
+      url: `/api/v1/observations?ad_account_id=${stressAccount}&source=api`,
+      headers: auth,
+    })
+    .then((r) => r.json())) as unknown[];
+  check('resync não duplica observações', obs2.length === 3, obs2.length);
+  // Conta quebrada falha sozinha; sync nunca muta entrega.
+  let quebrou = '';
+  try {
+    await runInsightsSync(workerCtx, metaFactory, alert, { adAccountId: 'act_inexistente', since: '2026-09-01', until: '2026-09-02' });
+  } catch (error) {
+    quebrou = (error as Error).message;
+  }
+  check('conta inexistente falha isolada', quebrou.includes('não existe'), quebrou);
+  check(
+    'sync só lê, nunca cria anúncio/campanha/conjunto',
+    graph.count(`POST ${stressAccount}/ads`) +
+      graph.count(`POST ${stressAccount}/campaigns`) +
+      graph.count(`POST ${stressAccount}/adsets`) ===
+      mutacoesAntes,
+    mutacoesAntes,
+  );
+
+  phase('T-005 — performance soma numeradores, sem inventar');
+  const perf = (await app
+    .inject({
+      method: 'GET',
+      url: `/api/v1/performance?ad_account_id=${stressAccount}&source=api`,
+      headers: auth,
+    })
+    .then((r) => r.json())) as {
+    totals: { spend: number; cpa: { value: number | null; reason?: string } };
+    rows: Array<{ cpa: number | null }>;
+    cohort: { comparable: boolean };
+    verdict: { sufficiency: string };
+    sources: { observations: number };
+    metric_version: string;
+  };
+  check('gasto total soma as linhas', perf.totals.spend === 310.5, perf.totals);
+  check('sem resultados = CPA indisponível com motivo', perf.totals.cpa.value === null && !!perf.totals.cpa.reason, perf.totals.cpa);
+  check('coorte única comparável, sem política = não avaliado', perf.cohort.comparable && perf.verdict.sufficiency === 'unevaluated', perf.verdict);
+  check('3 linhas rastreáveis', perf.rows.length === 2 && perf.sources.observations === 3, perf.sources);
+
+  phase('T-006 — análise de conteúdo versionada, sem performance junto');
+  const planInvoker = fakeAiInvoker(ingested.asset.id);
+  deps.ai = new AiClient({
+    invoke: (async (request: { toolName: string }) => {
+      if (request.toolName === 'submit_content_analysis') {
+        return {
+          input: {
+            observations: [
+              {
+                tipo: 'abertura',
+                texto: 'Produto em close antes da oferta',
+                evidence_refs: [{ kind: 'frame', t: 0, detail: 'close do produto' }],
+              },
+            ],
+            limitations: ['trecho final não inspecionado'],
+          },
+          inputTokens: 100,
+          outputTokens: 50,
+        };
+      }
+      if (request.toolName === 'submit_analysis_report') {
+        return {
+          input: {
+            performance_findings: [{ text: 'Gasto total no período', metric: 'spend', value: 310.5 }],
+            content_observations: [],
+            hypotheses: [
+              {
+                text: 'Observar abertura em próximo teste',
+                support_refs: [],
+                confounders: ['sazonalidade'],
+                test: 'variar só a abertura',
+              },
+            ],
+            recommended_tests: [
+              { variable: 'abertura', keeps: ['oferta'], goal: 'baixar CPA', metric: 'cpa', preconditions: [] },
+            ],
+            limitations: ['janela curta de 2 dias'],
+          },
+          inputTokens: 200,
+          outputTokens: 100,
+        };
+      }
+      return planInvoker();
+    }) as never,
+    models: { generation: 'claude-sonnet-4-6', classify: 'claude-haiku-4-6' },
+  });
+  const analisada = (await app
+    .inject({
+      method: 'POST',
+      url: `/api/v1/assets/${ingested.asset.id}/analyses`,
+      headers: auth,
+      payload: { brand_context: 'Loja Teste' },
+    })
+    .then((r) => ({ status: r.statusCode, body: r.json() as { id: string; coverage: { transcript: string }; cost_usd: string } })));
+  check('análise criada (201)', analisada.status === 201, analisada.status);
+  check('transcrição indisponível visível', analisada.body.coverage?.transcript === 'unavailable', analisada.body.coverage);
+  const repetida = await app.inject({
+    method: 'POST',
+    url: `/api/v1/assets/${ingested.asset.id}/analyses`,
+    headers: auth,
+    payload: {},
+  });
+  check('mesma entrada reutiliza (200)', repetida.statusCode === 200, repetida.statusCode);
+  const corrigida = (await app
+    .inject({
+      method: 'PATCH',
+      url: `/api/v1/analyses/${analisada.body.id}`,
+      headers: auth,
+      payload: { findings: { observations: [], limitations: ['corrigido pelo gestor'] } },
+    })
+    .then((r) => r.json())) as { revision: number; id: string };
+  check('correção vira revisão 2', corrigida.revision === 2, corrigida);
+  const lista = (await app
+    .inject({ method: 'GET', url: `/api/v1/assets/${ingested.asset.id}/analyses`, headers: auth })
+    .then((r) => r.json())) as Array<{ revision: number }>;
+  check('original preservado', lista.length === 2, lista.length);
+
+  phase('T-007 — relatório imutável, feedback, export e rascunho');
+  const relatorio = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/analysis-reports',
+      headers: auth,
+      payload: { ad_account_id: stressAccount, from: '2026-09-01', to: '2026-09-02' },
+    })
+    .then((r) => ({ status: r.statusCode, body: r.json() as { id: string; input_snapshot: { totals: { spend: number } } } })));
+  check('relatório gerado e validado (201)', relatorio.status === 201, relatorio.status);
+  check('snapshot congela os valores usados', relatorio.body.input_snapshot?.totals?.spend === 310.5, relatorio.body.input_snapshot?.totals);
+  const detalhe = (await app
+    .inject({ method: 'GET', url: `/api/v1/analysis-reports/${relatorio.body.id}`, headers: auth })
+    .then((r) => r.json())) as { output: { hypotheses: unknown[] }; feedbacks: unknown[] };
+  check('relatório legível com hipóteses', detalhe.output?.hypotheses?.length === 1, detalhe.output);
+  const fb = await app.inject({
+    method: 'POST',
+    url: `/api/v1/analysis-reports/${relatorio.body.id}/feedback`,
+    headers: auth,
+    payload: { text: 'Abertura 2 converte melhor no orgânico.' },
+  });
+  check('feedback versionado (201)', fb.statusCode === 201, fb.statusCode);
+  const csvExp = await app.inject({
+    method: 'GET',
+    url: `/api/v1/analysis-reports/${relatorio.body.id}/export?format=csv`,
+    headers: auth,
+  });
+  check('export CSV com fatos', csvExp.statusCode === 200 && csvExp.body.includes('fato;'), csvExp.body.slice(0, 120));
+  const adsAntesRascunho = graph.count(`POST ${stressAccount}/ads`);
+  const rascunho = (await app
+    .inject({
+      method: 'POST',
+      url: `/api/v1/analysis-reports/${relatorio.body.id}/test-drafts`,
+      headers: auth,
+      payload: { briefing: 'Variação com abertura em close, mesma oferta.' },
+    })
+    .then((r) => ({ status: r.statusCode, body: r.json() as { batch_id: string } })));
+  check('rascunho criado sem Meta (201)', rascunho.status === 201 && !!rascunho.body.batch_id, rascunho);
+  check('rascunho não cria anúncio', graph.count(`POST ${stressAccount}/ads`) === adsAntesRascunho, adsAntesRascunho);
+
+  phase('T-008 — aprendizado vira teste e resultado negativo permanece');
+  const aprendido = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/learnings',
+      headers: auth,
+      payload: {
+        client_id: client.id,
+        ad_account_id: stressAccount,
+        source_report_id: relatorio.body.id,
+        hypothesis: 'Abertura em close baixa o CPA',
+        primary_metric: 'cpa',
+      },
+    })
+    .then((r) => ({ status: r.statusCode, body: r.json() as { id: string; evidence_level: string } })));
+  check('aprendizado salvo como hipótese (201)', aprendido.status === 201 && aprendido.body.evidence_level === 'hypothesis', aprendido);
+  const briefing = (await app
+    .inject({ method: 'POST', url: `/api/v1/learnings/${aprendido.body.id}/test-briefing`, headers: auth })
+    .then((r) => r.json())) as { briefing: string };
+  check('briefing carrega a hipótese', briefing.briefing.includes('Abertura em close'), briefing.briefing.slice(0, 120));
+  const teste = (await app
+    .inject({
+      method: 'POST',
+      url: `/api/v1/learnings/${aprendido.body.id}/test-drafts`,
+      headers: auth,
+      payload: { briefing: briefing.briefing },
+    })
+    .then((r) => ({ status: r.statusCode, body: r.json() as { batch_id: string } })));
+  check('rascunho do aprendizado (201)', teste.status === 201 && !!teste.body.batch_id, teste);
+  const loteTeste = (await app
+    .inject({ method: 'GET', url: `/api/v1/batches/${teste.body.batch_id}`, headers: auth })
+    .then((r) => r.json())) as { status: string };
+  check('rascunho nasce draft, sem Meta', loteTeste.status === 'draft', loteTeste.status);
+  const pulo = await app.inject({
+    method: 'PATCH',
+    url: `/api/v1/learnings/${aprendido.body.id}/outcome`,
+    headers: auth,
+    payload: { evidence_level: 'controlled_test' },
+  });
+  check('pulo de nível é recusado (422)', pulo.statusCode === 422, pulo.statusCode);
+  const resultado = await app.inject({
+    method: 'PATCH',
+    url: `/api/v1/learnings/${aprendido.body.id}/outcome`,
+    headers: auth,
+    payload: { result_summary: 'CPA subiu 12%', outcome: 'negative' },
+  });
+  check('resultado negativo registrado', resultado.statusCode === 200, resultado.statusCode);
+  const historico = (await app
+    .inject({ method: 'GET', url: `/api/v1/learnings?client_id=${client.id}`, headers: auth })
+    .then((r) => r.json())) as Array<{ outcome: string | null }>;
+  check('negativo permanece no histórico', historico.some((l) => l.outcome === 'negative'), historico.length);
+
+  phase('T-009 — dedup, flags e métricas operacionais');
+  const { dedupAlert } = await import('@adpub/db');
+  const primeiro = await dedupAlert(db, alert, {
+    rule: 'reconciliation',
+    adAccountId: stressAccount,
+    entity: 'smoke-dedup',
+    title: 'Reconciliação necessária (smoke)',
+    detail: 'incidente sintético',
+    severity: 'warning',
+  });
+  const segundo = await dedupAlert(db, alert, {
+    rule: 'reconciliation',
+    adAccountId: stressAccount,
+    entity: 'smoke-dedup',
+    title: 'Reconciliação necessária (smoke)',
+    detail: 'incidente sintético',
+    severity: 'warning',
+  });
+  check('mesmo incidente abre 1 alerta', primeiro.alerted && !segundo.alerted, [primeiro.alerted, segundo.alerted]);
+  const metrics = (await app
+    .inject({ method: 'GET', url: '/api/v1/ops/metrics', headers: auth })
+    .then((r) => r.json())) as {
+    queues: Record<string, unknown>;
+    ai_cost_usd: { totalUsd: number };
+    terminal_failure_rate: number | null;
+    items_by_status: Record<string, number>;
+  };
+  check('métricas expõem filas e custo', !!metrics.queues && typeof metrics.ai_cost_usd.totalUsd === 'number', Object.keys(metrics));
+  check('taxa de falha terminal calculada', metrics.terminal_failure_rate !== null, metrics.terminal_failure_rate);
+
+  // Flags off: inteligência dá 503, publish segue sem consultar flag.
+  const offApp = await buildApp(
+    { ...deps, env: { ...deps.env, featureAiAnalysis: false, featureReports: false, featureInsights: false } },
+    {},
+  );
+  try {
+    const r1 = await offApp.inject({ method: 'POST', url: '/api/v1/report-imports', headers: auth });
+    const r2 = await offApp.inject({
+      method: 'POST',
+      url: '/api/v1/insights/sync-jobs',
+      headers: auth,
+      payload: { ad_account_id: stressAccount, since: '2026-09-01', until: '2026-09-02' },
+    });
+    const r3 = await offApp.inject({
+      method: 'POST',
+      url: `/api/v1/batches/${batch.id}/publish`,
+      headers: auth,
+      payload: { confirm_count: 0, only_failed: false },
+    });
+    check('inteligência desligada dá 503', r1.statusCode === 503 && r2.statusCode === 503, [r1.statusCode, r2.statusCode]);
+    check('publish sem flag responde normal (422, nada pronto)', r3.statusCode === 422, r3.statusCode);
+  } finally {
+    await offApp.close();
+  }
 
   phase('FR-006 — troca de plano é atômica');
   const atomBatch = (await app

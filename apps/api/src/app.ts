@@ -14,6 +14,14 @@ import { clientRoutes } from './routes/clients.js';
 import { connectionRoutes } from './routes/connections.js';
 import { healthRoutes } from './routes/health.js';
 import { userRoutes } from './routes/users.js';
+import { variantRoutes } from './routes/variants.js';
+import { reportImportRoutes } from './routes/report-imports.js';
+import { insightsRoutes } from './routes/insights.js';
+import { performanceRoutes } from './routes/performance.js';
+import { analysisRoutes } from './routes/analyses.js';
+import { analysisReportRoutes } from './routes/analysis-reports.js';
+import { learningRoutes } from './routes/learnings.js';
+import { opsRoutes } from './routes/ops.js';
 import type { ApiDeps } from './lib/deps.js';
 
 export interface BuildOptions {
@@ -58,6 +66,14 @@ export async function buildApp(deps: ApiDeps, options: BuildOptions = {}): Promi
       batchRoutes(scope, deps);
       userRoutes(scope, deps);
       auditRoutes(scope, deps);
+      variantRoutes(scope, deps);
+      reportImportRoutes(scope, deps);
+      insightsRoutes(scope, deps);
+      performanceRoutes(scope, deps);
+      analysisRoutes(scope, deps);
+      analysisReportRoutes(scope, deps);
+      learningRoutes(scope, deps);
+      opsRoutes(scope, deps);
     },
     { prefix: '/api/v1' },
   );

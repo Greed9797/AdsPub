@@ -69,6 +69,22 @@ export interface Asset {
   created_at: string;
 }
 
+/** T-002-3: variante de comunicação (composição imutável). */
+export interface Variant {
+  id: string;
+  client_id: string;
+  fingerprint: string;
+  manifest: {
+    format: string;
+    assetIds: string[];
+    copy: Copy;
+    pageId: string;
+    igUserId: string | null;
+    offerContext: string | null;
+  };
+  created_at: string | null;
+}
+
 export interface ValidationIssue {
   code: string;
   field: string;

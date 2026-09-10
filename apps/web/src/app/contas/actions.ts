@@ -150,3 +150,21 @@ export async function sincronizarConexao(connectionId: string): Promise<SyncConn
     return errorFromException(error, 'Não foi possível sincronizar a conexão.');
   }
 }
+
+/** T-001-3: troca o token (a API testa antes de salvar) e reativa a conexão. */
+export async function girarToken(connectionId: string, token: string): Promise<TestConnectionResult> {
+  await requireSession();
+
+  try {
+    const id = idSchema.parse(connectionId);
+    const connection = await api<Connection>(`/connections/${id}/rotate`, {
+      method: 'POST',
+      body: { token },
+    });
+
+    revalidatePath('/contas');
+    return { ok: true, connection };
+  } catch (error) {
+    return errorFromException(error, 'Não foi possível trocar o token.');
+  }
+}

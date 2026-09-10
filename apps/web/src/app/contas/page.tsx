@@ -4,7 +4,7 @@ import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
 import AccountDefaultsForm from './account-defaults-form';
 import ConnectionForm from './connection-form';
-import { criarConexao, salvarDefaults, sincronizarConexao, testarConexao } from './actions';
+import { criarConexao, girarToken, salvarDefaults, sincronizarConexao, testarConexao } from './actions';
 
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'short',
@@ -105,6 +105,7 @@ export default async function ContasPage() {
             criarConexao={criarConexao}
             testarConexao={testarConexao}
             sincronizarConexao={sincronizarConexao}
+            girarToken={girarToken}
           />
         </Card>
       ) : null}

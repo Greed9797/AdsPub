@@ -230,3 +230,16 @@ Parar de escalar e resolver antes de seguir se, em qualquer onda, acontecer:
 - token exposto em log, resposta de API ou auditoria (Constituição IV);
 - SC-003 abaixo de 95 % por uma semana inteira;
 - mais de uma conta por semana entrando em `needs_attention` por motivo evitável.
+
+### Ondas 009 — áreas novas (SPEC-002..009)
+
+Flags `FEATURE_AI_ANALYSIS`/`FEATURE_REPORTS`/`FEATURE_INSIGHTS` ligam por
+ambiente (rollback = desligar + revert). Ordem, uma onda por vez:
+
+1. Insights em 3 contas do piloto (observar `consecutive_failures` e
+   `GET /ops/metrics`).
+2. Relatórios + performance nas mesmas 3 (conferir `capability-matrix.md`).
+3. Inteligência + aprendizados (revisar 2 relatórios com gestores).
+4. Alertas dedup + fadiga (forçar 1 incidente sintético por regra).
+5. Expandir por ondas iguais às do publicador. Critérios de parada acima
+   valem para todas as áreas; alerta informacional nunca autoriza automação.

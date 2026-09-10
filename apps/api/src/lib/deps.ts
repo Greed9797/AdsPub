@@ -21,6 +21,13 @@ export interface Queues {
   enqueuePublish(
     items: Array<{ draftId: string; adAccountId: string; batchId: string }>,
   ): Promise<JobRef[]>;
+  enqueueInsights(input: {
+    adAccountId: string;
+    since: string;
+    until: string;
+    backfill?: boolean;
+  }): Promise<JobRef>;
+  queueCounts(): Promise<Record<string, Record<string, number>>>;
   close(): Promise<void>;
 }
 
@@ -30,6 +37,10 @@ export interface ApiEnv {
   metaApiVersion: string;
   metaTier: 'limited' | 'full';
   usePolicyAi: boolean;
+  /** T-009-3: desligam inteligência; publish nunca consulta. */
+  featureAiAnalysis: boolean;
+  featureReports: boolean;
+  featureInsights: boolean;
 }
 
 export interface ApiDeps {

@@ -17,6 +17,7 @@ interface ConnectionPanelProps {
   criarConexao: (payload: ConnectionInput) => Promise<ActionResult>;
   testarConexao: (connectionId: string) => Promise<TestConnectionResult>;
   sincronizarConexao: (connectionId: string) => Promise<SyncConnectionResult>;
+  girarToken: (connectionId: string, token: string) => Promise<TestConnectionResult>;
 }
 
 const STATUS_TONE: Record<Connection['status'], string> = {
@@ -35,6 +36,7 @@ export default function ConnectionForm({
   criarConexao,
   testarConexao,
   sincronizarConexao,
+  girarToken,
 }: ConnectionPanelProps) {
   const router = useRouter();
 
@@ -98,6 +100,30 @@ export default function ConnectionForm({
             ? result.erro
             : `Sincronização enfileirada (job ${result.job_id} na fila ${result.queue}).`,
       }));
+      setBusyId(null);
+      router.refresh();
+    });
+  };
+
+  const [rotateTokens, setRotateTokens] = useState<Record<string, string>>({});
+
+  const handleRotate = (connectionId: string) => {
+    const novoToken = (rotateTokens[connectionId] ?? '').trim();
+    if (!novoToken) {
+      setRowMessages((prev) => ({ ...prev, [connectionId]: 'Cole o novo token antes de trocar.' }));
+      return;
+    }
+    setBusyId(connectionId);
+
+    void girarToken(connectionId, novoToken).then((result) => {
+      setRowMessages((prev) => ({
+        ...prev,
+        [connectionId]:
+          'erro' in result ? result.erro : 'Token trocado e conexão reativada.',
+      }));
+      if (!('erro' in result)) {
+        setRotateTokens((prev) => ({ ...prev, [connectionId]: '' }));
+      }
       setBusyId(null);
       router.refresh();
     });
@@ -185,6 +211,24 @@ export default function ConnectionForm({
                       disabled={isBusy}
                     >
                       {isBusy ? 'Aguarde...' : 'Sincronizar'}
+                    </button>
+                    <input
+                      type="password"
+                      value={rotateTokens[connection.id] ?? ''}
+                      onChange={(event) =>
+                        setRotateTokens((prev) => ({ ...prev, [connection.id]: event.target.value }))
+                      }
+                      className={inputClass}
+                      placeholder="Novo token (EAA...)"
+                      aria-label={`Novo token para ${connection.label}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRotate(connection.id)}
+                      className={secondaryButtonClass}
+                      disabled={isBusy}
+                    >
+                      {isBusy ? 'Aguarde...' : 'Trocar token'}
                     </button>
                   </div>
                 </td>

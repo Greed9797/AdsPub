@@ -3,19 +3,24 @@ import {
   getAssetsByIds,
   getBatch,
   getClient,
+  getConnectionRow,
+  dedupAlert,
   getDraft,
   countDraftsByStatus,
+  getOrCreateVariant,
+  openBinding,
   refreshBatchStatus,
   saveMetaIds,
   releaseDraft,
   claimDraft,
   setDraftStep,
   transitionDraft,
+  updateConnectionStatus,
   upsertPublishJob,
   type AdDraftRow,
   type AssetRow,
 } from '@adpub/db';
-import { MetaApiError, isTransientError } from '@adpub/meta-client';
+import { MetaApiError, getMe, isAmbiguousError, isTransientError } from '@adpub/meta-client';
 import { createAd, createAdCreative } from '@adpub/meta-client/write';
 import {
   isPublished,
@@ -61,6 +66,68 @@ export class DraftBusyError extends Error {
 }
 
 /**
+ * T-001-1 (FR-001-06/AC-001-05): autorização perdida entre enqueue e execução.
+ * Permanente: o handler encerra o job sem gastar tentativas nem tocar na Meta.
+ */
+export class AccountAuthError extends Error {
+  constructor(readonly adAccountId: string) {
+    super(`Conta ${adAccountId} sem autorização válida — reconecte antes de publicar.`);
+    this.name = 'AccountAuthError';
+  }
+}
+
+/**
+ * T-000-2 (AC-000-03): item parado em reconciliação. O handler transforma em
+ * `UnrecoverableError` para o BullMQ não gastar tentativas — humano resolve.
+ */
+export class ReconciliationRequiredError extends Error {
+  constructor(readonly draftId: string) {
+    super(`Item ${draftId} precisa de reconciliação: possível create sem resposta.`);
+    this.name = 'ReconciliationRequiredError';
+  }
+}
+
+/** Etapas que criam objeto externo: erro ambíguo aqui não pode virar retry cego. */
+const CREATE_STEPS: ReadonlySet<PublishStep> = new Set([
+  'upload_media',
+  'ensure_campaign',
+  'ensure_adset',
+  'create_creative',
+  'create_ad',
+]);
+
+/**
+ * T-001-1 (FR-001-06/AC-001-05): permissão válida no enqueue não autoriza a
+ * execução. Gate local barato sempre; prova remota (`getMe`) só quando a
+ * última verificação passou da janela. Roda antes de qualquer create.
+ */
+const AUTH_RECHECK_MS = 15 * 60 * 1000;
+
+async function assertPublishAuthorization(
+  ctx: WorkerContext,
+  meta: MetaFactory,
+  adAccountId: string,
+  connectionId: string,
+): Promise<void> {
+  const connection = await getConnectionRow(ctx.db, connectionId);
+  if (!connection || connection.status !== 'active') {
+    throw new AccountAuthError(adAccountId);
+  }
+  const lastCheck = connection.lastCheckedAt?.getTime() ?? 0;
+  if (Date.now() - lastCheck <= AUTH_RECHECK_MS) return;
+  try {
+    await getMe(await meta.forConnection(connection.id));
+    await updateConnectionStatus(ctx.db, connection.id, { status: 'active', lastError: null });
+  } catch (error) {
+    if (error instanceof MetaApiError && error.isAuth) {
+      await meta.handleAuthFailure(connection.id, error.translated.title);
+      throw new AccountAuthError(adAccountId);
+    }
+    throw error;
+  }
+}
+
+/**
  * Máquina de estados de publicação (R4). Cada etapa persiste o ID retornado
  * antes de avançar: reprocessar retoma na etapa salva e nunca duplica objeto.
  * Constituição I: este é o único caminho de escrita na Meta.
@@ -97,6 +164,8 @@ async function publishLocked(
   if (isPublished(draft.status)) {
     return { status: draft.status, ...(draft.metaIds?.ad_id ? { adId: draft.metaIds.ad_id } : {}) };
   }
+  // T-000-2: retry do BullMQ após reconciliação não reentra — humano resolve primeiro.
+  if (draft.status === 'needs_reconciliation') throw new ReconciliationRequiredError(draft.id);
 
   const [batch, account] = await Promise.all([
     getBatch(ctx.db, draft.batchId),
@@ -121,6 +190,8 @@ async function publishLocked(
   let step: PublishStep = draft.step;
 
   try {
+    // T-001-1 dentro do try: recusa vira `failed` com erro traduzido, não item preso em `queued`.
+    await assertPublishAuthorization(ctx, meta, account.id, account.connectionId);
     while (step !== 'done') {
       await upsertPublishJob(ctx.db, {
         adDraftId: draft.id,
@@ -129,7 +200,14 @@ async function publishLocked(
         state: 'active',
         attempts: attempt,
       });
-      await transitionDraft(ctx.db, draft.id, statusForStep(step), { step, attempts: attempt });
+      // T-000-3: primeiro passo carimba início do processamento; retry preserva.
+      await transitionDraft(ctx.db, draft.id, statusForStep(step), {
+        step,
+        attempts: attempt,
+        ...(step === draft.step && !draft.processingStartedAt
+          ? { processingStartedAt: new Date() }
+          : {}),
+      });
 
       metaIds = await executeStep(ctx, graph, meta, {
         step,
@@ -152,6 +230,30 @@ async function publishLocked(
       error: null,
       attempts: attempt,
       publishedAt: new Date(),
+    });
+    // T-002-2: vínculo observado nasce confirmado; sem variante (legado), deriva.
+    // Assets ausentes → media_missing: registra, nunca descreve (AC-002-06).
+    const variantId =
+      draft.variantId ??
+      (
+        await getOrCreateVariant(ctx.db, batch.clientId, {
+          format: draft.format,
+          assetIds: draft.assetIds,
+          copy: draft.copy,
+          pageId: draft.pageId,
+          igUserId: draft.igUserId,
+          offerContext: null,
+        })
+      ).id;
+    const mediaMissing = draft.assetIds.length !== assets.length;
+    await openBinding(ctx.db, {
+      draftId: draft.id,
+      adAccountId: account.id,
+      metaAdId: metaIds.ad_id ?? null,
+      metaCreativeId: metaIds.creative_id ?? null,
+      variantId,
+      precision: mediaMissing ? 'media_missing' : 'confirmed',
+      ...(mediaMissing ? { ambiguityReason: 'assets da variante indisponíveis no app' } : {}),
     });
     await upsertPublishJob(ctx.db, {
       adDraftId: draft.id,
@@ -373,6 +475,47 @@ async function handleFailure(
 
   if (error instanceof MetaApiError && error.isAuth && input.connectionId) {
     await meta.handleAuthFailure(input.connectionId, error.translated.title);
+  }
+
+  // T-000-2 (AC-000-03): resposta perdida após possível create → para tudo e
+  // espera humano. Retry cego aqui criaria o segundo objeto na Meta.
+  if (CREATE_STEPS.has(step) && isAmbiguousError(error)) {
+    const detail = error instanceof Error ? error.message : String(error);
+    await upsertPublishJob(ctx.db, {
+      adDraftId: draft.id,
+      queue: 'adpub.publish',
+      step,
+      state: 'failed',
+      attempts: attempt,
+      lastError: {
+        message: detail,
+        translated: 'Resposta da Meta se perdeu após possível criação.',
+        action: 'Confira na Meta e resolva a reconciliação do item.',
+        step,
+        transient: false,
+      },
+    });
+    await transitionDraft(ctx.db, draft.id, 'needs_reconciliation', {
+      step,
+      error: {
+        message: detail,
+        translated: 'Resposta da Meta se perdeu após possível criação.',
+        action: 'Confira na Meta e resolva a reconciliação do item.',
+        step,
+      },
+      attempts: attempt,
+    });
+    await refreshBatchStatus(ctx.db, input.batchId);
+    await dedupAlert(ctx.db, alert, {
+      rule: 'reconciliation',
+      adAccountId: input.accountId,
+      entity: draft.id,
+      title: 'Reconciliação necessária',
+      detail: `Item ${draft.id} parou em ${step}: ${detail}`,
+      severity: 'warning',
+      context: { batchId: input.batchId, draftId: draft.id, step },
+    });
+    throw new ReconciliationRequiredError(draft.id);
   }
 
   const transient = isTransientError(error);

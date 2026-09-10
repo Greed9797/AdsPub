@@ -46,6 +46,11 @@ export const serverEnvSchema = z.object({
   AI_MODEL_CLASSIFY: nonEmpty.default('claude-haiku-4-6'),
   AI_PLAN_TIMEOUT_MS: z.coerce.number().int().positive().default(40_000),
 
+  /** T-009-3: flags matam inteligência, nunca o publish. */
+  FEATURE_AI_ANALYSIS: z.enum(['1', '0']).default('1'),
+  FEATURE_REPORTS: z.enum(['1', '0']).default('1'),
+  FEATURE_INSIGHTS: z.enum(['1', '0']).default('1'),
+
   SLACK_WEBHOOK_URL: z.string().url().optional(),
 
   API_PORT: z.coerce.number().int().positive().default(4000),

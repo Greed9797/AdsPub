@@ -61,6 +61,11 @@ const copyResultSchema = z.object({ copies: z.array(z.unknown()).min(1) });
 export class AiClient {
   constructor(private readonly options: AiClientOptions) {}
 
+  /** T-006-2: invoker + modelo barato para análise de conteúdo (fora do cache plano/copy). */
+  contentBackend(): { invoke: AiInvoker; model: string } {
+    return { invoke: this.options.invoke, model: this.options.models.classify };
+  }
+
   /** FR-006: briefing → BatchPlan validado por schema. */
   async generatePlan(
     ctx: PlanContext,

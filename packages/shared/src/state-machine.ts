@@ -49,11 +49,13 @@ const TRANSITIONS: Record<AdDraftStatus, readonly AdDraftStatus[]> = {
     'failed',
     'ready',
   ],
-  uploading_media: ['uploading_media', 'ensuring_campaign', 'failed'],
-  ensuring_campaign: ['ensuring_campaign', 'ensuring_adset', 'failed'],
-  ensuring_adset: ['ensuring_adset', 'creating_creative', 'failed'],
-  creating_creative: ['creating_creative', 'creating_ad', 'failed'],
-  creating_ad: ['creating_ad', 'published', 'failed'],
+  uploading_media: ['uploading_media', 'ensuring_campaign', 'failed', 'needs_reconciliation'],
+  ensuring_campaign: ['ensuring_campaign', 'ensuring_adset', 'failed', 'needs_reconciliation'],
+  ensuring_adset: ['ensuring_adset', 'creating_creative', 'failed', 'needs_reconciliation'],
+  creating_creative: ['creating_creative', 'creating_ad', 'failed', 'needs_reconciliation'],
+  creating_ad: ['creating_ad', 'published', 'failed', 'needs_reconciliation'],
+  /** T-000-2: reconciliação resolve para reprocessar (IDs adotados) ou falha (descartado). */
+  needs_reconciliation: ['needs_reconciliation', 'queued', 'failed'],
   published: ['in_review', 'approved', 'disapproved', 'published'],
   in_review: ['in_review', 'approved', 'disapproved'],
   approved: ['approved', 'disapproved'],
@@ -119,6 +121,7 @@ export function deriveBatchStatus(
   if (all(isPublished)) return 'done';
   if (all((s) => s === 'failed')) return 'failed';
   if (has('failed')) return 'partial';
+  if (has('needs_reconciliation')) return 'partial';
   if (has('blocked')) return 'blocked';
   if (all((s) => s === 'ready')) return 'ready';
   return 'draft';

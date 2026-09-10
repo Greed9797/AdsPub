@@ -2,9 +2,10 @@ import { z } from 'zod';
 import { Badge, buttonClass, Card, Empty, Field, inputClass } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
-import type { Asset, Client } from '@/lib/types';
+import type { Asset, Client, Variant } from '@/lib/types';
 import { DriveImportForm } from './drive-import-form';
 import { UploadForm } from './upload-form';
+import { AnalysisButton } from './analysis-button';
 
 type SearchParams = {
   client_id?: string | string[];
@@ -83,7 +84,9 @@ function AssetCard({ asset }: { asset: Asset }) {
               ))}
             </ul>
           </div>
-        ) : null}
+        ) : (
+          <AnalysisButton assetId={asset.id} />
+        )}
       </div>
     </article>
   );
@@ -108,6 +111,7 @@ export default async function CriativosPage({
   const clients = await api<Client[]>('/clients');
 
   let assets: Asset[] = [];
+  let variants: Variant[] = [];
   if (filters.client_id) {
     const query = new URLSearchParams({ client_id: filters.client_id });
 
@@ -115,6 +119,11 @@ export default async function CriativosPage({
     if (filters.status) query.set('status', filters.status);
 
     assets = await api<Asset[]>(`/assets?${query.toString()}`);
+    // T-002-3: variantes derivadas nas validações; kind filtra formato compatível.
+    const vquery = new URLSearchParams({ client_id: filters.client_id });
+    if (filters.kind === 'image') vquery.set('format', 'single_image');
+    if (filters.kind === 'video') vquery.set('format', 'single_video');
+    variants = await api<Variant[]>(`/variants?${vquery.toString()}`);
   }
 
   return (
@@ -184,6 +193,30 @@ export default async function CriativosPage({
               <div className="grid gap-4 sm:grid-cols-2">
                 {assets.map((asset) => (
                   <AssetCard key={asset.id} asset={asset} />
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Card title={`Variantes de comunicação (${variants.length})`}>
+            {variants.length === 0 ? (
+              <Empty>Nenhuma variante validada para este cliente.</Empty>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {variants.map((variant) => (
+                  <article
+                    key={variant.id}
+                    className="space-y-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium">{variant.manifest.copy.headline || '(sem título)'}</p>
+                      <Badge tone="info">{variant.manifest.format}</Badge>
+                    </div>
+                    <p className="text-xs text-[var(--color-muted)]">{variant.manifest.copy.primary_text}</p>
+                    <p className="text-xs text-[var(--color-muted)]">
+                      {variant.manifest.assetIds.length} mídia(s) · {variant.fingerprint.slice(0, 8)}
+                    </p>
+                  </article>
                 ))}
               </div>
             )}

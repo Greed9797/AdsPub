@@ -173,6 +173,12 @@ async function main(): Promise<void> {
     async enqueueImportDrive() {
       throw new Error('Importação do Drive não faz parte da fumaça em sandbox.');
     },
+    async enqueueInsights() {
+      throw new Error('Sync de Insights não faz parte da fumaça em sandbox.');
+    },
+    async queueCounts() {
+      return {};
+    },
     async enqueuePublish(items) {
       const refs: JobRef[] = [];
       for (const item of items) {
@@ -206,6 +212,9 @@ async function main(): Promise<void> {
       metaApiVersion: env.META_API_VERSION,
       metaTier: env.META_TIER,
       usePolicyAi: false,
+      featureAiAnalysis: true,
+      featureReports: true,
+      featureInsights: true,
     },
     metaClientFor: async () => metaClientForToken(smoke.token),
     metaClientForToken,

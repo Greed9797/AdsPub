@@ -256,7 +256,7 @@ Como o poller faz (`getAdsStatus`, até `GRAPH_BATCH_MAX` = 50 IDs por requisiç
 
 ```bash
 curl -s -X POST "$G/" \
-  -d 'batch=[{"method":"GET","relative_url":"<AD_ID_1>?fields=effective_status,configured_status,ad_review_feedback"},{"method":"GET","relative_url":"<AD_ID_2>?fields=effective_status,configured_status,ad_review_feedback"}]' \
+  -d 'batch=[{"method":"GET","relative_url":"<AD_ID_1>?fields=effective_status,configured_status,ad_review_feedback,creative{id}"},{"method":"GET","relative_url":"<AD_ID_2>?fields=effective_status,configured_status,ad_review_feedback,creative{id}"}]' \
   -d "include_headers=false" \
   --config "$AUTHFILE"
 ```

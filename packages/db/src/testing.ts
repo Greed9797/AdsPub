@@ -40,7 +40,10 @@ export function assertTruncateAllowed(url: string): void {
 export async function truncateAllTables(db: Database, url: string): Promise<void> {
   assertTruncateAllowed(url);
   await db.execute(sql`truncate table
-    audit_log, meta_api_calls, ai_generations, publish_jobs, batch_refs, ad_drafts,
+    audit_log, meta_api_calls, ai_generations, publish_jobs, batch_refs, ad_creative_bindings,
+    creative_variants, metric_observations, report_rows, report_imports, report_feedbacks,
+    analysis_reports, learnings,
+    insight_snapshots, account_sync_state, ad_drafts,
     batches, asset_uploads, assets, user_ad_accounts, users, pixels, adsets_cache,
     campaigns_cache, instagram_accounts, pages, ad_accounts, meta_connections, clients
     restart identity cascade`);

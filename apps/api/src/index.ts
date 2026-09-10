@@ -62,6 +62,9 @@ const deps: ApiDeps = {
     metaApiVersion: env.META_API_VERSION,
     metaTier: env.META_TIER,
     usePolicyAi: true,
+    featureAiAnalysis: env.FEATURE_AI_ANALYSIS === '1',
+    featureReports: env.FEATURE_REPORTS === '1',
+    featureInsights: env.FEATURE_INSIGHTS === '1',
   },
   async metaClientFor(connectionId: string) {
     const token = await getConnectionToken(db, connectionId);

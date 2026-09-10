@@ -66,6 +66,30 @@ describe('invariantes do item', () => {
   });
 });
 
+describe('reconciliação (T-000-2 / AC-000-03)', () => {
+  it('etapa de criação com resposta perdida para em reconciliação', () => {
+    for (const step of ETAPAS) {
+      expect(canTransition(statusForStep(step), 'needs_reconciliation')).toBe(true);
+    }
+    expect(canTransition('ready', 'needs_reconciliation')).toBe(false);
+    expect(canTransition('published', 'needs_reconciliation')).toBe(false);
+  });
+
+  it('reconciliação só sai por retomada auditada ou descarte', () => {
+    expect(canTransition('needs_reconciliation', 'queued')).toBe(true);
+    expect(canTransition('needs_reconciliation', 'failed')).toBe(true);
+    expect(canTransition('needs_reconciliation', 'published')).toBe(false);
+    expect(canTransition('needs_reconciliation', 'creating_ad')).toBe(false);
+    expect(canTransition('needs_reconciliation', 'ready')).toBe(false);
+  });
+
+  it('lote com reconciliação pendente é parcial, nunca concluído', () => {
+    expect(deriveBatchStatus(['published', 'needs_reconciliation'])).toBe('partial');
+    expect(deriveBatchStatus(['needs_reconciliation'])).toBe('partial');
+    expect(deriveBatchStatus(['failed', 'failed'])).toBe('failed');
+  });
+});
+
 describe('deriveBatchStatus', () => {
   it('resume os itens no estado do lote', () => {
     expect(deriveBatchStatus([])).toBe('draft');

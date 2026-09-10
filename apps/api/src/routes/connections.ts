@@ -8,6 +8,7 @@ import {
   createAndTestConnection,
   listAllConnections,
   retestConnection,
+  rotateAndTestConnection,
 } from '../services/connections.js';
 
 const createBody = z.object({
@@ -38,6 +39,15 @@ export function connectionRoutes(app: FastifyInstance, deps: ApiDeps): void {
     const user = requireRole(request, ['admin']);
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const connection = await retestConnection(deps, user, id);
+    return connectionDto(connection);
+  });
+
+  /** T-001-3: troca o token (testado antes) e reativa a conexão. */
+  app.post('/connections/:id/rotate', async (request) => {
+    const user = requireRole(request, ['admin']);
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z.object({ token: z.string().min(20) }).strict().parse(request.body);
+    const connection = await rotateAndTestConnection(deps, user, id, body.token);
     return connectionDto(connection);
   });
 

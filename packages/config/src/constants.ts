@@ -67,6 +67,15 @@ export const STATUS_POLL = {
 
 export const SYNC_EVERY_MS = 6 * 60 * 60 * 1000;
 
+/** T-004-3: sync de Insights — 2h por conta + janela móvel por atribuição. */
+export const INSIGHTS_SYNC = {
+  everyMs: 2 * 60 * 60 * 1000,
+  backfillDays: 90,
+  backfillWindowDays: 30,
+  attributionDays: 7,
+  windowMarginDays: 3,
+} as const;
+
 /** Preço por milhão de tokens, para custo estimado das gerações. */
 export const AI_PRICING_USD_PER_MTOK: Record<string, { input: number; output: number }> = {
   default: { input: 3, output: 15 },
@@ -86,6 +95,7 @@ export const QUEUES = {
   sync: 'adpub.sync',
   driveImport: 'adpub.drive-import',
   statusPoll: 'adpub.status-poll',
+  insightsSync: 'adpub.insights-sync',
 } as const;
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];

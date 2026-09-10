@@ -95,6 +95,31 @@ export async function enviarCriativos(formData: FormData): Promise<UploadCriativ
   }
 }
 
+export interface AnalysisView {
+  id: string;
+  model_id: string;
+  revision: number;
+  findings: {
+    observations: Array<{ tipo: string; texto: string; evidence_refs: Array<{ kind: string; t?: number; detail: string }> }>;
+    limitations: string[];
+  };
+}
+
+/** T-006-2: analisa o asset e devolve a versão atual da análise. */
+export async function analisarCriativo(
+  assetId: string,
+): Promise<{ erro: string } | { ok: true; analysis: AnalysisView }> {
+  try {
+    await requireSession();
+    const analysis = await api<AnalysisView>(`/assets/${assetId}/analyses`, { method: 'POST', body: {} });
+    revalidatePath('/criativos');
+    return { ok: true, analysis };
+  } catch (error) {
+    if (error instanceof ApiError) return { erro: error.problem.detail ?? error.problem.title };
+    return { erro: 'Não foi possível analisar o criativo.' };
+  }
+}
+
 export async function importarDoDrive(formData: FormData): Promise<ImportarDriveResult> {
   try {
     await requireSession();

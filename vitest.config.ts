@@ -17,6 +17,9 @@ export default defineConfig({
       '@adpub/ai': pkg('ai'),
       '@adpub/meta-client': pkg('meta-client'),
       '@adpub/telemetry': pkg('telemetry'),
+      '@adpub/reports': pkg('reports'),
+      '@adpub/analytics': pkg('analytics'),
+      '@adpub/creative-intel': pkg('creative-intel'),
     },
   },
   test: {
