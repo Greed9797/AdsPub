@@ -70,6 +70,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="min-h-screen">
+        <a
+          href="#conteudo"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-[10px] focus:bg-[var(--color-brand-solid)] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--color-ink-on-brand)]"
+        >
+          Pular para o conteúdo
+        </a>
         {user ? (
           <div className="min-h-screen lg:flex">
             <aside className="hidden w-64 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)] lg:block">
@@ -105,7 +111,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </div>
                 <AppNav groups={visibleNav()} variant="strip" />
               </header>
-              <main className="mx-auto w-full max-w-6xl flex-1 p-4 sm:p-6">{children}</main>
+              <main id="conteudo" className="mx-auto w-full max-w-6xl flex-1 p-4 sm:p-6">{children}</main>
             </div>
           </div>
         ) : (

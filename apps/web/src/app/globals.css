@@ -14,14 +14,17 @@
   --color-muted: #a8a29e;
   --color-brand: #ff5701;
   --color-brand-deep: #c94100;
+  /* Fundo sólido de botão: texto ink passa AA nos dois temas. */
+  --color-brand-solid: #ff5701;
+  --color-ink-on-brand: #1a1005;
   --color-accent-subtle: rgba(255, 87, 1, 0.12);
   --color-ok: #22c55e;
   --color-warn: #f59e0b;
   --color-danger: #ef4444;
 }
 
-/* Tema claro: paper do site, mesma marca. Laranja com rótulo branco fica
-   abaixo do AA em repouso (aceito, documentado); hover escurece e melhora. */
+/* Tema claro: paper do site, mesma marca. Laranja puro como texto falha AA no
+   paper, então links usam tom escuro e botões mantêm o sólido com texto ink. */
 [data-theme='light'] {
   --color-bg: #f6f6f1;
   --color-surface: #ffffff;
@@ -29,6 +32,11 @@
   --color-border: rgba(17, 24, 39, 0.16);
   --color-text: #0a0a0a;
   --color-muted: #667085;
+  --color-brand: #c2410c;
+  --color-brand-deep: #9a3412;
+  --color-ok: #166534;
+  --color-warn: #92400e;
+  --color-danger: #dc2626;
 }
 
 html,
