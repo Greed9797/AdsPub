@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from 'react';
-import { buttonClass, Field, inputClass, secondaryButtonClass } from '@/components/ui';
+import { buttonClass, Card, Field, inputClass, secondaryButtonClass } from '@/components/ui';
 import { importarDoDrive, type ImportarDriveResult } from './actions';
 
 type DriveImportState = ImportarDriveResult | null;
@@ -29,10 +29,8 @@ export function DriveImportForm({ clientId }: DriveImportFormProps) {
   }
 
   return (
-    <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-      <h2 className="text-sm font-semibold">Importar do Google Drive</h2>
-
-      <form onSubmit={onSubmit} className="mt-3 space-y-3">
+    <Card title="Importar do Google Drive">
+      <form onSubmit={onSubmit} className="space-y-3">
         <input type="hidden" name="client_id" value={clientId} />
 
         <Field label="URL da pasta">
@@ -85,6 +83,6 @@ export function DriveImportForm({ clientId }: DriveImportFormProps) {
           </p>
         </div>
       ) : null}
-    </section>
+    </Card>
   );
 }

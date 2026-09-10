@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Badge, buttonClass, Card, Empty, Field, inputClass } from '@/components/ui';
+import { Badge, buttonClass, Card, Empty, Field, inputClass, PageHead } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { Asset, Client, Variant } from '@/lib/types';
@@ -128,50 +128,49 @@ export default async function CriativosPage({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-4">
-        <h1 className="text-2xl font-semibold tracking-[-0.03em]">Criativos</h1>
+      <PageHead title="Criativos" description="Envie mídias, importe do Drive e valide variantes." />
 
-        <Card title="Filtros">
-          <form method="get" className="grid gap-3 md:grid-cols-4" action="/criativos">
-            <Field label="Cliente">
-              <select
-                name="client_id"
-                defaultValue={filters.client_id ?? ''}
-                className={inputClass}
-              >
-                <option value="">Todos</option>
-                {clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
+      <form
+        method="get"
+        action="/criativos"
+        aria-label="Filtrar criativos"
+        className="flex flex-wrap items-end gap-x-3 gap-y-3 border-b border-[var(--color-border)] pb-5"
+      >
+        <Field label="Cliente" className="w-full sm:w-64">
+          <select
+            name="client_id"
+            defaultValue={filters.client_id ?? ''}
+            className={inputClass}
+          >
+            <option value="">Todos</option>
+            {clients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.name}
+              </option>
+            ))}
+          </select>
+        </Field>
 
-            <Field label="Tipo">
-              <select name="kind" defaultValue={filters.kind ?? ''} className={inputClass}>
-                <option value="">Todos</option>
-                <option value="image">Imagem</option>
-                <option value="video">Vídeo</option>
-              </select>
-            </Field>
+        <Field label="Tipo" className="w-full sm:w-48">
+          <select name="kind" defaultValue={filters.kind ?? ''} className={inputClass}>
+            <option value="">Todos</option>
+            <option value="image">Imagem</option>
+            <option value="video">Vídeo</option>
+          </select>
+        </Field>
 
-            <Field label="Validação">
-              <select name="status" defaultValue={filters.status ?? ''} className={inputClass}>
-                <option value="">Todas</option>
-                <option value="ok">Aprovadas</option>
-                <option value="rejected">Rejeitadas</option>
-              </select>
-            </Field>
+        <Field label="Validação" className="w-full sm:w-48">
+          <select name="status" defaultValue={filters.status ?? ''} className={inputClass}>
+            <option value="">Todas</option>
+            <option value="ok">Aprovadas</option>
+            <option value="rejected">Rejeitadas</option>
+          </select>
+        </Field>
 
-            <div className="flex items-end">
-              <button className={buttonClass} type="submit">
-                Aplicar filtros
-              </button>
-            </div>
-          </form>
-        </Card>
-      </div>
+        <button className={buttonClass} type="submit">
+          Aplicar filtros
+        </button>
+      </form>
 
       {!filters.client_id ? (
         <Card>

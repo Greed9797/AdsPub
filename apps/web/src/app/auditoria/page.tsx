@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { buttonClass, Card, Empty, Field, inputClass, Table } from '@/components/ui';
+import { buttonClass, Card, Empty, Field, inputClass, PageHead, Table } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireRole } from '@/lib/session';
 import type { AuditEntry } from '@/lib/types';
@@ -66,10 +66,10 @@ export default async function AuditoriaPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-[-0.03em]">Auditoria</h1>
+      <PageHead title="Auditoria" description="Quem fez o quê, em qual entidade e quando." />
 
-      <Card title="Filtros">
-        <form method="get" className="grid gap-3 md:grid-cols-4" action="/auditoria">
+      <Card>
+        <form method="get" className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-4" action="/auditoria">
           <Field label="Entidade">
             <input
               type="text"
@@ -129,7 +129,7 @@ export default async function AuditoriaPage({
             />
           </Field>
 
-          <div className="md:col-span-2">
+          <div className="sm:col-span-2 xl:col-span-1">
             <button className={buttonClass} type="submit">
               Aplicar filtros
             </button>
@@ -137,7 +137,14 @@ export default async function AuditoriaPage({
         </form>
       </Card>
 
-      <Card title="Eventos">
+      <Card
+        title="Eventos"
+        action={
+          rows.length > 0 ? (
+            <span className="text-xs tabular-nums text-[var(--color-muted)]">{rows.length}</span>
+          ) : undefined
+        }
+      >
         {rows.length === 0 ? (
           <Empty>Nenhum evento encontrado para os filtros informados.</Empty>
         ) : (

@@ -19,8 +19,10 @@ export default async function LoginPage({
 
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8">
-        <h1 className="text-xl font-semibold">AdPub</h1>
+      <div className="w-full max-w-sm rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-8">
+        <p className="text-xl font-semibold tracking-[-0.03em]">
+          AdPub<span className="text-[var(--color-brand)]">.</span>
+        </p>
         <p className="mt-1 text-sm text-[var(--color-muted)]">
           Publicação de anúncios Meta em lote.
         </p>
@@ -31,7 +33,7 @@ export default async function LoginPage({
         ) : null}
         <Link
           href="/api/auth/login"
-          className="mt-6 block rounded-lg bg-[var(--color-brand)] px-4 py-2 text-center text-sm font-medium text-white"
+          className="mt-6 flex h-10 items-center justify-center rounded-[10px] bg-[var(--color-brand)] px-4 text-sm font-semibold text-white hover:bg-[var(--color-brand-deep)]"
         >
           Entrar com Google
         </Link>

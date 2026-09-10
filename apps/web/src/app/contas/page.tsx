@@ -1,4 +1,4 @@
-import { Card, Empty, Table } from '@/components/ui';
+import { Card, Empty, PageHead, Table } from '@/components/ui';
 import type { AdAccount, Client, Connection } from '@/lib/types';
 import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
@@ -39,9 +39,16 @@ export default async function ContasPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Contas</h1>
+      <PageHead title="Contas" description="Conexões, contas de anúncio e padrões de publicação." />
 
-      <Card title="Contas de anúncio">
+      <Card
+        title="Contas de anúncio"
+        action={
+          accounts.length > 0 ? (
+            <span className="text-xs tabular-nums text-[var(--color-muted)]">{accounts.length}</span>
+          ) : undefined
+        }
+      >
         {accounts.length === 0 ? (
           <Empty>Nenhuma conta disponível. Sincronize uma conexão para importar contas.</Empty>
         ) : (

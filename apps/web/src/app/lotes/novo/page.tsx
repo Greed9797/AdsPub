@@ -1,5 +1,6 @@
 import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
+import { PageHead } from '@/components/ui';
 import type { AdAccount, Asset, Client } from '@/lib/types';
 import { NewBatchForm } from './new-batch-form';
 import { criarLote } from '../actions';
@@ -29,7 +30,7 @@ export default async function NovoLotePage({
 
   return (
     <main className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-[-0.03em]">Novo lote</h1>
+      <PageHead title="Novo lote" description="Escolha cliente, conta e criativos para montar o lote." />
       <NewBatchForm
         clients={clients}
         accounts={accounts}

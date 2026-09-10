@@ -63,6 +63,19 @@ tbody tr:hover {
   background: color-mix(in srgb, var(--color-text) 4%, transparent);
 }
 
+/* Ritmo único de tabela: utilitários first:/last: continuam vencendo nas bordas. */
+.adpub-table :is(td, th) {
+  padding: 10px 12px;
+}
+
+.adpub-table :is(td, th):first-child {
+  padding-left: 0;
+}
+
+.adpub-table :is(td, th):last-child {
+  padding-right: 0;
+}
+
 ::selection {
   background: var(--color-brand);
   color: #fff;

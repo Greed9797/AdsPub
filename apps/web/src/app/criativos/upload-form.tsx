@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from 'react';
-import { Badge, buttonClass, Field, inputClass, secondaryButtonClass } from '@/components/ui';
+import { Badge, buttonClass, Card, Field, inputClass, secondaryButtonClass } from '@/components/ui';
 import { enviarCriativos, type UploadCriativosResult } from './actions';
 import type { Asset } from '@/lib/types';
 
@@ -38,9 +38,8 @@ export function UploadForm({ clientId }: UploadFormProps) {
   }
 
   return (
-    <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-      <h2 className="text-sm font-semibold">Upload de criativos</h2>
-      <form onSubmit={onSubmit} className="mt-3 space-y-3" encType="multipart/form-data">
+    <Card title="Upload de criativos">
+      <form onSubmit={onSubmit} className="space-y-3" encType="multipart/form-data">
         <input type="hidden" name="client_id" value={clientId} />
 
         <Field label="Arquivos">
@@ -112,6 +111,6 @@ export function UploadForm({ clientId }: UploadFormProps) {
           </ul>
         </div>
       ) : null}
-    </section>
+    </Card>
   );
 }

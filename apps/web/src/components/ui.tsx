@@ -56,7 +56,7 @@ export function Badge({ tone = 'info', children }: { tone?: keyof typeof TONE | 
 export function Table({ head, children }: { head: ReactNode[]; children: ReactNode }) {
   return (
     <div className="-mx-5 overflow-x-auto px-5">
-      <table className="w-full text-left text-sm tabular-nums">
+      <table className="adpub-table w-full text-left text-sm tabular-nums">
         <thead className="text-xs font-medium uppercase tracking-[0.1em] text-[var(--color-muted)]">
           <tr className="border-b border-[var(--color-border)]">
             {head.map((cell, index) => (

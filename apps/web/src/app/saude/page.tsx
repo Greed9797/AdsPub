@@ -1,4 +1,4 @@
-import { Badge, Card, Empty, Table } from '@/components/ui';
+import { Badge, Card, Empty, PageHead, Table } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { AccountHealth } from '@/lib/types';
@@ -64,16 +64,19 @@ export default async function SaudePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold tracking-[-0.03em]">Saúde das contas</h1>
-        <Badge tone={emAtencao === 0 ? 'ok' : 'warn'}>
-          {emAtencao === 0
-            ? `${linhas.length} conta(s) sem alerta`
-            : `${emAtencao} de ${linhas.length} conta(s) em atenção`}
-        </Badge>
-      </div>
+      <PageHead
+        title="Saúde das contas"
+        description="Fila, rate limit, erros e teto diário."
+        action={
+          <Badge tone={emAtencao === 0 ? 'ok' : 'warn'}>
+            {emAtencao === 0
+              ? `${linhas.length} conta(s) sem alerta`
+              : `${emAtencao} de ${linhas.length} conta(s) em atenção`}
+          </Badge>
+        }
+      />
 
-      <Card title="Fila, rate limit, erros e teto diário">
+      <Card title="Contas">
         {linhas.length === 0 ? (
           <Empty>Nenhuma conta disponível para exibir.</Empty>
         ) : (

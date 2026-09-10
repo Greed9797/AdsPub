@@ -1,4 +1,4 @@
-import { Card, Empty, Table } from '@/components/ui';
+import { Card, Empty, PageHead, Table } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireRole } from '@/lib/session';
 import type { AdAccount } from '@/lib/types';
@@ -15,7 +15,7 @@ export default async function UsuariosPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-[-0.03em]">Usuários</h1>
+      <PageHead title="Usuários" description="Papéis e contas atribuídas a cada usuário." />
 
       <Card title="Gerenciar usuários">
         {users.length === 0 ? (

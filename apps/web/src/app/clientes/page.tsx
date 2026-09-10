@@ -1,4 +1,4 @@
-import { Badge, Card, Empty, Table } from '@/components/ui';
+import { Badge, Card, Empty, PageHead, Table } from '@/components/ui';
 import type { Client } from '@/lib/types';
 import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
@@ -15,7 +15,7 @@ export default async function ClientesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Clientes</h1>
+      <PageHead title="Clientes" description="Cadastro, política e domínios de cada cliente." />
 
       {canEdit ? (
         <Card title="Novo cliente">
@@ -23,7 +23,14 @@ export default async function ClientesPage() {
         </Card>
       ) : null}
 
-      <Card title="Clientes cadastrados">
+      <Card
+        title="Clientes cadastrados"
+        action={
+          clientes.length > 0 ? (
+            <span className="text-xs tabular-nums text-[var(--color-muted)]">{clientes.length}</span>
+          ) : undefined
+        }
+      >
         {clientes.length === 0 ? (
           <Empty>Nenhum cliente cadastrado.</Empty>
         ) : (
