@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Card, Empty, Eyebrow, Field, inputClass, buttonClass } from '@/components/ui';
+import { Card, Empty, Field, PageHead, inputClass, buttonClass } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { Client } from '@/lib/types';
@@ -25,11 +25,10 @@ export default async function RelatoriosPage({
 
   return (
     <div className="space-y-6">
-      <Eyebrow>Arquivo vira base confiável</Eyebrow>
-      <h1 className="text-2xl font-semibold tracking-[-0.03em]">Relatórios</h1>
-      <Card title="Cliente">
-        <form method="get" action="/relatorios" className="flex items-end gap-3">
-          <Field label="Cliente">
+      <PageHead title="Relatórios" description="Arquivo vira base confiável." />
+      <Card>
+        <form method="get" action="/relatorios" aria-label="Escolher cliente" className="flex flex-wrap items-end gap-3">
+          <Field label="Cliente" className="w-full sm:w-64">
             <select name="client_id" defaultValue={clientId ?? ''} className={inputClass}>
               <option value="">Selecione</option>
               {clients.map((client) => (
@@ -46,7 +45,7 @@ export default async function RelatoriosPage({
       </Card>
       {!clientId ? (
         <Card>
-          <Empty>Selecione um cliente para importar relatórios.</Empty>
+          <Empty title="Nenhum cliente selecionado" hint="Selecione um cliente para importar relatórios." />
         </Card>
       ) : (
         <Card title="Importar CSV/XLSX">

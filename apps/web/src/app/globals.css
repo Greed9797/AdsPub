@@ -37,6 +37,15 @@ body {
   color: var(--color-text);
 }
 
+/* Controles nativos (calendário, dropdown) seguem o tema. */
+html {
+  color-scheme: dark;
+}
+
+html[data-theme='light'] {
+  color-scheme: light;
+}
+
 body {
   font-family: var(--font-sans);
   letter-spacing: 0.01em;
@@ -44,4 +53,46 @@ body {
 
 table {
   border-collapse: collapse;
+}
+
+tbody tr {
+  transition: background-color 120ms ease-out;
+}
+
+tbody tr:hover {
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+}
+
+::selection {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-text) 22%, transparent);
+  border-radius: 8px;
+  border: 2px solid var(--color-bg);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Trilha de navegação mobile: scroll sem barra visível. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

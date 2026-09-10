@@ -3,6 +3,7 @@ import { Bricolage_Grotesque } from 'next/font/google';
 import Link from 'next/link';
 import './globals.css';
 import { currentSession } from '@/lib/session';
+import { AppNav, type NavGroup, type NavItem } from '@/components/app-nav';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 export const metadata: Metadata = {
@@ -18,22 +19,42 @@ const display = Bricolage_Grotesque({
   variable: '--font-display',
 });
 
-const NAV = [
-  { href: '/', label: 'Lotes' },
-  { href: '/criativos', label: 'Criativos' },
-  { href: '/relatorios', label: 'Relatórios', flag: 'FEATURE_REPORTS' },
-  { href: '/performance', label: 'Performance' },
-  { href: '/inteligencia', label: 'Inteligência', flag: 'FEATURE_AI_ANALYSIS' },
-  { href: '/contas', label: 'Contas' },
-  { href: '/clientes', label: 'Clientes' },
-  { href: '/saude', label: 'Saúde' },
-  { href: '/auditoria', label: 'Auditoria' },
-  { href: '/usuarios', label: 'Usuários' },
-] as const;
+const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
+  {
+    title: 'Operar',
+    items: [
+      { href: '/', label: 'Lotes' },
+      { href: '/criativos', label: 'Criativos' },
+      { href: '/contas', label: 'Contas' },
+    ],
+  },
+  {
+    title: 'Analisar',
+    items: [
+      { href: '/performance', label: 'Performance' },
+      { href: '/inteligencia', label: 'Inteligência', flag: 'FEATURE_AI_ANALYSIS' },
+      { href: '/relatorios', label: 'Relatórios', flag: 'FEATURE_REPORTS' },
+    ],
+  },
+  {
+    title: 'Gerenciar',
+    items: [
+      { href: '/clientes', label: 'Clientes' },
+      { href: '/saude', label: 'Saúde' },
+      { href: '/auditoria', label: 'Auditoria' },
+      { href: '/usuarios', label: 'Usuários' },
+    ],
+  },
+];
 
 /** T-009-3: funcionalidade desligada some da navegação (API dá 503). */
-function visibleNav(): Array<{ href: string; label: string }> {
-  return NAV.filter((item) => !('flag' in item) || process.env[item.flag] !== '0');
+function visibleNav(): NavGroup[] {
+  return NAV_GROUPS.map((group) => ({
+    title: group.title,
+    items: group.items
+      .filter((item) => !item.flag || process.env[item.flag] !== '0')
+      .map((item) => ({ href: item.href, label: item.label })),
+  }));
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -50,31 +71,46 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className="min-h-screen">
         {user ? (
-          <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-            <div className="mx-auto flex max-w-7xl items-center gap-6 px-6 py-3">
-              <Link href="/" className="text-sm font-semibold tracking-[-0.02em]">
-                AdPub<span className="text-[var(--color-brand)]">.</span>
-              </Link>
-              <nav className="flex flex-1 gap-4 text-sm font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]">
-                {visibleNav().map((item) => (
-                  <Link key={item.href} href={item.href} className="hover:text-[var(--color-text)]">
-                    {item.label}
+          <div className="min-h-screen lg:flex">
+            <aside className="hidden w-64 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)] lg:block">
+              <div className="no-scrollbar sticky top-0 flex max-h-screen flex-col gap-8 overflow-y-auto p-5">
+                <Link href="/" className="px-2 pt-1 text-xl font-semibold tracking-[-0.03em]">
+                  AdPub<span className="text-[var(--color-brand)]">.</span>
+                </Link>
+                <AppNav groups={visibleNav()} variant="sidebar" />
+              </div>
+            </aside>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+                <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
+                  <Link href="/" className="text-base font-semibold tracking-[-0.03em] lg:hidden">
+                    AdPub<span className="text-[var(--color-brand)]">.</span>
                   </Link>
-                ))}
-              </nav>
-              <ThemeToggle />
-              <span className="text-xs text-[var(--color-muted)]">
-                {user.email} · {user.role}
-              </span>
-              <form action="/api/auth/logout" method="post">
-                <button type="submit" className="text-xs text-[var(--color-muted)] hover:text-[var(--color-text)]">
-                  Sair
-                </button>
-              </form>
+                  <div className="flex-1" />
+                  <ThemeToggle />
+                  <span className="hidden max-w-48 truncate text-xs text-[var(--color-muted)] sm:block">
+                    {user.email}
+                  </span>
+                  <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]">
+                    {user.role}
+                  </span>
+                  <form action="/api/auth/logout" method="post">
+                    <button
+                      type="submit"
+                      className="rounded-[8px] px-2 py-1.5 text-xs font-medium text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"
+                    >
+                      Sair
+                    </button>
+                  </form>
+                </div>
+                <AppNav groups={visibleNav()} variant="strip" />
+              </header>
+              <main className="mx-auto w-full max-w-6xl flex-1 p-4 sm:p-6">{children}</main>
             </div>
-          </header>
-        ) : null}
-        <div className="mx-auto max-w-7xl p-6">{children}</div>
+          </div>
+        ) : (
+          <div className="mx-auto max-w-6xl p-6">{children}</div>
+        )}
       </body>
     </html>
   );

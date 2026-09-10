@@ -9,14 +9,14 @@ test('temas dark e light renderizam performance', async ({ page, seed }) => {
 
   await page.getByLabel('Conta').selectOption({ label: seed.account.name });
   await page.getByRole('button', { name: 'Consultar' }).click();
-  await expect(page.getByText('Gasto:')).toBeVisible();
+  await expect(page.getByText('Impressões', { exact: true })).toBeVisible();
 
   await page.screenshot({ path: 'test-results/tema-dark.png' });
   await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'light');
 
   await page.getByRole('button', { name: 'Mudar para tema claro' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await expect(page.getByText('Gasto:')).toBeVisible();
+  await expect(page.getByText('Impressões', { exact: true })).toBeVisible();
   await page.screenshot({ path: 'test-results/tema-light.png' });
 
   await page.getByRole('button', { name: 'Mudar para tema escuro' }).click();

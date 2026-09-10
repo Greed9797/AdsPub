@@ -1,4 +1,4 @@
-import { Card, Empty, Eyebrow, Field, buttonClass, inputClass } from '@/components/ui';
+import { Card, Empty, Field, PageHead, buttonClass, inputClass } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { AdAccount } from '@/lib/types';
@@ -25,11 +25,10 @@ export default async function InteligenciaPage({
 
   return (
     <div className="space-y-6">
-      <Eyebrow>Fatos, hipóteses e próximos testes</Eyebrow>
-      <h1 className="text-2xl font-semibold tracking-[-0.03em]">Inteligência</h1>
-      <Card title="Conta">
-        <form method="get" action="/inteligencia" className="flex items-end gap-3">
-          <Field label="Conta">
+      <PageHead title="Inteligência" description="Fatos, hipóteses e próximos testes." />
+      <Card>
+        <form method="get" action="/inteligencia" aria-label="Escolher conta" className="flex flex-wrap items-end gap-3">
+          <Field label="Conta" className="w-full sm:w-64">
             <select name="ad_account_id" defaultValue={accountId ?? ''} className={inputClass}>
               <option value="">Selecione</option>
               {accounts.map((account) => (
@@ -46,7 +45,7 @@ export default async function InteligenciaPage({
       </Card>
       {!accountId || !selected?.client_id ? (
         <Card>
-          <Empty>Selecione uma conta para gerar relatórios.</Empty>
+          <Empty title="Nenhuma conta selecionada" hint="Selecione uma conta para gerar relatórios." />
         </Card>
       ) : (
         <Card title="Relatório de criativos">

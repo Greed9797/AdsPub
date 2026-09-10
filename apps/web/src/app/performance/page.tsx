@@ -1,4 +1,4 @@
-import { Badge, Card, Empty, Eyebrow, Field, Table, buttonClass, inputClass } from '@/components/ui';
+import { Badge, Card, Empty, Field, PageHead, Table, buttonClass, inputClass } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { AdAccount } from '@/lib/types';
@@ -59,10 +59,14 @@ export default async function PerformancePage({
 
   return (
     <div className="space-y-6">
-      <Eyebrow>Números auditáveis antes da IA</Eyebrow>
-      <h1 className="text-2xl font-semibold tracking-[-0.03em]">Performance</h1>
-      <Card title="Filtros">
-        <form method="get" action="/performance" className="grid gap-3 md:grid-cols-5">
+      <PageHead title="Performance" description="Números auditáveis antes da IA." />
+      <Card>
+        <form
+          method="get"
+          action="/performance"
+          aria-label="Filtrar performance"
+          className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto]"
+        >
           <Field label="Conta">
             <select name="ad_account_id" defaultValue={params.ad_account_id ?? ''} className={inputClass}>
               <option value="">Selecione</option>
@@ -86,7 +90,7 @@ export default async function PerformancePage({
               <option value="api">API</option>
             </select>
           </Field>
-          <div className="flex items-end">
+          <div>
             <button className={buttonClass} type="submit">
               Consultar
             </button>
@@ -96,31 +100,46 @@ export default async function PerformancePage({
 
       {!data ? (
         <Card>
-          <Empty>Selecione uma conta para ver os números.</Empty>
+          <Empty title="Nenhum recorte selecionado" hint="Selecione uma conta para ver os números." />
         </Card>
       ) : (
         <>
-          <Card title="Totais">
-            <div className="flex flex-wrap gap-4 text-sm">
-              <span>
-                Gasto: <strong>{money(data.totals.spend)}</strong>
-              </span>
-              <span>
-                Impressões: <strong>{data.totals.impressions.toLocaleString('pt-BR')}</strong>
-              </span>
-              <span>
-                CPA:{' '}
-                <strong>{data.totals.cpa.value === null ? `indisponível (${data.totals.cpa.reason})` : money(data.totals.cpa.value)}</strong>
-              </span>
-              <span>
-                ROAS:{' '}
-                <strong>{data.totals.roas.value === null ? `indisponível (${data.totals.roas.reason})` : money(data.totals.roas.value)}</strong>
-              </span>
-            </div>
-            <p className="mt-2 text-xs text-[var(--color-muted)]">
+          <Card title="Totais" action={<Badge tone="info">{data.metric_version}</Badge>}>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+              <div>
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">Gasto</dt>
+                <dd className="mt-1 text-xl font-semibold tabular-nums tracking-[-0.02em]">{money(data.totals.spend)}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
+                  Impressões
+                </dt>
+                <dd className="mt-1 text-xl font-semibold tabular-nums tracking-[-0.02em]">
+                  {data.totals.impressions.toLocaleString('pt-BR')}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">CPA</dt>
+                <dd className="mt-1 text-xl font-semibold tabular-nums tracking-[-0.02em]">
+                  {data.totals.cpa.value === null ? '—' : money(data.totals.cpa.value)}
+                </dd>
+                {data.totals.cpa.value === null ? (
+                  <dd className="mt-0.5 text-xs text-[var(--color-muted)]">indisponível ({data.totals.cpa.reason})</dd>
+                ) : null}
+              </div>
+              <div>
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">ROAS</dt>
+                <dd className="mt-1 text-xl font-semibold tabular-nums tracking-[-0.02em]">
+                  {data.totals.roas.value === null ? '—' : money(data.totals.roas.value)}
+                </dd>
+                {data.totals.roas.value === null ? (
+                  <dd className="mt-0.5 text-xs text-[var(--color-muted)]">indisponível ({data.totals.roas.reason})</dd>
+                ) : null}
+              </div>
+            </dl>
+            <p className="mt-4 border-t border-[var(--color-border)] pt-3 text-xs text-[var(--color-muted)]">
               Fonte: {data.sources.filter} · {data.sources.observations} observações ·{' '}
-              {data.sources.snapshots.length} snapshot(s) · atualizado em {data.sources.observed_at_max ?? '—'} ·
-              definições {data.metric_version}
+              {data.sources.snapshots.length} snapshot(s) · atualizado em {data.sources.observed_at_max ?? '—'}
             </p>
           </Card>
 
@@ -134,19 +153,21 @@ export default async function PerformancePage({
             </Card>
           ) : null}
 
-          <Card title={`Ranking (${data.verdict.sufficiency === 'evaluated' ? data.verdict.reason : 'descritivo: suficiência não avaliada'})`}>
+          <Card title={`Ranking · ${data.rows.length}`} action={<Badge tone="info">{data.verdict.sufficiency}</Badge>}>
             {data.rows.length === 0 ? (
-              <Empty>Sem observações no recorte.</Empty>
+              <Empty title="Sem observações no recorte" hint="Ajuste o período ou a fonte e consulte de novo." />
             ) : (
               <Table head={['Anúncio', 'Gasto', 'Resultados', 'Dias', 'CPA', '']}>
                 {data.rows.map((row) => (
-                  <tr key={row.id}>
-                    <td className="px-3 py-2">{row.name || row.id}</td>
-                    <td className="px-3 py-2">{money(row.spend)}</td>
-                    <td className="px-3 py-2">{row.results}</td>
-                    <td className="px-3 py-2">{row.days}</td>
-                    <td className="px-3 py-2">{row.cpa === null ? '—' : money(row.cpa)}</td>
-                    <td className="px-3 py-2">
+                  <tr key={row.id} className="border-b border-[var(--color-border)] last:border-0">
+                    <td className="max-w-64 truncate px-3 py-2.5 font-medium first:pl-0">{row.name || row.id}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{money(row.spend)}</td>
+                    <td className="px-3 py-2.5 tabular-nums">{row.results}</td>
+                    <td className="px-3 py-2.5 tabular-nums">{row.days}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">
+                      {row.cpa === null ? '—' : money(row.cpa)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right last:pr-0">
                       {data.verdict.winnerId === row.id ? <Badge tone="ok">vencedor</Badge> : null}
                     </td>
                   </tr>
@@ -154,6 +175,7 @@ export default async function PerformancePage({
               </Table>
             )}
           </Card>
+          <p className="text-xs text-[var(--color-muted)]">{data.verdict.reason}</p>
         </>
       )}
     </div>

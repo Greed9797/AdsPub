@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { Badge, Card, Table, buttonClass, Empty } from '@/components/ui';
+import { Badge, Card, Empty, Field, PageHead, Table, buttonClass, inputClass } from '@/components/ui';
 import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
 import type { AdAccount, Batch, BatchStatus } from '@/lib/types';
@@ -72,12 +72,15 @@ export default async function HomePage({
 
   return (
     <main className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-[-0.03em]">Lotes</h1>
-        <Link href="/lotes/novo" className={buttonClass}>
-          Novo lote
-        </Link>
-      </div>
+      <PageHead
+        title="Lotes"
+        description="Monte, revise e publique anúncios Meta em lote."
+        action={
+          <Link href="/lotes/novo" className={buttonClass}>
+            Novo lote
+          </Link>
+        }
+      />
 
       {errorMessage ? (
         <p className="rounded-lg border border-[var(--color-danger)] bg-[var(--color-danger)]/10 p-3 text-sm text-[var(--color-text)]">
@@ -85,49 +88,56 @@ export default async function HomePage({
         </p>
       ) : null}
 
-      <Card title="Filtros">
-        <form className="flex flex-wrap gap-3" method="get">
-          <label className="min-w-64">
-            <span className="mb-1 block text-xs text-[var(--color-muted)]">Conta</span>
-            <select
-              name="ad_account_id"
-              defaultValue={accountId ?? ''}
-              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm"
-            >
-              <option value="">Todas as contas</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
-          </label>
+      <form
+        method="get"
+        aria-label="Filtrar lotes"
+        className="flex flex-wrap items-end gap-x-3 gap-y-3 border-b border-[var(--color-border)] pb-5"
+      >
+        <Field label="Conta" className="w-full sm:w-64">
+          <select name="ad_account_id" defaultValue={accountId ?? ''} className={inputClass}>
+            <option value="">Todas as contas</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name}
+              </option>
+            ))}
+          </select>
+        </Field>
 
-          <label className="min-w-52">
-            <span className="mb-1 block text-xs text-[var(--color-muted)]">Status</span>
-            <select
-              name="status"
-              defaultValue={status ?? ''}
-              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm"
-            >
-              <option value="">Todos</option>
-              {BATCH_STATUSES.map((batchStatus) => (
-                <option key={batchStatus} value={batchStatus}>
-                  {batchStatus}
-                </option>
-              ))}
-            </select>
-          </label>
+        <Field label="Status" className="w-full sm:w-52">
+          <select name="status" defaultValue={status ?? ''} className={inputClass}>
+            <option value="">Todos</option>
+            {BATCH_STATUSES.map((batchStatus) => (
+              <option key={batchStatus} value={batchStatus}>
+                {batchStatus}
+              </option>
+            ))}
+          </select>
+        </Field>
 
-          <button type="submit" className={buttonClass}>
-            Aplicar
-          </button>
-        </form>
-      </Card>
+        <button type="submit" className={buttonClass}>
+          Aplicar
+        </button>
+      </form>
 
-      <Card title="Últimos lotes">
+      <Card
+        title="Últimos lotes"
+        action={
+          batches.length > 0 ? (
+            <span className="text-xs tabular-nums text-[var(--color-muted)]">{batches.length}</span>
+          ) : undefined
+        }
+      >
         {batches.length === 0 ? (
-          <Empty>Nenhum lote encontrado.</Empty>
+          <Empty
+            title="Nenhum lote encontrado"
+            hint="Ajuste os filtros ou crie o primeiro lote para começar a publicar."
+            action={
+              <Link href="/lotes/novo" className={buttonClass}>
+                Novo lote
+              </Link>
+            }
+          />
         ) : (
           <Table
             head={[
@@ -143,16 +153,18 @@ export default async function HomePage({
               const updatedAt = new Date(batch.updated_at);
 
               return (
-                <tr key={batch.id} className="border-b border-[var(--color-border)]">
-                  <td className="px-3 py-2">{batch.name}</td>
-                  <td className="px-3 py-2">{getAccountName(batch.ad_account_id)}</td>
-                  <td className="px-3 py-2">
+                <tr key={batch.id} className="border-b border-[var(--color-border)] last:border-0">
+                  <td className="px-3 py-2.5 font-medium first:pl-0">{batch.name}</td>
+                  <td className="px-3 py-2.5 text-[var(--color-muted)]">{getAccountName(batch.ad_account_id)}</td>
+                  <td className="px-3 py-2.5">
                     <Badge tone={statusTone(batch.status)}>{batch.status}</Badge>
                   </td>
-                  <td className="px-3 py-2 text-center">{batch.items.length}</td>
-                  <td className="px-3 py-2">{updatedAt.toLocaleString('pt-BR')}</td>
-                  <td className="px-3 py-2">
-                    <Link href={`/lotes/${batch.id}`} className="text-sm text-[var(--color-brand)]">
+                  <td className="px-3 py-2.5 text-center tabular-nums">{batch.items.length}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-[var(--color-muted)]">
+                    {updatedAt.toLocaleString('pt-BR')}
+                  </td>
+                  <td className="px-3 py-2.5 text-right last:pr-0">
+                    <Link href={`/lotes/${batch.id}`} className="text-sm font-medium text-[var(--color-brand)]">
                       Abrir lote
                     </Link>
                   </td>
