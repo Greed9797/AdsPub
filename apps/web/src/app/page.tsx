@@ -70,6 +70,20 @@ export default async function HomePage({
 
   const getAccountName = (accountIdValue: string) => accountMap.get(accountIdValue) ?? 'Conta desconhecida';
 
+  // Faixa-resumo do recorte listado (sem filtro = global). Sem fetch extra.
+  const ACTIVE = new Set(['queued', 'publishing']);
+  const ATTENTION = new Set(['failed', 'partial', 'blocked']);
+  const ativos = batches.filter((batch) => ACTIVE.has(batch.status)).length;
+  const concluidos = batches.filter((batch) => batch.status === 'done').length;
+  const atencao = batches.filter((batch) => ATTENTION.has(batch.status)).length;
+
+  const BAR_TONE: Record<string, string> = {
+    ok: 'bg-[var(--color-ok)]',
+    warn: 'bg-[var(--color-warn)]',
+    danger: 'bg-[var(--color-danger)]',
+    info: 'bg-[var(--color-muted)]',
+  };
+
   return (
     <main className="space-y-6">
       <PageHead
@@ -87,6 +101,50 @@ export default async function HomePage({
           {errorMessage}
         </p>
       ) : null}
+
+      <Card title={filters.size > 0 ? 'Resumo do recorte' : 'Resumo'}>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+          {[
+            ['Lotes', batches.length, 'text-[var(--color-text)]'],
+            ['Ativos', ativos, 'text-[var(--color-warn)]'],
+            ['Concluídos', concluidos, 'text-[var(--color-ok)]'],
+            ['Atenção', atencao, atencao > 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-muted)]'],
+          ].map(([label, value, tone]) => (
+            <div key={label as string}>
+              <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
+                {label}
+              </dt>
+              <dd className={`mt-1 text-3xl font-semibold tabular-nums tracking-[-0.03em] ${tone}`}>
+                {value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {batches.length > 0 ? (
+          <div
+            className="mt-4 flex h-2 overflow-hidden rounded-full bg-[var(--color-surface-2)]"
+            role="img"
+            aria-label={`Distribuição: ${BATCH_STATUSES.map((s) => {
+              const n = batches.filter((batch) => batch.status === s).length;
+              return n > 0 ? `${n} ${s}` : null;
+            })
+              .filter(Boolean)
+              .join(', ')}`}
+          >
+            {BATCH_STATUSES.map((s) => {
+              const n = batches.filter((batch) => batch.status === s).length;
+              if (n === 0) return null;
+              return (
+                <span
+                  key={s}
+                  style={{ width: `${(n / batches.length) * 100}%` }}
+                  className={BAR_TONE[statusTone(s)]}
+                />
+              );
+            })}
+          </div>
+        ) : null}
+      </Card>
 
       <form
         method="get"

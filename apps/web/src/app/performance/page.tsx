@@ -108,19 +108,19 @@ export default async function PerformancePage({
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
               <div>
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">Gasto</dt>
-                <dd className="mt-1 text-xl font-semibold tabular-nums tracking-[-0.02em]">{money(data.totals.spend)}</dd>
+                <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-[-0.03em]">{money(data.totals.spend)}</dd>
               </div>
               <div>
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
                   Impressões
                 </dt>
-                <dd className="mt-1 text-xl font-semibold tabular-nums tracking-[-0.02em]">
+                <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-[-0.03em]">
                   {data.totals.impressions.toLocaleString('pt-BR')}
                 </dd>
               </div>
               <div>
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">CPA</dt>
-                <dd className="mt-1 text-xl font-semibold tabular-nums tracking-[-0.02em]">
+                <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-[-0.03em]">
                   {data.totals.cpa.value === null ? '—' : money(data.totals.cpa.value)}
                 </dd>
                 {data.totals.cpa.value === null ? (
@@ -129,7 +129,7 @@ export default async function PerformancePage({
               </div>
               <div>
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">ROAS</dt>
-                <dd className="mt-1 text-xl font-semibold tabular-nums tracking-[-0.02em]">
+                <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-[-0.03em]">
                   {data.totals.roas.value === null ? '—' : money(data.totals.roas.value)}
                 </dd>
                 {data.totals.roas.value === null ? (
@@ -142,6 +142,33 @@ export default async function PerformancePage({
               {data.sources.snapshots.length} snapshot(s) · atualizado em {data.sources.observed_at_max ?? '—'}
             </p>
           </Card>
+
+          {data.rows.length > 0 ? (
+            <Card title="Gasto por anúncio" action={<Badge tone="info">top {Math.min(8, data.rows.length)}</Badge>}>
+              <ul className="space-y-3">
+                {[...data.rows]
+                  .sort((a, b) => b.spend - a.spend)
+                  .slice(0, 8)
+                  .map((row) => {
+                    const max = Math.max(...data.rows.map((r) => r.spend), 0);
+                    return (
+                      <li key={row.id}>
+                        <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
+                          <span className="min-w-0 truncate font-medium">{row.name || row.id}</span>
+                          <span className="shrink-0 tabular-nums text-[var(--color-muted)]">{money(row.spend)}</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-[var(--color-surface-2)]">
+                          <div
+                            className={`h-full rounded-full ${data.verdict.winnerId === row.id ? 'bg-[var(--color-ok)]' : 'bg-[var(--color-brand-solid)]'}`}
+                            style={{ width: `${max > 0 ? (row.spend / max) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </li>
+                    );
+                  })}
+              </ul>
+            </Card>
+          ) : null}
 
           {!data.cohort.comparable ? (
             <Card title="Limitações">
