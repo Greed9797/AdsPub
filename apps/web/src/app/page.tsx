@@ -73,7 +73,7 @@ export default async function HomePage({
   return (
     <main className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Lotes</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.03em]">Lotes</h1>
         <Link href="/lotes/novo" className={buttonClass}>
           Novo lote
         </Link>

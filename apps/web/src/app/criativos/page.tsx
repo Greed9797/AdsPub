@@ -129,7 +129,7 @@ export default async function CriativosPage({
   return (
     <div className="space-y-6">
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold">Criativos</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.03em]">Criativos</h1>
 
         <Card title="Filtros">
           <form method="get" className="grid gap-3 md:grid-cols-4" action="/criativos">

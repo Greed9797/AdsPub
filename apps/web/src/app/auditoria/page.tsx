@@ -66,7 +66,7 @@ export default async function AuditoriaPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Auditoria</h1>
+      <h1 className="text-2xl font-semibold tracking-[-0.03em]">Auditoria</h1>
 
       <Card title="Filtros">
         <form method="get" className="grid gap-3 md:grid-cols-4" action="/auditoria">

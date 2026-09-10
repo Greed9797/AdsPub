@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Card, Empty, Field, inputClass, buttonClass } from '@/components/ui';
+import { Card, Empty, Eyebrow, Field, inputClass, buttonClass } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { Client } from '@/lib/types';
@@ -25,7 +25,8 @@ export default async function RelatoriosPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Relatórios</h1>
+      <Eyebrow>Arquivo vira base confiável</Eyebrow>
+      <h1 className="text-2xl font-semibold tracking-[-0.03em]">Relatórios</h1>
       <Card title="Cliente">
         <form method="get" action="/relatorios" className="flex items-end gap-3">
           <Field label="Cliente">

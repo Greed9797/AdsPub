@@ -1,4 +1,4 @@
-import { Badge, Card, Empty, Field, Table, buttonClass, inputClass } from '@/components/ui';
+import { Badge, Card, Empty, Eyebrow, Field, Table, buttonClass, inputClass } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { AdAccount } from '@/lib/types';
@@ -59,7 +59,8 @@ export default async function PerformancePage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Performance</h1>
+      <Eyebrow>Números auditáveis antes da IA</Eyebrow>
+      <h1 className="text-2xl font-semibold tracking-[-0.03em]">Performance</h1>
       <Card title="Filtros">
         <form method="get" action="/performance" className="grid gap-3 md:grid-cols-5">
           <Field label="Conta">

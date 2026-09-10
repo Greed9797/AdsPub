@@ -15,7 +15,7 @@ export default async function UsuariosPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Usuários</h1>
+      <h1 className="text-2xl font-semibold tracking-[-0.03em]">Usuários</h1>
 
       <Card title="Gerenciar usuários">
         {users.length === 0 ? (

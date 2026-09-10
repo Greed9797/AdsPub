@@ -1,12 +1,22 @@
 import type { Metadata } from 'next';
+import { Bricolage_Grotesque } from 'next/font/google';
 import Link from 'next/link';
 import './globals.css';
 import { currentSession } from '@/lib/session';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export const metadata: Metadata = {
   title: 'AdPub',
   description: 'Publicação de anúncios Meta em lote',
 };
+
+/** Similar pública da Aloevera Display (licenciada): geométrica expressiva. */
+const display = Bricolage_Grotesque({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-display',
+});
 
 const NAV = [
   { href: '/', label: 'Lotes' },
@@ -30,21 +40,29 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const user = await currentSession();
 
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" className={display.variable} suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{document.documentElement.dataset.theme=localStorage.getItem('adpub-theme')||'dark'}catch(e){}`,
+          }}
+        />
+      </head>
       <body className="min-h-screen">
         {user ? (
           <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
             <div className="mx-auto flex max-w-7xl items-center gap-6 px-6 py-3">
-              <Link href="/" className="text-sm font-semibold">
-                AdPub
+              <Link href="/" className="text-sm font-semibold tracking-[-0.02em]">
+                AdPub<span className="text-[var(--color-brand)]">.</span>
               </Link>
-              <nav className="flex flex-1 gap-4 text-sm text-[var(--color-muted)]">
+              <nav className="flex flex-1 gap-4 text-sm font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]">
                 {visibleNav().map((item) => (
                   <Link key={item.href} href={item.href} className="hover:text-[var(--color-text)]">
                     {item.label}
                   </Link>
                 ))}
               </nav>
+              <ThemeToggle />
               <span className="text-xs text-[var(--color-muted)]">
                 {user.email} · {user.role}
               </span>

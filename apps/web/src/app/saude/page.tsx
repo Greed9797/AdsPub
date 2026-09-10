@@ -65,7 +65,7 @@ export default async function SaudePage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold">Saúde das contas</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.03em]">Saúde das contas</h1>
         <Badge tone={emAtencao === 0 ? 'ok' : 'warn'}>
           {emAtencao === 0
             ? `${linhas.length} conta(s) sem alerta`

@@ -1,4 +1,4 @@
-import { Card, Empty, Field, buttonClass, inputClass } from '@/components/ui';
+import { Card, Empty, Eyebrow, Field, buttonClass, inputClass } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { AdAccount } from '@/lib/types';
@@ -25,7 +25,8 @@ export default async function InteligenciaPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Inteligência</h1>
+      <Eyebrow>Fatos, hipóteses e próximos testes</Eyebrow>
+      <h1 className="text-2xl font-semibold tracking-[-0.03em]">Inteligência</h1>
       <Card title="Conta">
         <form method="get" action="/inteligencia" className="flex items-end gap-3">
           <Field label="Conta">

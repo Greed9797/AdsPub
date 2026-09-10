@@ -29,7 +29,7 @@ export default async function NovoLotePage({
 
   return (
     <main className="space-y-6">
-      <h1 className="text-2xl font-semibold">Novo lote</h1>
+      <h1 className="text-2xl font-semibold tracking-[-0.03em]">Novo lote</h1>
       <NewBatchForm
         clients={clients}
         accounts={accounts}
