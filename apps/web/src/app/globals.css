@@ -1,4 +1,14 @@
-@import 'tailwindcss';
+/* Ordem de layers Astryx + Tailwind (receita example-nextjs-tailwind):
+   utilities Tailwind vencem; CSS próprio sem layer vence tudo. */
+@layer reset, theme, base, astryx-base, astryx-theme, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import '@astryxdesign/core/reset.css';
+@import '@astryxdesign/core/astryx.css';
+@import '@astryxdesign/theme-gothic/theme.css';
+@import '@astryxdesign/core/tailwind-theme.css';
+@import 'tailwindcss/utilities.css' layer(utilities);
 
 /* ID Pulmão W3 (docs/DESIGN_SYSTEM.md): Geist, dark slate forçado, accent
    #ff5701, cards 14px, bloco ARC dimensional ao final do arquivo. */

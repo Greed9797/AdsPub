@@ -4,6 +4,7 @@ import Link from 'next/link';
 import './globals.css';
 import { currentSession } from '@/lib/session';
 import { AppNav, type NavGroup, type NavItem } from '@/components/app-nav';
+import { Providers } from '@/components/providers';
 
 export const metadata: Metadata = {
   title: 'AdPub',
@@ -96,6 +97,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       className={`${display.variable} ${condensed.variable} ${geist.variable} ${geistMono.variable} ${instrumentSerif.variable}`}
     >
       <body className="min-h-screen">
+        <Providers>
         <div className="ambient-backdrop" aria-hidden="true">
           <div className="ambient-orb ambient-orb-1" />
           <div className="ambient-orb ambient-orb-2" />
@@ -151,6 +153,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="mx-auto max-w-6xl p-6">{children}</div>
         )}
         </div>
+        </Providers>
       </body>
     </html>
   );
