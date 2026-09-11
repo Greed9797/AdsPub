@@ -1,6 +1,6 @@
 # HANDOFF — AdPub
 
-Data: 2026-09-11. Branch `main` limpa até `cfcf074`. Produção **no ar** em
+Data: 2026-09-11. Branch `main` limpa até `476b0f5` (servidor MCP incluído). Produção **no ar** em
 `https://adpub.179-198-104-210.sslip.io` (host compartilhado, atrás do Caddy do `mcrm`); falta só
 preencher as chaves externas do `.env.prod` (§3, item 1).
 
