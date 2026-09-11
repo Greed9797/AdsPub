@@ -11,7 +11,7 @@ import {
   type BatchPlan,
 } from '@adpub/shared';
 
-import { Card, Empty, Field, inputClass } from '@/components/ui';
+import { Card, Empty, Field, goalLabel, inputClass } from '@/components/ui';
 import type { AdsetRef, Asset, Batch, CampaignRef } from '@/lib/types';
 import type { ActionResult } from '../actions';
 import { Button } from '@astryxdesign/core/Button';
@@ -286,7 +286,7 @@ export function ManualBuilder({
                 </option>
                 {adsets.map((adset) => (
                   <option key={adset.id} value={adset.id}>
-                    {adset.name} · {adset.optimization_goal} · {adset.effective_status}
+                    {adset.name} · {goalLabel(adset.optimization_goal)}
                   </option>
                 ))}
               </select>
@@ -308,7 +308,12 @@ export function ManualBuilder({
                   onChange={(event) => setAdsetBudget(event.target.value)}
                 />
               </Field>
-              <Field label="Meta de otimização">
+              <details className="md:col-span-2 rounded-lg border border-[var(--color-border)] p-3">
+                <summary className="cursor-pointer text-sm font-medium">
+                  Opções avançadas <span className="font-normal text-[var(--color-muted)]">(só mexa se souber o que faz)</span>
+                </summary>
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <Field label="Meta de otimização" hint="Padrão: Vendas no site.">
                 <select
                   className={inputClass}
                   value={optimizationGoal}
@@ -316,12 +321,12 @@ export function ManualBuilder({
                 >
                   {optimizationGoalSchema.options.map((option) => (
                     <option key={option} value={option}>
-                      {option}
+                      {goalLabel(option)}
                     </option>
                   ))}
                 </select>
               </Field>
-              <Field label="Evento de cobrança">
+              <Field label="Evento de cobrança" hint="Padrão: Exibições.">
                 <select
                   className={inputClass}
                   value={billingEvent}
@@ -329,12 +334,12 @@ export function ManualBuilder({
                 >
                   {billingEventSchema.options.map((option) => (
                     <option key={option} value={option}>
-                      {option}
+                      {goalLabel(option)}
                     </option>
                   ))}
                 </select>
               </Field>
-              <label className="inline-flex items-center gap-2 text-sm">
+              <label className="inline-flex items-center gap-2 text-sm md:pt-7">
                 <input
                   type="checkbox"
                   checked={advantageAudience}
@@ -342,6 +347,8 @@ export function ManualBuilder({
                 />
                 Advantage+ audience (sem público explícito)
               </label>
+                </div>
+              </details>
             </div>
           )}
         </section>
@@ -370,7 +377,7 @@ export function ManualBuilder({
                   <option value="">Selecione a campanha</option>
                   {campaigns.map((campaign) => (
                     <option key={campaign.id} value={campaign.id}>
-                      {campaign.name} · {campaign.objective} · {campaign.effective_status}
+                      {campaign.name} · {goalLabel(campaign.objective)}
                     </option>
                   ))}
                 </select>
@@ -433,11 +440,11 @@ export function ManualBuilder({
                       value={objective}
                       onChange={(event) => setObjective(event.target.value)}
                     >
-                      {objectiveSchema.options.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
+                  {objectiveSchema.options.map((option) => (
+                    <option key={option} value={option}>
+                      {goalLabel(option)}
+                    </option>
+                  ))}
                     </select>
                   </Field>
                   <Field label="Orçamento diário (R$)" hint="Opcional. Vazio deixa o orçamento no conjunto.">
@@ -455,10 +462,10 @@ export function ManualBuilder({
         </section>
 
         <section className="grid gap-3 border-t border-[var(--color-border)] pt-4 md:grid-cols-2">
-          <Field label="Página (page_id)" hint="Padrão da conta. Ajuste para publicar em outra página.">
+          <Field label="Página do Facebook" hint="Padrão da conta. Ajuste para publicar em outra página.">
             <input className={inputClass} value={pageId} onChange={(event) => setPageId(event.target.value)} />
           </Field>
-          <Field label="Instagram (ig_user_id)" hint="Vazio publica apenas na página do Facebook.">
+          <Field label="Instagram" hint="Vazio publica apenas na página do Facebook.">
             <input className={inputClass} value={igUserId} onChange={(event) => setIgUserId(event.target.value)} />
           </Field>
         </section>

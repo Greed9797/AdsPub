@@ -19,7 +19,7 @@ test('inteligência gera relatório e rascunho', async ({ page, seed }) => {
 
   await page.getByPlaceholder('Briefing do teste').fill('Abertura em close, mesma oferta.');
   await page.getByRole('button', { name: 'Gerar rascunho' }).click();
-  await expect(page.getByText(/Rascunho: .* \(lote em draft/)).toBeVisible();
+  await expect(page.getByText(/Rascunho pronto/)).toBeVisible();
 
   await page.getByPlaceholder('Hipótese em uma frase').fill('Close baixa o CPA.');
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();

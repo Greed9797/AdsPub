@@ -144,7 +144,7 @@ export function ItemEditor({ batchId, item, salvarItemAction, onSaved }: ItemEdi
         <Field label="Link" hint="Vazio mantém o item bloqueado na validação.">
           <input className={inputClass} value={link} onChange={(event) => setLink(event.target.value)} />
         </Field>
-        <Field label="UTMs (url_tags)">
+        <Field label="Rastreio do link (UTMs)" hint="Ex.: utm_source=instagram. Vazio usa o padrão do cliente.">
           <input className={inputClass} value={urlTags} onChange={(event) => setUrlTags(event.target.value)} />
         </Field>
       </div>

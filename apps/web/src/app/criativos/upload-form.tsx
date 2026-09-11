@@ -43,7 +43,7 @@ export function UploadForm({ clientId }: UploadFormProps) {
       <form onSubmit={onSubmit} className="space-y-3" encType="multipart/form-data">
         <input type="hidden" name="client_id" value={clientId} />
 
-        <Field label="Arquivos">
+        <Field label="Arquivos" hint="Fotos ou vídeos do produto. Depois de enviar, eles aparecem na lista abaixo para validação.">
           <input
             type="file"
             name="files"
@@ -80,8 +80,6 @@ export function UploadForm({ clientId }: UploadFormProps) {
                 </div>
 
                 <div className="mt-2 text-sm text-[var(--color-muted)]">
-                  <span>{asset.mime}</span>
-                  <span className="mx-2">·</span>
                   <span>{formatMegabytes(asset.size_bytes)} MB</span>
                 </div>
 

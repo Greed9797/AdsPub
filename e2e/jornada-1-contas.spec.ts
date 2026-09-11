@@ -13,12 +13,12 @@ test('conexão sincronizada e conta com padrões aparecem em /contas', async ({ 
 
   const conexao = page.getByRole('row').filter({ hasText: seed.connection.label });
   await expect(conexao).toContainText(seed.connection.businessId);
-  await expect(conexao).toContainText('active');
+  await expect(conexao).toContainText('Ativa');
   await expect(conexao).toContainText(seed.connection.apiTier);
 
   const conta = page.getByRole('row').filter({ hasText: seed.account.id });
   await expect(conta).toContainText(seed.account.name);
-  await expect(conta).toContainText(`${seed.account.currency} / ${seed.account.timezone}`);
+  await expect(conta).toContainText('Real (R$) / São Paulo');
   await expect(conta).toContainText(seed.client.name);
   await expect(conta).toContainText(seed.account.pageId);
   await expect(conta).toContainText(seed.account.igUserId);

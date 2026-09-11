@@ -28,6 +28,19 @@ const STATUS_TONE: Record<Connection['status'], string> = {
   revoked: 'danger',
 };
 
+const CONN_STATUS_PT: Record<Connection['status'], string> = {
+  active: 'Ativa',
+  needs_attention: 'Precisa de atenção',
+  revoked: 'Revogada',
+};
+
+const TIER_PT: Record<string, string> = {
+  development: 'Testes',
+  standard: 'Normal',
+  limited: 'Limitado',
+  unknown: '—',
+};
+
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'short',
   timeStyle: 'short',
@@ -84,7 +97,7 @@ export default function ConnectionForm({
         [connectionId]:
           'erro' in result
             ? result.erro
-            : `Token válido. Tier ${result.connection.api_tier}, status ${result.connection.status}.`,
+            : 'Ligação funcionando. Pode sincronizar.',
       }));
       setBusyId(null);
       router.refresh();
@@ -100,7 +113,7 @@ export default function ConnectionForm({
         [connectionId]:
           'erro' in result
             ? result.erro
-            : `Sincronização enfileirada (job ${result.job_id} na fila ${result.queue}).`,
+            : 'Buscando contas, aguarde e recarregue a página.',
       }));
       setBusyId(null);
       router.refresh();
@@ -134,12 +147,12 @@ export default function ConnectionForm({
   return (
     <div className="space-y-6">
       <form onSubmit={handleCreate} className="grid gap-3 sm:grid-cols-3">
-        <Field label="business_id">
+        <Field label="ID da empresa">
           <input
             value={businessId}
             onChange={(event) => setBusinessId(event.target.value)}
             className={inputClass}
-            placeholder="ID da Business Manager"
+            placeholder="Só números, ex.: 123456789"
           />
         </Field>
 
@@ -174,7 +187,7 @@ export default function ConnectionForm({
         <p className="text-sm text-[var(--color-muted)]">Nenhuma conexão cadastrada.</p>
       ) : (
         <Table
-          head={['Rótulo', 'business_id', 'Status', 'Tier', 'Último check', 'Último erro', 'Ações', 'Resultado']}
+          head={['Rótulo', 'ID da empresa', 'Situação', 'Nível', 'Último check', 'Último erro', 'Ações', 'Resultado']}
         >
           {connections.map((connection) => {
             const isBusy = busyId === connection.id;
@@ -185,9 +198,9 @@ export default function ConnectionForm({
                 <TableCell>{connection.label}</TableCell>
                 <TableCell>{connection.business_id}</TableCell>
                 <TableCell>
-                  <Badge tone={STATUS_TONE[connection.status]}>{connection.status}</Badge>
+                  <Badge tone={STATUS_TONE[connection.status]}>{CONN_STATUS_PT[connection.status]}</Badge>
                 </TableCell>
-                <TableCell>{connection.api_tier}</TableCell>
+                <TableCell>{TIER_PT[connection.api_tier] ?? connection.api_tier}</TableCell>
                 <TableCell>
                   {lastChecked === null ? '—' : dateFormatter.format(new Date(lastChecked))}
                 </TableCell>

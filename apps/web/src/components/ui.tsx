@@ -52,6 +52,48 @@ export const FORMAT_PT: Record<string, string> = {
   carousel: 'Carrossel',
 };
 
+export const GOAL_PT: Record<string, string> = {
+  OFFSITE_CONVERSIONS: 'Vendas no site',
+  LINK_CLICKS: 'Cliques no link',
+  LANDING_PAGE_VIEWS: 'Visitas na página',
+  LEAD_GENERATION: 'Cadastros',
+  QUALITY_LEAD: 'Cadastros qualificados',
+  POST_ENGAGEMENT: 'Interação no post',
+  REACH: 'Alcance',
+  THRUPLAY: 'Vídeo assistido',
+  IMPRESSIONS: 'Exibições',
+  OUTCOME_SALES: 'Vender',
+  OUTCOME_LEADS: 'Gerar cadastros',
+  OUTCOME_TRAFFIC: 'Levar visitas',
+  OUTCOME_ENGAGEMENT: 'Gerar interação',
+};
+
+export function goalLabel(goal: string): string {
+  return GOAL_PT[goal] ?? goal;
+}
+
+const MOEDA_PT: Record<string, string> = {
+  BRL: 'Real (R$)',
+  USD: 'Dólar (US$)',
+  EUR: 'Euro (€)',
+};
+
+export function moedaLabel(code: string): string {
+  return MOEDA_PT[code] ?? code;
+}
+
+/** America/Sao_Paulo → São Paulo (SP). */
+export function fusoLabel(tz: string): string {
+  const city = tz.split('/').pop() ?? tz;
+  const named: Record<string, string> = {
+    Sao_Paulo: 'São Paulo',
+    Bahia: 'Bahia',
+    Belem: 'Belém',
+    Noronha: 'Noronha',
+  };
+  return named[city] ?? city.replace(/_/g, ' ');
+}
+
 export function formatLabel(format: string): string {
   return FORMAT_PT[format] ?? format;
 }

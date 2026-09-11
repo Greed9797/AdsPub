@@ -1,4 +1,4 @@
-import { Card, Empty, PageHead, Table } from '@/components/ui';
+import { Card, Empty, fusoLabel, moedaLabel, PageHead, Table } from '@/components/ui';
 import type { AdAccount, Client, Connection } from '@/lib/types';
 import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
@@ -33,15 +33,15 @@ export default async function ContasPage() {
 
   const head = [
     'Conta',
-    'Moeda / Fuso',
+    'Moeda / Região',
     'Cliente',
     'Página',
     'Instagram',
     'Pixel',
-    'Teto diário',
+    'Limite por dia',
     'Pausada até',
-    'Último sync',
-    'Ads Manager',
+    'Atualizada em',
+    'Ver na Meta',
   ];
 
   return (
@@ -114,11 +114,11 @@ export default async function ContasPage() {
               return (
                 <TableRow key={account.id} className="align-top">
                   <TableCell>
-                    <span className="block">{account.name}</span>
-                    <span className="block text-xs text-[var(--color-muted)]">{account.id}</span>
+                    {account.name}
+                    <span className="block text-xs text-[var(--color-muted)]">ID {account.id}</span>
                   </TableCell>
                   <TableCell>
-                    {account.currency} / {account.timezone_name}
+                    {moedaLabel(account.currency)} / {fusoLabel(account.timezone_name)}
                   </TableCell>
                   <TableCell>
                     {account.client_id === null

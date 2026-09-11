@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Card, Empty, Field, inputClass } from '@/components/ui';
+import { Card, Empty, Field, inputClass, plural } from '@/components/ui';
 import type { AdAccount, Asset, Client } from '@/lib/types';
 import type { ActionResult } from '../actions';
 import { Button } from '@astryxdesign/core/Button';
@@ -98,7 +98,10 @@ export function NewBatchForm({ clients, accounts, assets, clientId, criarLoteAct
         </Field>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Modo">
+          <Field
+            label="Modo"
+            hint="IA escreve os textos sozinha. Manual deixa para montar depois."
+          >
             <select
               className={inputClass}
               name="mode"
@@ -110,7 +113,7 @@ export function NewBatchForm({ clients, accounts, assets, clientId, criarLoteAct
             </select>
           </Field>
 
-          <Field label="Cópias por criativo" hint="Entre 1 e 5. Usado apenas no modo IA.">
+          <Field label="Textos diferentes por foto" hint="Entre 1 e 5. Usado apenas no modo IA.">
             <input
               className={inputClass}
               name="copies_per_creative"
@@ -123,14 +126,22 @@ export function NewBatchForm({ clients, accounts, assets, clientId, criarLoteAct
           </Field>
         </div>
 
-        <Field label="Briefing" hint={mode === 'ai' ? 'Obrigatório no modo IA.' : 'Opcional no modo manual.'}>
-          <textarea className={`${inputClass} h-32`} name="briefing" required={mode === 'ai'} />
+        <Field
+          label="Sobre o que anunciar"
+          hint={mode === 'ai' ? 'Obrigatório no modo IA.' : 'Opcional no modo manual.'}
+        >
+          <textarea
+            className={`${inputClass} h-32`}
+            name="briefing"
+            required={mode === 'ai'}
+            placeholder="Ex.: loja de roupas em Curitiba, coleção de inverno com 20% OFF até sexta"
+          />
         </Field>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-[var(--color-muted)]">
-              Criativos aprovados ({selectedAssetIds.length} selecionado(s))
+              Criativos aprovados ({plural(selectedAssetIds.length, 'selecionado', 'selecionados')})
             </span>
             {assets.length > 0 ? (
               <button
@@ -175,7 +186,9 @@ export function NewBatchForm({ clients, accounts, assets, clientId, criarLoteAct
                   <span className="min-w-0 flex-1 truncate text-sm" title={asset.filename}>
                     {asset.filename}
                   </span>
-                  <span className="text-xs text-[var(--color-muted)]">{asset.aspect_ratio}</span>
+                  <span className="text-xs text-[var(--color-muted)]" title={asset.aspect_ratio}>
+                    {asset.aspect_ratio === '1:1' ? 'Quadrada' : asset.aspect_ratio === '4:5' ? 'Retrato' : asset.aspect_ratio === '9:16' ? 'Tela cheia' : asset.aspect_ratio === '16:9' ? 'Paisagem' : asset.aspect_ratio}
+                  </span>
                 </label>
               ))}
             </div>

@@ -26,7 +26,7 @@ test('lote no modo IA gera itens com nome e UTM preenchidos', async ({ page, see
 
   // UTMs padrão do cliente entram na copy sem o gestor digitar.
   await primeiroItem.getByRole('button', { name: 'Editar' }).click();
-  await expect(page.getByLabel('UTMs (url_tags)')).toHaveValue(
+  await expect(page.getByLabel('Rastreio do link (UTMs)')).toHaveValue(
     new RegExp(`utm_source=${seed.client.utmSource}`),
   );
   await expect(page.getByLabel(/^Link/)).toHaveValue(seed.landing);

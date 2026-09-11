@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { Badge, Field, inputClass } from '@/components/ui';
 import { comentarRelatorio, gerarRascunho, gerarRelatorio, registrarResultado, salvarAprendizado, type ReportView } from './actions';
 import { Button } from '@astryxdesign/core/Button';
@@ -62,7 +63,12 @@ export function InteligenciaForm({ accountId, clientId }: Props) {
       {report ? (
         <div className="space-y-4">
           <p className="text-xs text-[var(--color-muted)]">
-            {report.model_id} · gasto {report.input_snapshot.totals.spend} · exportação HTML/CSV na API
+            Baseado em{' '}
+            {report.input_snapshot.totals.spend.toLocaleString('pt-BR', {
+              style: 'currency',
+              currency: 'BRL',
+            })}{' '}
+            investidos no período.
           </p>
           <section>
             <h3 className="font-semibold">Fatos</h3>
@@ -143,7 +149,14 @@ export function InteligenciaForm({ accountId, clientId }: Props) {
                   });
                 }} />
             </div>
-            {rascunho ? <p className="text-sm text-[var(--color-ok)]">Rascunho: {rascunho} (lote em draft, sem Meta).</p> : null}
+            {rascunho ? (
+              <p className="text-sm text-[var(--color-ok)]">
+                Rascunho pronto (ainda não publicado).{' '}
+                <Link href={`/lotes/${rascunho}`} className="font-medium text-[var(--color-brand)] underline">
+                  Ver lote
+                </Link>
+              </p>
+            ) : null}
           </section>
           <section className="space-y-2">
             <h3 className="font-semibold">Salvar aprendizado</h3>
