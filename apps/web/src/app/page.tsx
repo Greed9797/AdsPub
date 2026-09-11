@@ -1,10 +1,13 @@
 import Link from 'next/link';
 
-import { Badge, Card, Empty, Field, PageHead, Table, buttonClass, inputClass } from '@/components/ui';
+import { Badge, Card, Empty, Field, PageHead, Table, inputClass } from '@/components/ui';
 import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
 import type { AdAccount, Batch, BatchStatus } from '@/lib/types';
 import { batchStatusSchema } from '@adpub/shared';
+import { Button } from '@astryxdesign/core/Button';
+import { ButtonLink } from '@/components/button-link';
+import { TableCell, TableRow } from '@astryxdesign/core/Table';
 
 type HomeSearchParams = {
   ad_account_id?: string | string[];
@@ -90,9 +93,7 @@ export default async function HomePage({
         title="Lotes"
         description="Monte, revise e publique anúncios Meta em lote."
         action={
-          <Link href="/lotes/novo" className={buttonClass}>
-            Novo lote
-          </Link>
+          <ButtonLink variant="primary" label="Novo lote" href="/lotes/novo" />
         }
       />
 
@@ -173,9 +174,7 @@ export default async function HomePage({
           </select>
         </Field>
 
-        <button type="submit" className={buttonClass}>
-          Aplicar
-        </button>
+        <Button variant="primary" label="Aplicar" type="submit" />
       </form>
 
       <Card
@@ -191,9 +190,7 @@ export default async function HomePage({
             title="Nenhum lote encontrado"
             hint="Ajuste os filtros ou crie o primeiro lote para começar a publicar."
             action={
-              <Link href="/lotes/novo" className={buttonClass}>
-                Novo lote
-              </Link>
+              <ButtonLink variant="primary" label="Novo lote" href="/lotes/novo" />
             }
           />
         ) : (
@@ -211,22 +208,22 @@ export default async function HomePage({
               const updatedAt = new Date(batch.updated_at);
 
               return (
-                <tr key={batch.id} className="border-b border-[var(--color-border)] last:border-0">
-                  <td className="px-3 py-2.5 font-medium first:pl-0">{batch.name}</td>
-                  <td className="px-3 py-2.5 text-[var(--color-muted)]">{getAccountName(batch.ad_account_id)}</td>
-                  <td className="px-3 py-2.5">
+                <TableRow key={batch.id} className="border-b border-[var(--color-border)] last:border-0">
+                  <TableCell className="font-medium">{batch.name}</TableCell>
+                  <TableCell className="text-[var(--color-muted)]">{getAccountName(batch.ad_account_id)}</TableCell>
+                  <TableCell>
                     <Badge tone={statusTone(batch.status)}>{batch.status}</Badge>
-                  </td>
-                  <td className="px-3 py-2.5 text-center tabular-nums">{batch.items.length}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-[var(--color-muted)]">
+                  </TableCell>
+                  <TableCell className="text-center tabular-nums">{batch.items.length}</TableCell>
+                  <TableCell className="whitespace-nowrap tabular-nums text-[var(--color-muted)]">
                     {updatedAt.toLocaleString('pt-BR')}
-                  </td>
-                  <td className="px-3 py-2.5 text-right last:pr-0">
+                  </TableCell>
+                  <TableCell className="text-right">
                     <Link href={`/lotes/${batch.id}`} className="text-sm font-medium text-[var(--color-brand)]">
                       Abrir lote
                     </Link>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
           </Table>

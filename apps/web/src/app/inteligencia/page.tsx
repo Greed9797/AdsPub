@@ -1,8 +1,9 @@
-import { Card, Empty, Field, PageHead, buttonClass, inputClass } from '@/components/ui';
+import { Card, Empty, Field, PageHead, inputClass } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { AdAccount } from '@/lib/types';
 import { InteligenciaForm } from './inteligencia-form';
+import { Button } from '@astryxdesign/core/Button';
 
 type SearchParams = { ad_account_id?: string | string[] };
 
@@ -38,9 +39,7 @@ export default async function InteligenciaPage({
               ))}
             </select>
           </Field>
-          <button className={buttonClass} type="submit">
-            Usar conta
-          </button>
+          <Button variant="primary" label="Usar conta" type="submit" />
         </form>
       </Card>
       {!accountId || !selected?.client_id ? (

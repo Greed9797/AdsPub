@@ -3,9 +3,10 @@
 import { useState, useTransition } from 'react';
 import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { inputClass, buttonClass, secondaryButtonClass, Field } from '@/components/ui';
+import { inputClass, Field } from '@/components/ui';
 import type { AdAccount } from '@/lib/types';
 import type { AccountDefaultsInput, ActionResult } from './actions';
+import { Button } from '@astryxdesign/core/Button';
 
 interface AccountDefaultsFormProps {
   account: AdAccount;
@@ -59,13 +60,7 @@ export default function AccountDefaultsForm({ account, salvarDefaults }: Account
 
   return (
     <div>
-      <button
-        type="button"
-        className={secondaryButtonClass}
-        onClick={() => setOpen((prev) => !prev)}
-      >
-        {open ? 'Ocultar formulário' : 'Editar defaults'}
-      </button>
+      <Button variant="secondary" label={open ? 'Ocultar formulário' : 'Editar defaults'} onClick={() => setOpen((prev) => !prev)} />
 
       {open ? (
         <form
@@ -124,17 +119,8 @@ export default function AccountDefaultsForm({ account, salvarDefaults }: Account
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button type="submit" className={buttonClass} disabled={isPending}>
-              {isPending ? 'Salvando...' : 'Salvar'}
-            </button>
-            <button
-              type="button"
-              className={secondaryButtonClass}
-              onClick={() => setOpen(false)}
-              disabled={isPending}
-            >
-              Fechar
-            </button>
+            <Button variant="primary" label={isPending ? 'Salvando...' : 'Salvar'} type="submit" isDisabled={isPending} />
+            <Button variant="secondary" label="Fechar" isDisabled={isPending} onClick={() => setOpen(false)} />
           </div>
 
           {erro ? <p className="text-sm text-[var(--color-danger)]">{erro}</p> : null}

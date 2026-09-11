@@ -1,7 +1,9 @@
-import { Badge, Card, Empty, Field, PageHead, Table, buttonClass, inputClass } from '@/components/ui';
+import { Badge, Card, Empty, Field, PageHead, Table, inputClass } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { AdAccount } from '@/lib/types';
+import { Button } from '@astryxdesign/core/Button';
+import { TableCell, TableRow } from '@astryxdesign/core/Table';
 
 type SearchParams = {
   ad_account_id?: string | string[];
@@ -91,9 +93,7 @@ export default async function PerformancePage({
             </select>
           </Field>
           <div>
-            <button className={buttonClass} type="submit">
-              Consultar
-            </button>
+            <Button variant="primary" label="Consultar" type="submit" />
           </div>
         </form>
       </Card>
@@ -190,18 +190,18 @@ export default async function PerformancePage({
             ) : (
               <Table head={['Anúncio', 'Gasto', 'Resultados', 'Dias', 'CPA', '']}>
                 {data.rows.map((row) => (
-                  <tr key={row.id} className="border-b border-[var(--color-border)] last:border-0">
-                    <td className="max-w-64 truncate px-3 py-2.5 font-medium first:pl-0">{row.name || row.id}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{money(row.spend)}</td>
-                    <td className="px-3 py-2.5 tabular-nums">{row.results}</td>
-                    <td className="px-3 py-2.5 tabular-nums">{row.days}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">
+                  <TableRow key={row.id} className="border-b border-[var(--color-border)] last:border-0">
+                    <TableCell className="max-w-64 truncate font-medium">{row.name || row.id}</TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">{money(row.spend)}</TableCell>
+                    <TableCell className="tabular-nums">{row.results}</TableCell>
+                    <TableCell className="tabular-nums">{row.days}</TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
                       {row.cpa === null ? '—' : money(row.cpa)}
-                    </td>
-                    <td className="px-3 py-2.5 text-right last:pr-0">
+                    </TableCell>
+                    <TableCell className="text-right">
                       {data.verdict.winnerId === row.id ? <Badge tone="ok">vencedor</Badge> : null}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
               </Table>
             )}

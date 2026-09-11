@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import { Card, Empty, Field, PageHead, inputClass, buttonClass } from '@/components/ui';
+import { Card, Empty, Field, PageHead, inputClass } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { Client } from '@/lib/types';
 import { RelatorioForm } from './relatorio-form';
+import { Button } from '@astryxdesign/core/Button';
 
 type SearchParams = { client_id?: string | string[] };
 
@@ -38,9 +39,7 @@ export default async function RelatoriosPage({
               ))}
             </select>
           </Field>
-          <button className={buttonClass} type="submit">
-            Usar cliente
-          </button>
+          <Button variant="primary" label="Usar cliente" type="submit" />
         </form>
       </Card>
       {!clientId ? (

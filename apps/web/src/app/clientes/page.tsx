@@ -4,6 +4,7 @@ import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
 import { atualizarCliente, criarCliente } from './actions';
 import ClientForm from './client-form';
+import { TableCell, TableRow } from '@astryxdesign/core/Table';
 
 export default async function ClientesPage() {
   const user = await requireSession();
@@ -32,33 +33,33 @@ export default async function ClientesPage() {
         }
       >
         {clientes.length === 0 ? (
-          <Empty>Nenhum cliente cadastrado.</Empty>
+          <Empty title="Nenhum cliente cadastrado" />
         ) : (
           <Table head={canEdit ? [...head, 'Ações'] : head}>
             {clientes.map((cliente) => (
-              <tr key={cliente.id} className="align-top">
-                <td className="px-3 py-2">
+              <TableRow key={cliente.id} className="align-top">
+                <TableCell>
                   <span className="block">{cliente.name}</span>
                   <span className="block text-xs text-[var(--color-muted)]">{cliente.id}</span>
-                </td>
-                <td className="px-3 py-2">
+                </TableCell>
+                <TableCell>
                   <Badge tone={cliente.policy_mode === 'block' ? 'danger' : 'warn'}>
                     {cliente.policy_mode}
                   </Badge>
-                </td>
-                <td className="px-3 py-2 text-xs">{cliente.naming_template}</td>
-                <td className="px-3 py-2 text-xs">
+                </TableCell>
+                <TableCell className="text-xs">{cliente.naming_template}</TableCell>
+                <TableCell className="text-xs">
                   {cliente.landing_domains.length === 0
                     ? '—'
                     : cliente.landing_domains.join(', ')}
-                </td>
-                <td className="px-3 py-2">{cliente.advantage_creative_optout ? 'sim' : 'não'}</td>
+                </TableCell>
+                <TableCell>{cliente.advantage_creative_optout ? 'sim' : 'não'}</TableCell>
                 {canEdit ? (
-                  <td className="px-3 py-2">
+                  <TableCell>
                     <ClientForm mode="edit" client={cliente} salvar={atualizarCliente} />
-                  </td>
+                  </TableCell>
                 ) : null}
-              </tr>
+              </TableRow>
             ))}
           </Table>
         )}

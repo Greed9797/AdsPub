@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from 'react';
-import { Badge, buttonClass, Field, inputClass, secondaryButtonClass } from '@/components/ui';
+import { Badge, Field, inputClass } from '@/components/ui';
 import { confirmarImportacao, enviarRelatorio, type ReportPreview } from './actions';
+import { Button } from '@astryxdesign/core/Button';
 
 type Props = { clientId: string };
 
@@ -77,9 +78,7 @@ export function RelatorioForm({ clientId }: Props) {
           </select>
         </Field>
         <div className="flex items-end md:col-span-3">
-          <button type="submit" className={buttonClass} disabled={busy}>
-            {busy ? 'Enviando...' : 'Enviar e pré-visualizar'}
-          </button>
+          <Button variant="primary" label={busy ? 'Enviando...' : 'Enviar e pré-visualizar'} type="submit" isDisabled={busy} />
         </div>
         {erro ? <p className="text-sm text-[var(--color-danger)] md:col-span-3">{erro}</p> : null}
       </form>
@@ -124,9 +123,7 @@ export function RelatorioForm({ clientId }: Props) {
             ))}
           </ul>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={onCommit} className={secondaryButtonClass} disabled={busy}>
-              {busy ? 'Confirmando...' : `Confirmar ${preview.valid} observação(ões)`}
-            </button>
+            <Button variant="secondary" label={busy ? 'Confirmando...' : `Confirmar ${preview.valid} observação(ões)`} isDisabled={busy} onClick={onCommit} />
             {salvo ? <p className="text-sm text-[var(--color-ok)]">{salvo}</p> : null}
           </div>
         </div>

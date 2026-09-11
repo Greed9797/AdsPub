@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 
-import { buttonClass, PageHead, secondaryButtonClass } from '@/components/ui';
+import { PageHead } from '@/components/ui';
+import { Button } from '@astryxdesign/core/Button';
 
 /** Falha de rota (ex.: API fora): explica, tenta de novo, oferece saída. */
 export default function RouteError({
@@ -19,12 +20,8 @@ export default function RouteError({
         description="Confira se a API está no ar e tente de novo."
         action={
           <div className="flex gap-2">
-            <button type="button" onClick={reset} className={buttonClass}>
-              Tentar de novo
-            </button>
-            <Link href="/" className={secondaryButtonClass}>
-              Voltar para Lotes
-            </Link>
+            <Button variant="primary" label="Tentar de novo" onClick={reset} />
+            <Button variant="secondary" label="Voltar para Lotes" href="/" as={Link} />
           </div>
         }
       />

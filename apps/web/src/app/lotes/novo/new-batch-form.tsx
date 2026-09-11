@@ -4,9 +4,10 @@ import { useState, useTransition } from 'react';
 import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { buttonClass, Card, Empty, Field, inputClass, secondaryButtonClass } from '@/components/ui';
+import { Card, Empty, Field, inputClass } from '@/components/ui';
 import type { AdAccount, Asset, Client } from '@/lib/types';
 import type { ActionResult } from '../actions';
+import { Button } from '@astryxdesign/core/Button';
 
 type NewBatchFormProps = {
   clients: Client[];
@@ -49,7 +50,7 @@ export function NewBatchForm({ clients, accounts, assets, clientId, criarLoteAct
   if (clients.length === 0) {
     return (
       <Card title="Criar lote">
-        <Empty>Cadastre um cliente antes de criar lotes.</Empty>
+        <Empty title="Nenhum cliente cadastrado" hint="Cadastre um cliente antes de criar lotes." />
       </Card>
     );
   }
@@ -147,7 +148,7 @@ export function NewBatchForm({ clients, accounts, assets, clientId, criarLoteAct
           </div>
 
           {assets.length === 0 ? (
-            <Empty>Nenhum criativo aprovado para este cliente.</Empty>
+            <Empty title="Nenhum criativo aprovado" hint="Aprove criativos para este cliente para montar o lote." />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {assets.map((asset) => (
@@ -184,25 +185,12 @@ export function NewBatchForm({ clients, accounts, assets, clientId, criarLoteAct
         {errorMessage ? <p className="text-sm text-[var(--color-danger)]">{errorMessage}</p> : null}
 
         <div className="flex gap-2">
-          <button
-            type="submit"
-            className={buttonClass}
-            disabled={isSubmitting || isSwitchingClient || accounts.length === 0}
-          >
-            {isSubmitting ? 'Criando...' : 'Criar lote'}
-          </button>
-          <button
-            type="button"
-            className={secondaryButtonClass}
-            disabled={isSubmitting}
-            onClick={() => {
+          <Button variant="primary" label={isSubmitting ? 'Criando...' : 'Criar lote'} type="submit" isDisabled={isSubmitting || isSwitchingClient || accounts.length === 0} />
+          <Button variant="secondary" label="Limpar seleção" isDisabled={isSubmitting} onClick={() => {
               setSelectedAssetIds([]);
               setMode('ai');
               setErrorMessage(undefined);
-            }}
-          >
-            Limpar seleção
-          </button>
+            }} />
         </div>
       </form>
     </Card>

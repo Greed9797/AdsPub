@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from 'react';
-import { Badge, buttonClass, Card, Field, inputClass, secondaryButtonClass } from '@/components/ui';
+import { Badge, Card, Field, inputClass } from '@/components/ui';
 import { enviarCriativos, type UploadCriativosResult } from './actions';
 import type { Asset } from '@/lib/types';
+import { Button } from '@astryxdesign/core/Button';
 
 type UploadFormState = UploadCriativosResult | null;
 
@@ -54,17 +55,8 @@ export function UploadForm({ clientId }: UploadFormProps) {
         </Field>
 
         <div className="flex items-center gap-2">
-          <button type="submit" className={buttonClass} disabled={saving}>
-            {saving ? 'Enviando...' : 'Enviar para fila'}
-          </button>
-          <button
-            type="button"
-            className={secondaryButtonClass}
-            onClick={() => setState(null)}
-            disabled={saving}
-          >
-            Limpar resultado
-          </button>
+          <Button variant="primary" label={saving ? 'Enviando...' : 'Enviar para fila'} type="submit" isDisabled={saving} />
+          <Button variant="secondary" label="Limpar resultado" isDisabled={saving} onClick={() => setState(null)} />
         </div>
       </form>
 

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from 'react';
-import { Badge, secondaryButtonClass } from '@/components/ui';
+import { Badge } from '@/components/ui';
 import { analisarCriativo, type AnalysisView } from './actions';
+import { Button } from '@astryxdesign/core/Button';
 
 /** T-006-2: dispara a análise visual e mostra os achados com evidências. */
 export function AnalysisButton({ assetId }: { assetId: string }) {
@@ -27,9 +28,7 @@ export function AnalysisButton({ assetId }: { assetId: string }) {
 
   return (
     <div className="space-y-2">
-      <button type="button" onClick={onAnalyze} className={secondaryButtonClass} disabled={busy}>
-        {busy ? 'Analisando...' : 'Analisar conteúdo'}
-      </button>
+      <Button variant="secondary" label={busy ? 'Analisando...' : 'Analisar conteúdo'} isDisabled={busy} onClick={onAnalyze} />
       {erro ? <p className="text-xs text-[var(--color-danger)]">{erro}</p> : null}
       {analysis ? (
         <div className="space-y-1">

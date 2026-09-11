@@ -1,8 +1,10 @@
 import { z } from 'zod';
-import { buttonClass, Card, Empty, Field, inputClass, PageHead, Table } from '@/components/ui';
+import { Card, Empty, Field, inputClass, PageHead, Table } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireRole } from '@/lib/session';
 import type { AuditEntry } from '@/lib/types';
+import { Button } from '@astryxdesign/core/Button';
+import { TableCell, TableRow } from '@astryxdesign/core/Table';
 
 type SearchParams = {
   entity_type?: string | string[];
@@ -130,9 +132,7 @@ export default async function AuditoriaPage({
           </Field>
 
           <div className="sm:col-span-2 xl:col-span-1">
-            <button className={buttonClass} type="submit">
-              Aplicar filtros
-            </button>
+            <Button variant="primary" label="Aplicar filtros" type="submit" />
           </div>
         </form>
       </Card>
@@ -146,16 +146,16 @@ export default async function AuditoriaPage({
         }
       >
         {rows.length === 0 ? (
-          <Empty>Nenhum evento encontrado para os filtros informados.</Empty>
+          <Empty title="Nenhum evento encontrado" hint="Ajuste os filtros informados e tente de novo." />
         ) : (
           <Table head={['Data', 'Ator', 'Ação', 'Entidade', 'Detalhes']}>
             {rows.map((entry) => (
-              <tr key={entry.id}>
-                <td className="px-3 py-2">{formatDate(entry.created_at)}</td>
-                <td className="px-3 py-2">{entry.actor_email ?? entry.actor_id ?? '—'}</td>
-                <td className="px-3 py-2">{entry.action}</td>
-                <td className="px-3 py-2">{entry.entity_type} · {entry.entity_id}</td>
-                <td className="px-3 py-2">
+              <TableRow key={entry.id}>
+                <TableCell>{formatDate(entry.created_at)}</TableCell>
+                <TableCell>{entry.actor_email ?? entry.actor_id ?? '—'}</TableCell>
+                <TableCell>{entry.action}</TableCell>
+                <TableCell>{entry.entity_type} · {entry.entity_id}</TableCell>
+                <TableCell>
                   <details>
                     <summary className="cursor-pointer text-sm text-[var(--color-muted)]">Ver payload</summary>
                     <pre className="mt-2 max-h-48 overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface-2)] p-2 text-xs">
@@ -169,8 +169,8 @@ export default async function AuditoriaPage({
                       )}
                     </pre>
                   </details>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
           </Table>
         )}

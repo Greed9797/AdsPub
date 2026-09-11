@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import AccountDefaultsForm from './account-defaults-form';
 import ConnectionForm from './connection-form';
 import { criarConexao, girarToken, salvarDefaults, sincronizarConexao, testarConexao } from './actions';
+import { TableCell, TableRow } from '@astryxdesign/core/Table';
 
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'short',
@@ -103,7 +104,7 @@ export default async function ContasPage() {
         }
       >
         {accounts.length === 0 ? (
-          <Empty>Nenhuma conta disponível. Sincronize uma conexão para importar contas.</Empty>
+          <Empty title="Nenhuma conta disponível" hint="Sincronize uma conexão para importar contas." />
         ) : (
           <Table head={canEditDefaults ? [...head, 'Defaults'] : head}>
             {accounts.map((account) => {
@@ -111,32 +112,32 @@ export default async function ContasPage() {
               const lastSyncedAt = account.last_synced_at;
 
               return (
-                <tr key={account.id} className="align-top">
-                  <td className="px-3 py-2">
+                <TableRow key={account.id} className="align-top">
+                  <TableCell>
                     <span className="block">{account.name}</span>
                     <span className="block text-xs text-[var(--color-muted)]">{account.id}</span>
-                  </td>
-                  <td className="px-3 py-2">
+                  </TableCell>
+                  <TableCell>
                     {account.currency} / {account.timezone_name}
-                  </td>
-                  <td className="px-3 py-2">
+                  </TableCell>
+                  <TableCell>
                     {account.client_id === null
                       ? '—'
                       : clientNameById.get(account.client_id) ?? account.client_id}
-                  </td>
-                  <td className="px-3 py-2">{account.default_page_id ?? '—'}</td>
-                  <td className="px-3 py-2">{account.default_ig_user_id ?? '—'}</td>
-                  <td className="px-3 py-2">{account.default_pixel_id ?? '—'}</td>
-                  <td className="px-3 py-2">
+                  </TableCell>
+                  <TableCell>{account.default_page_id ?? '—'}</TableCell>
+                  <TableCell>{account.default_ig_user_id ?? '—'}</TableCell>
+                  <TableCell>{account.default_pixel_id ?? '—'}</TableCell>
+                  <TableCell>
                     {account.daily_ad_cap === null ? '—' : account.daily_ad_cap}
-                  </td>
-                  <td className="px-3 py-2">
+                  </TableCell>
+                  <TableCell>
                     {pausedUntil === null ? '—' : dateFormatter.format(new Date(pausedUntil))}
-                  </td>
-                  <td className="px-3 py-2">
+                  </TableCell>
+                  <TableCell>
                     {lastSyncedAt === null ? '—' : dateFormatter.format(new Date(lastSyncedAt))}
-                  </td>
-                  <td className="px-3 py-2">
+                  </TableCell>
+                  <TableCell>
                     <a
                       href={account.ads_manager_url}
                       target="_blank"
@@ -145,13 +146,13 @@ export default async function ContasPage() {
                     >
                       Abrir
                     </a>
-                  </td>
+                  </TableCell>
                   {canEditDefaults ? (
-                    <td className="px-3 py-2">
+                    <TableCell>
                       <AccountDefaultsForm account={account} salvarDefaults={salvarDefaults} />
-                    </td>
+                    </TableCell>
                   ) : null}
-                </tr>
+                </TableRow>
               );
             })}
           </Table>

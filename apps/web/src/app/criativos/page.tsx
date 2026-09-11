@@ -1,11 +1,12 @@
 import { z } from 'zod';
-import { Badge, buttonClass, Card, Empty, Field, inputClass, PageHead } from '@/components/ui';
+import { Badge, Card, Empty, Field, inputClass, PageHead } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { Asset, Client, Variant } from '@/lib/types';
 import { DriveImportForm } from './drive-import-form';
 import { UploadForm } from './upload-form';
 import { AnalysisButton } from './analysis-button';
+import { Button } from '@astryxdesign/core/Button';
 
 type SearchParams = {
   client_id?: string | string[];
@@ -167,14 +168,12 @@ export default async function CriativosPage({
           </select>
         </Field>
 
-        <button className={buttonClass} type="submit">
-          Aplicar filtros
-        </button>
+        <Button variant="primary" label="Aplicar filtros" type="submit" />
       </form>
 
       {!filters.client_id ? (
         <Card>
-          <Empty>Selecione um cliente para listar os criativos e habilitar os envios.</Empty>
+          <Empty title="Nenhum cliente selecionado" hint="Selecione um cliente para listar os criativos e habilitar os envios." />
         </Card>
       ) : null}
 
@@ -187,7 +186,7 @@ export default async function CriativosPage({
 
           <Card title={`Criativos (${assets.length})`}>
             {assets.length === 0 ? (
-              <Empty>Nenhum criativo encontrado com os filtros informados.</Empty>
+              <Empty title="Nenhum criativo encontrado" hint="Ajuste os filtros informados e tente de novo." />
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
                 {assets.map((asset) => (
@@ -199,7 +198,7 @@ export default async function CriativosPage({
 
           <Card title={`Variantes de comunicação (${variants.length})`}>
             {variants.length === 0 ? (
-              <Empty>Nenhuma variante validada para este cliente.</Empty>
+              <Empty title="Nenhuma variante validada" hint="Valide variantes para este cliente para vê-las aqui." />
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
                 {variants.map((variant) => (

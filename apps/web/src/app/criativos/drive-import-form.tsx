@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from 'react';
-import { buttonClass, Card, Field, inputClass, secondaryButtonClass } from '@/components/ui';
+import { Card, Field, inputClass } from '@/components/ui';
 import { importarDoDrive, type ImportarDriveResult } from './actions';
+import { Button } from '@astryxdesign/core/Button';
 
 type DriveImportState = ImportarDriveResult | null;
 
@@ -50,17 +51,8 @@ export function DriveImportForm({ clientId }: DriveImportFormProps) {
         </label>
 
         <div className="flex items-center gap-2">
-          <button className={buttonClass} type="submit" disabled={saving}>
-            {saving ? 'Iniciando...' : 'Iniciar importação'}
-          </button>
-          <button
-            type="button"
-            className={secondaryButtonClass}
-            onClick={() => setState(null)}
-            disabled={saving}
-          >
-            Limpar resultado
-          </button>
+          <Button variant="primary" label={saving ? 'Iniciando...' : 'Iniciar importação'} type="submit" isDisabled={saving} />
+          <Button variant="secondary" label="Limpar resultado" isDisabled={saving} onClick={() => setState(null)} />
         </div>
       </form>
 

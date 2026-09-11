@@ -1,4 +1,13 @@
-import type { ReactNode } from 'react';
+import { cloneElement, isValidElement, useId, type ReactElement, type ReactNode } from 'react';
+import { Card as AstryxCard } from '@astryxdesign/core/Card';
+import { Badge as AstryxBadge } from '@astryxdesign/core/Badge';
+import { EmptyState } from '@astryxdesign/core/EmptyState';
+import { Field as AstryxField } from '@astryxdesign/core/Field';
+import { Table as AstryxTable } from '@astryxdesign/core/Table';
+import { TableBody } from '@astryxdesign/core/Table';
+import { TableHeader } from '@astryxdesign/core/Table';
+import { TableHeaderCell } from '@astryxdesign/core/Table';
+import { TableRow } from '@astryxdesign/core/Table';
 
 /** Cabeçalho padrão de página: título + descrição + ação primária na mesma base. */
 export function PageHead({
@@ -37,7 +46,7 @@ export function Card({
   variant?: 'default' | 'stat';
 }) {
   return (
-    <section className={variant === 'stat' ? 'stat-card' : 'liquid-glass rounded-[14px]'}>
+    <AstryxCard padding={0} className={variant === 'stat' ? 'stat-card' : 'liquid-glass rounded-[14px]'}>
       {title ? (
         <header className="flex items-center justify-between gap-3 border-b border-[var(--color-border)] px-5 py-3.5">
           <h2 className="text-sm font-semibold tracking-[-0.01em]">{title}</h2>
@@ -45,43 +54,35 @@ export function Card({
         </header>
       ) : null}
       <div className="p-5">{children}</div>
-    </section>
+    </AstryxCard>
   );
 }
 
-const TONE: Record<string, string> = {
-  ok: 'border-[var(--color-ok)] text-[var(--color-ok)]',
-  warn: 'border-[var(--color-warn)] text-[var(--color-warn)]',
-  danger: 'border-[var(--color-danger)] text-[var(--color-danger)]',
-  info: 'border-[var(--color-border)] text-[var(--color-muted)]',
-  brand: 'border-[var(--color-brand)] bg-[var(--color-accent-subtle)] text-[var(--color-brand)]',
-};
+const TONE = {
+  ok: 'success',
+  warn: 'warning',
+  danger: 'error',
+  info: 'neutral',
+  brand: 'orange',
+} as const;
 
 export function Badge({ tone = 'info', children }: { tone?: keyof typeof TONE | string; children: ReactNode }) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium tracking-[0.02em] ${TONE[tone] ?? TONE.info}`}
-    >
-      {children}
-    </span>
-  );
+  return <AstryxBadge variant={TONE[tone as keyof typeof TONE] ?? 'neutral'} label={children} />;
 }
 
 export function Table({ head, children }: { head: ReactNode[]; children: ReactNode }) {
   return (
     <div className="-mx-5 overflow-x-auto px-5">
-      <table className="adpub-table w-full text-left text-sm tabular-nums">
-        <thead className="text-xs font-medium uppercase tracking-[0.1em] text-[var(--color-muted)]">
-          <tr className="border-b border-[var(--color-border)]">
+      <AstryxTable hasHover dividers="rows">
+        <TableHeader>
+          <TableRow>
             {head.map((cell, index) => (
-              <th key={index} className="whitespace-nowrap px-3 py-2.5 font-medium first:pl-0 last:pr-0">
-                {cell}
-              </th>
+              <TableHeaderCell key={index}>{cell}</TableHeaderCell>
             ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[var(--color-border)]">{children}</tbody>
-      </table>
+          </TableRow>
+        </TableHeader>
+        <TableBody>{children}</TableBody>
+      </AstryxTable>
     </div>
   );
 }
@@ -97,14 +98,10 @@ export function Empty({
   action?: ReactNode;
   children?: ReactNode;
 }) {
-  return (
-    <div className="flex flex-col items-center gap-1.5 px-6 py-10 text-center">
-      {title ? <p className="text-serif-accent text-xl">{title}</p> : null}
-      {hint ? <p className="max-w-md text-sm text-[var(--color-muted)]">{hint}</p> : null}
-      {children && !title ? <p className="text-sm text-[var(--color-muted)]">{children}</p> : null}
-      {action ? <div className="mt-3">{action}</div> : null}
-    </div>
-  );
+  if (!title && typeof children === 'string') {
+    return <EmptyState title={children} description={hint} actions={action} />;
+  }
+  return <EmptyState title={title ?? ''} description={hint} actions={action} />;
 }
 
 export function Field({
@@ -118,22 +115,19 @@ export function Field({
   children: ReactNode;
   className?: string;
 }) {
+  const inputID = useId();
+  const control =
+    isValidElement(children) && !(children.props as { id?: string }).id
+      ? cloneElement(children as ReactElement<{ id?: string }>, { id: inputID })
+      : children;
   return (
-    <label className={`block min-w-0 ${className ?? ''}`}>
-      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
-        {label}
-      </span>
-      {children}
-      {hint ? <span className="mt-1 block text-xs text-[var(--color-muted)]">{hint}</span> : null}
-    </label>
+    <div className={`min-w-0 ${className ?? ''}`}>
+      <AstryxField label={label} inputID={inputID} description={hint}>
+        {control}
+      </AstryxField>
+    </div>
   );
 }
 
 export const inputClass =
   'h-10 w-full rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-[var(--color-brand)] focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40';
-
-export const buttonClass =
-  'btn-liquid inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[10px] px-4 text-sm font-semibold tracking-[0.01em]';
-
-export const secondaryButtonClass =
-  'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[10px] border border-[var(--color-border)] px-4 text-sm font-medium tracking-[0.01em] transition-transform duration-150 hover:bg-[var(--color-surface-2)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/60 disabled:opacity-50';

@@ -5,9 +5,10 @@ import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { ctaSchema } from '@adpub/shared';
 
-import { buttonClass, inputClass, secondaryButtonClass, Field } from '@/components/ui';
+import { inputClass, Field } from '@/components/ui';
 import type { AdDraft, Copy } from '@/lib/types';
 import type { ActionResult } from '../actions';
+import { Button } from '@astryxdesign/core/Button';
 
 export type SalvarItemPayload = {
   batch_id: string;
@@ -151,14 +152,8 @@ export function ItemEditor({ batchId, item, salvarItemAction, onSaved }: ItemEdi
       {errorMessage ? <p className="text-sm text-[var(--color-danger)]">{errorMessage}</p> : null}
 
       <div className="flex gap-2">
-        <button type="submit" className={buttonClass} disabled={isSaving}>
-          {isSaving ? 'Salvando...' : 'Salvar item'}
-        </button>
-        <button
-          type="button"
-          className={secondaryButtonClass}
-          disabled={isSaving}
-          onClick={() => {
+        <Button variant="primary" label={isSaving ? 'Salvando...' : 'Salvar item'} type="submit" isDisabled={isSaving} />
+        <Button variant="secondary" label="Restaurar" isDisabled={isSaving} onClick={() => {
             setName(item.name);
             setPageId(item.page_id);
             setIgUserId(item.ig_user_id ?? '');
@@ -169,10 +164,7 @@ export function ItemEditor({ batchId, item, salvarItemAction, onSaved }: ItemEdi
             setLink(item.copy.link);
             setUrlTags(item.copy.url_tags);
             setErrorMessage(undefined);
-          }}
-        >
-          Restaurar
-        </button>
+          }} />
       </div>
     </form>
   );

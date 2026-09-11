@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from 'react';
-import { buttonClass, Card, Field, inputClass } from '@/components/ui';
+import { Card, Field, inputClass } from '@/components/ui';
 import { salvarUsuario, type SalvarUsuarioResult, type Usuario } from './actions';
 import type { AdAccount, Role } from '@/lib/types';
+import { Button } from '@astryxdesign/core/Button';
 
 type UserRowFormProps = {
   user: Usuario;
@@ -75,9 +76,7 @@ export function UserRowForm({ user, accounts }: UserRowFormProps) {
         </Field>
 
         <div className="flex items-center justify-between gap-2">
-          <button className={buttonClass} type="submit" disabled={saving}>
-            {saving ? 'Salvando...' : 'Salvar'}
-          </button>
+          <Button variant="primary" label={saving ? 'Salvando...' : 'Salvar'} type="submit" isDisabled={saving} />
           {state ? (
             'erro' in state ? (
               <span className="text-sm text-[var(--color-danger)]">{state.erro}</span>

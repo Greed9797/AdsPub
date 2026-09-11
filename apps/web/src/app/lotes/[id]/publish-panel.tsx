@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Badge, buttonClass, secondaryButtonClass, Card, Field, inputClass } from '@/components/ui';
+import { Badge, Card, Field, inputClass } from '@/components/ui';
 import type { AdAccount, AdDraft, Batch, PublishResult, ValidationReport } from '@/lib/types';
 import type { ActionResult } from '../actions';
+import { Button } from '@astryxdesign/core/Button';
 
 type PublishPanelProps = {
   batchId: string;
@@ -134,9 +135,7 @@ export function PublishPanel({
     <Card title="Validação e publicação">
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" className={secondaryButtonClass} disabled={isValidating} onClick={() => void validate()}>
-            {isValidating ? 'Validando...' : 'Validar lote'}
-          </button>
+          <Button variant="secondary" label={isValidating ? 'Validando...' : 'Validar lote'} isDisabled={isValidating} onClick={() => void validate()} />
 
           <label className="inline-flex items-center gap-2 text-sm">
             <input
@@ -147,9 +146,7 @@ export function PublishPanel({
             Publicar apenas itens em falha
           </label>
 
-          <button type="button" className={buttonClass} disabled={isPublishing} onClick={() => void publish()}>
-            {isPublishing ? 'Enfileirando...' : `Publicar ${eligibleCount} item(ns)`}
-          </button>
+          <Button variant="primary" label={isPublishing ? 'Enfileirando...' : `Publicar ${eligibleCount} item(ns)`} isDisabled={isPublishing} onClick={() => void publish()} />
 
           {blockedCount > 0 ? <Badge tone="danger">{blockedCount} bloqueado(s)</Badge> : null}
         </div>
@@ -234,14 +231,7 @@ export function PublishPanel({
                 </Field>
               </div>
 
-              <button
-                type="button"
-                className={secondaryButtonClass}
-                disabled={isDuplicating}
-                onClick={() => void duplicate()}
-              >
-                {isDuplicating ? 'Duplicando...' : 'Duplicar para a conta'}
-              </button>
+              <Button variant="secondary" label={isDuplicating ? 'Duplicando...' : 'Duplicar para a conta'} isDisabled={isDuplicating} onClick={() => void duplicate()} />
 
               {duplicateMessage ? (
                 <p className="text-sm text-[var(--color-danger)]">{duplicateMessage}</p>

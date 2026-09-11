@@ -2,6 +2,7 @@ import { Badge, Card, Empty, PageHead, Table } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { AccountHealth } from '@/lib/types';
+import { TableCell, TableRow } from '@astryxdesign/core/Table';
 
 const CONNECTION_LABELS: Record<string, string> = {
   active: 'Ativa',
@@ -99,7 +100,7 @@ export default async function SaudePage() {
 
       <Card title="Contas">
         {linhas.length === 0 ? (
-          <Empty>Nenhuma conta disponível para exibir.</Empty>
+          <Empty title="Nenhuma conta disponível" />
         ) : (
           <Table
             head={[
@@ -115,12 +116,12 @@ export default async function SaudePage() {
             ]}
           >
             {linhas.map((linha) => (
-              <tr key={linha.ad_account_id} className={linha.alertas.length > 0 ? 'bg-[var(--color-surface-2)]' : ''}>
-                <td className="px-3 py-2">
+              <TableRow key={linha.ad_account_id} className={linha.alertas.length > 0 ? 'bg-[var(--color-surface-2)]' : ''}>
+                <TableCell>
                   <p className="font-medium">{linha.name}</p>
                   <p className="text-xs text-[var(--color-muted)]">{linha.ad_account_id}</p>
-                </td>
-                <td className="px-3 py-2">
+                </TableCell>
+                <TableCell>
                   <span className="inline-flex items-center gap-2">
                     {linha.alertas.length === 0 ? <span className="live-dot" aria-hidden="true" /> : null}
                     <Badge tone={linha.alertas.length > 0 ? 'danger' : 'ok'}>
@@ -134,25 +135,24 @@ export default async function SaudePage() {
                       ))}
                     </ul>
                   ) : null}
-                </td>
-                <td className="px-3 py-2">
+                </TableCell>
+                <TableCell>
                   {CONNECTION_LABELS[linha.connection_status] ?? linha.connection_status}
-                </td>
-                <td className="px-3 py-2">
+                </TableCell>
+                <TableCell>
                   {linha.published_today} / {linha.daily_cap}
-                </td>
-                <td className="px-3 py-2">{linha.pending_jobs}</td>
-                <td
-                  className={`px-3 py-2 ${
-                    linha.error_rate_1h > ERROR_RATE_LIMIT ? 'text-[var(--color-danger)]' : ''
+                </TableCell>
+                <TableCell>{linha.pending_jobs}</TableCell>
+                <TableCell className={`px-3 py-2 ${
+                    linha.error_rate_1h> ERROR_RATE_LIMIT ? 'text-[var(--color-danger)]' : ''
                   }`}
                 >
                   {toPercent(linha.error_rate_1h)}
-                </td>
-                <td className="px-3 py-2">{linha.p95_latency_ms.toLocaleString('pt-BR')} ms</td>
-                <td className="px-3 py-2">{formatDate(linha.paused_until)}</td>
-                <td className="px-3 py-2 text-xs break-words">{formatRateUsage(linha.rate_usage)}</td>
-              </tr>
+                </TableCell>
+                <TableCell>{linha.p95_latency_ms.toLocaleString('pt-BR')} ms</TableCell>
+                <TableCell>{formatDate(linha.paused_until)}</TableCell>
+                <TableCell className="text-xs break-words">{formatRateUsage(linha.rate_usage)}</TableCell>
+              </TableRow>
             ))}
           </Table>
         )}

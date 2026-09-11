@@ -11,9 +11,10 @@ import {
   type BatchPlan,
 } from '@adpub/shared';
 
-import { buttonClass, Card, Empty, Field, inputClass, secondaryButtonClass } from '@/components/ui';
+import { Card, Empty, Field, inputClass } from '@/components/ui';
 import type { AdsetRef, Asset, Batch, CampaignRef } from '@/lib/types';
 import type { ActionResult } from '../actions';
+import { Button } from '@astryxdesign/core/Button';
 
 type ManualBuilderProps = {
   batchId: string;
@@ -242,7 +243,7 @@ export function ManualBuilder({
   if (assets.length === 0) {
     return (
       <Card title="Construtor manual">
-        <Empty>Nenhum criativo aprovado para este cliente. Envie criativos antes de montar o lote.</Empty>
+        <Empty title="Nenhum criativo aprovado" hint="Envie criativos antes de montar o lote." />
       </Card>
     );
   }
@@ -596,21 +597,12 @@ export function ManualBuilder({
           {errorMessage ? <p className="text-sm text-[var(--color-danger)]">{errorMessage}</p> : null}
 
           <div className="flex gap-2">
-            <button type="submit" className={buttonClass} disabled={isSaving || totalAds === 0}>
-              {isSaving ? 'Gerando itens...' : 'Gerar itens do lote'}
-            </button>
-            <button
-              type="button"
-              className={secondaryButtonClass}
-              disabled={isSaving}
-              onClick={() => {
+            <Button variant="primary" label={isSaving ? 'Gerando itens...' : 'Gerar itens do lote'} type="submit" isDisabled={isSaving || totalAds === 0} />
+            <Button variant="secondary" label="Limpar" isDisabled={isSaving} onClick={() => {
                 setSelectedAssetIds([]);
                 setCopies([emptyCopy()]);
                 setErrorMessage(undefined);
-              }}
-            >
-              Limpar
-            </button>
+              }} />
           </div>
         </div>
       </form>

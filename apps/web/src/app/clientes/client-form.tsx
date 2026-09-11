@@ -3,9 +3,10 @@
 import { useState, useTransition } from 'react';
 import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { inputClass, buttonClass, secondaryButtonClass, Field } from '@/components/ui';
+import { inputClass, Field } from '@/components/ui';
 import type { Client } from '@/lib/types';
 import type { ActionResult, CreateClientInput, UpdateClientInput } from './actions';
+import { Button } from '@astryxdesign/core/Button';
 
 interface CreateClientFormProps {
   mode: 'create';
@@ -172,13 +173,7 @@ export default function ClientForm(props: ClientFormProps) {
 
   return (
     <div>
-      <button
-        type="button"
-        className={secondaryButtonClass}
-        onClick={() => setOpen((prev) => !prev)}
-      >
-        {isCreate ? 'Novo cliente' : open ? 'Ocultar formulário' : 'Editar cliente'}
-      </button>
+      <Button variant="secondary" label={isCreate ? 'Novo cliente' : open ? 'Ocultar formulário' : 'Editar cliente'} onClick={() => setOpen((prev) => !prev)} />
 
       {open ? (
         <form
@@ -301,19 +296,10 @@ export default function ClientForm(props: ClientFormProps) {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button type="submit" className={buttonClass} disabled={isPending}>
-              {isPending ? 'Salvando...' : submitLabel}
-            </button>
+            <Button variant="primary" label={isPending ? 'Salvando...' : submitLabel} type="submit" isDisabled={isPending} />
 
             {isCreate ? null : (
-              <button
-                type="button"
-                className={secondaryButtonClass}
-                onClick={() => setOpen(false)}
-                disabled={isPending}
-              >
-                Fechar
-              </button>
+              <Button variant="secondary" label="Fechar" isDisabled={isPending} onClick={() => setOpen(false)} />
             )}
           </div>
 

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from 'react';
-import { Badge, buttonClass, Field, inputClass, secondaryButtonClass } from '@/components/ui';
+import { Badge, Field, inputClass } from '@/components/ui';
 import { comentarRelatorio, gerarRascunho, gerarRelatorio, registrarResultado, salvarAprendizado, type ReportView } from './actions';
+import { Button } from '@astryxdesign/core/Button';
 
 type Props = { accountId: string; clientId: string };
 
@@ -53,9 +54,7 @@ export function InteligenciaForm({ accountId, clientId }: Props) {
           </select>
         </Field>
         <div className="flex items-end">
-          <button type="submit" className={buttonClass} disabled={busy}>
-            {busy ? 'Gerando...' : 'Gerar relatório'}
-          </button>
+          <Button variant="primary" label={busy ? 'Gerando...' : 'Gerar relatório'} type="submit" isDisabled={busy} />
         </div>
         {erro ? <p className="text-sm text-[var(--color-danger)] md:col-span-4">{erro}</p> : null}
       </form>
@@ -111,21 +110,14 @@ export function InteligenciaForm({ accountId, clientId }: Props) {
                 placeholder="Correção ou anotação"
                 className={inputClass}
               />
-              <button
-                type="button"
-                className={secondaryButtonClass}
-                disabled={busy || !feedback.trim()}
-                onClick={() => {
+              <Button variant="secondary" label="Comentar" isDisabled={busy || !feedback.trim()} onClick={() => {
                   setBusy(true);
                   void comentarRelatorio(report.id, feedback).then((r) => {
                     setBusy(false);
                     if ('erro' in r) setErro(r.erro);
                     else setFeedback('');
                   });
-                }}
-              >
-                Comentar
-              </button>
+                }} />
             </div>
             {report.feedbacks.map((f) => (
               <p key={f.id} className="text-sm text-[var(--color-muted)]">
@@ -142,21 +134,14 @@ export function InteligenciaForm({ accountId, clientId }: Props) {
                 placeholder="Briefing do teste"
                 className={inputClass}
               />
-              <button
-                type="button"
-                className={secondaryButtonClass}
-                disabled={busy || !briefing.trim()}
-                onClick={() => {
+              <Button variant="secondary" label="Gerar rascunho" isDisabled={busy || !briefing.trim()} onClick={() => {
                   setBusy(true);
                   void gerarRascunho(report.id, briefing).then((r) => {
                     setBusy(false);
                     if ('erro' in r) setErro(r.erro);
                     else setRascunho(r.batch_id);
                   });
-                }}
-              >
-                Gerar rascunho
-              </button>
+                }} />
             </div>
             {rascunho ? <p className="text-sm text-[var(--color-ok)]">Rascunho: {rascunho} (lote em draft, sem Meta).</p> : null}
           </section>
@@ -169,21 +154,14 @@ export function InteligenciaForm({ accountId, clientId }: Props) {
                 placeholder="Hipótese em uma frase"
                 className={inputClass}
               />
-              <button
-                type="button"
-                className={secondaryButtonClass}
-                disabled={busy || !hipotese.trim()}
-                onClick={() => {
+              <Button variant="secondary" label="Salvar" isDisabled={busy || !hipotese.trim()} onClick={() => {
                   setBusy(true);
                   void salvarAprendizado(report.id, clientId, hipotese).then((r) => {
                     setBusy(false);
                     if ('erro' in r) setErro(r.erro);
                     else setAprendizado(r.id);
                   });
-                }}
-              >
-                Salvar
-              </button>
+                }} />
             </div>
             {aprendizado ? (
               <div className="flex flex-wrap items-center gap-2">
@@ -204,21 +182,14 @@ export function InteligenciaForm({ accountId, clientId }: Props) {
                   <option value="negative">negativo</option>
                   <option value="inconclusive">inconclusivo</option>
                 </select>
-                <button
-                  type="button"
-                  className={secondaryButtonClass}
-                  disabled={busy || !resultado.trim()}
-                  onClick={() => {
+                <Button variant="secondary" label="Registrar resultado" isDisabled={busy || !resultado.trim()} onClick={() => {
                     setBusy(true);
                     void registrarResultado(aprendizado, resultado, outcome).then((r) => {
                       setBusy(false);
                       if ('erro' in r) setErro(r.erro);
                       else setResultado('');
                     });
-                  }}
-                >
-                  Registrar resultado
-                </button>
+                  }} />
               </div>
             ) : null}
           </section>

@@ -3,8 +3,10 @@
 import { useState, useTransition } from 'react';
 import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { inputClass, buttonClass, secondaryButtonClass, Badge, Table, Field } from '@/components/ui';
+import { inputClass, Badge, Table, Field } from '@/components/ui';
 import type { Connection } from '@/lib/types';
+import { Button } from '@astryxdesign/core/Button';
+import { TableCell, TableRow } from '@astryxdesign/core/Table';
 import type {
   ActionResult,
   ConnectionInput,
@@ -161,9 +163,7 @@ export default function ConnectionForm({
         </Field>
 
         <div className="sm:col-span-3">
-          <button type="submit" className={buttonClass} disabled={isCreatePending}>
-            {isCreatePending ? 'Salvando...' : 'Criar conexão'}
-          </button>
+          <Button variant="primary" label={isCreatePending ? 'Salvando...' : 'Criar conexão'} type="submit" isDisabled={isCreatePending} />
         </div>
 
         {erro ? <p className="text-sm text-[var(--color-danger)] sm:col-span-3">{erro}</p> : null}
@@ -181,37 +181,23 @@ export default function ConnectionForm({
             const lastChecked = connection.last_checked_at;
 
             return (
-              <tr key={connection.id} className="align-top">
-                <td className="px-3 py-2">{connection.label}</td>
-                <td className="px-3 py-2">{connection.business_id}</td>
-                <td className="px-3 py-2">
+              <TableRow key={connection.id} className="align-top">
+                <TableCell>{connection.label}</TableCell>
+                <TableCell>{connection.business_id}</TableCell>
+                <TableCell>
                   <Badge tone={STATUS_TONE[connection.status]}>{connection.status}</Badge>
-                </td>
-                <td className="px-3 py-2">{connection.api_tier}</td>
-                <td className="px-3 py-2">
+                </TableCell>
+                <TableCell>{connection.api_tier}</TableCell>
+                <TableCell>
                   {lastChecked === null ? '—' : dateFormatter.format(new Date(lastChecked))}
-                </td>
-                <td className="px-3 py-2 text-xs text-[var(--color-danger)]">
+                </TableCell>
+                <TableCell className="text-xs text-[var(--color-danger)]">
                   {connection.last_error ?? '—'}
-                </td>
-                <td className="px-3 py-2">
+                </TableCell>
+                <TableCell>
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleTest(connection.id)}
-                      className={secondaryButtonClass}
-                      disabled={isBusy}
-                    >
-                      {isBusy ? 'Aguarde...' : 'Testar'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSync(connection.id)}
-                      className={buttonClass}
-                      disabled={isBusy}
-                    >
-                      {isBusy ? 'Aguarde...' : 'Sincronizar'}
-                    </button>
+                    <Button variant="secondary" label={isBusy ? 'Aguarde...' : 'Testar'} isDisabled={isBusy} onClick={() => handleTest(connection.id)} />
+                    <Button variant="primary" label={isBusy ? 'Aguarde...' : 'Sincronizar'} isDisabled={isBusy} onClick={() => handleSync(connection.id)} />
                     <input
                       type="password"
                       value={rotateTokens[connection.id] ?? ''}
@@ -222,20 +208,13 @@ export default function ConnectionForm({
                       placeholder="Novo token (EAA...)"
                       aria-label={`Novo token para ${connection.label}`}
                     />
-                    <button
-                      type="button"
-                      onClick={() => handleRotate(connection.id)}
-                      className={secondaryButtonClass}
-                      disabled={isBusy}
-                    >
-                      {isBusy ? 'Aguarde...' : 'Trocar token'}
-                    </button>
+                    <Button variant="secondary" label={isBusy ? 'Aguarde...' : 'Trocar token'} isDisabled={isBusy} onClick={() => handleRotate(connection.id)} />
                   </div>
-                </td>
-                <td className="px-3 py-2 text-xs text-[var(--color-muted)]">
+                </TableCell>
+                <TableCell className="text-xs text-[var(--color-muted)]">
                   {rowMessages[connection.id] ?? '—'}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             );
           })}
         </Table>
