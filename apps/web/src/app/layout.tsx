@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Bricolage_Grotesque, Oswald } from 'next/font/google';
+import { Bricolage_Grotesque, Geist, Geist_Mono, Instrument_Serif, Oswald } from 'next/font/google';
 import Link from 'next/link';
 import './globals.css';
 import { currentSession } from '@/lib/session';
@@ -24,6 +24,29 @@ const condensed = Oswald({
   weight: ['500', '600', '700'],
   display: 'swap',
   variable: '--font-condensed',
+});
+
+/** ID Pulmão W3: Geist corpo/display, Geist Mono técnico, Instrument Serif editorial. */
+const geist = Geist({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-geist',
+});
+
+const geistMono = Geist_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  display: 'swap',
+  variable: '--font-geist-mono',
+});
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ['latin'],
+  weight: ['400'],
+  style: ['normal', 'italic'],
+  display: 'swap',
+  variable: '--font-instrument-serif',
 });
 
 const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
@@ -68,8 +91,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const user = await currentSession();
 
   return (
-    <html lang="pt-BR" className={`${display.variable} ${condensed.variable}`}>
+    <html
+      lang="pt-BR"
+      className={`${display.variable} ${condensed.variable} ${geist.variable} ${geistMono.variable} ${instrumentSerif.variable}`}
+    >
       <body className="min-h-screen">
+        <div className="ambient-backdrop" aria-hidden="true">
+          <div className="ambient-orb ambient-orb-1" />
+          <div className="ambient-orb ambient-orb-2" />
+          <div className="ambient-orb ambient-orb-3" />
+        </div>
+        <div className="noise-overlay" aria-hidden="true" />
+        <div className="relative z-[2]">
         <a
           href="#conteudo"
           className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-[10px] focus:bg-[var(--color-brand-solid)] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--color-ink-on-brand)]"
@@ -116,6 +149,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         ) : (
           <div className="mx-auto max-w-6xl p-6">{children}</div>
         )}
+        </div>
       </body>
     </html>
   );

@@ -11,12 +11,15 @@ export function PageHead({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-      <div className="min-w-0">
-        <h1 className="font-cond text-[34px] font-semibold leading-none tracking-[0.01em]">{title}</h1>
-        {description ? <p className="mt-2 text-sm text-[var(--color-muted)]">{description}</p> : null}
+    <div>
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div className="min-w-0">
+          <h1 className="text-display text-[28px]">{title}</h1>
+          {description ? <p className="mt-1 text-sm text-[var(--color-muted)]">{description}</p> : null}
+        </div>
+        {action}
       </div>
-      {action}
+      <div className="mt-4 h-px bg-[var(--color-border)]" aria-hidden="true" />
     </div>
   );
 }
