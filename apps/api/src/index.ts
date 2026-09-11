@@ -11,13 +11,10 @@ import { createQueues } from './queues.js';
 import type { ApiDeps } from './lib/deps.js';
 
 const env = loadServerEnv();
-/** T019: rastros e erros só quando configurados; sem DSN/endpoint é no-op. */
+/** T019: rastros só quando configurados; sem endpoint é no-op. */
 const telemetry = await initTelemetry({
   service: 'adpub-api',
-  sentryDsn: env.SENTRY_DSN,
   otlpEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT,
-  environment: env.NODE_ENV,
-  tracesSampleRate: env.SENTRY_TRACES_SAMPLE_RATE,
 });
 const { db, sql } = createDb(env.DATABASE_URL);
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
@@ -84,7 +81,11 @@ deps.ai = new AiClient({
   cache: aiCacheFor(deps, null),
 });
 
-const app = await buildApp(deps, { logger: redactingLogger(env.LOG_LEVEL), docs: true, corsOrigin: env.WEB_URL });
+const app = await buildApp(deps, {
+  logger: redactingLogger(env.LOG_LEVEL),
+  docs: true,
+  corsOrigin: env.WEB_URL,
+});
 
 async function shutdown(signal: string): Promise<void> {
   app.log.info({ signal }, 'encerrando API');

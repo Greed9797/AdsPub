@@ -1,66 +1,97 @@
-# Produção num VPS único: web + api + worker + Postgres + Redis + MinIO atrás
-# do Caddy (TLS automático). Passo a passo, segredos e rollback: docs/deploy.md.
+# Produção num host compartilhado: web + api + worker + Postgres + Redis + MinIO
+# atrás do Caddy do stack `mcrm`, que já é dono das portas 80/443 e resolve ACME.
+# Subir um segundo Caddy exigiria disputar porta e reemitir certificado sem
+# ganho: as rotas públicas entram no Caddyfile dele via `Caddyfile.snippet`.
+# Segredos, deploy e rollback: docs/deploy.md.
 #
-#   cd /srv/adpub
+#   cd /opt/adpub
 #   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 #
-# Nenhuma porta de banco, storage ou app é publicada: só o Caddy (80/443)
-# conversa com a internet. As imagens vêm do GHCR (IMAGE_PREFIX/IMAGE_TAG).
+# Nenhuma porta é publicada. O Caddy existente alcança `adpub-web` (3000) e
+# `adpub-minio` (9000) pela rede `mcrm_internal`; as imagens vêm do GHCR
+# (IMAGE_PREFIX/IMAGE_TAG).
 
 name: adpub
+
+x-logging: &logging
+  driver: json-file
+  options:
+    # O host é compartilhado: log sem teto enche o disco e derruba os vizinhos.
+    max-size: 10m
+    max-file: '3'
 
 x-app: &app
   env_file: [.env.prod]
   restart: unless-stopped
+  logging: *logging
 
 services:
   postgres:
+    <<: *app
     image: postgres:16-alpine
-    restart: unless-stopped
+    container_name: adpub-postgres
     environment:
       POSTGRES_USER: adpub
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env.prod}
       POSTGRES_DB: adpub
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks: [internal]
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U adpub -d adpub']
       interval: 10s
       timeout: 3s
       retries: 10
+    deploy:
+      resources:
+        limits: { memory: 1G }
 
   redis:
+    <<: *app
     image: redis:7-alpine
-    restart: unless-stopped
+    container_name: adpub-redis
     command: ['redis-server', '--appendonly', 'yes']
     volumes:
       - redisdata:/data
+    networks: [internal]
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 3s
       retries: 10
+    deploy:
+      resources:
+        limits: { memory: 256M }
 
   minio:
+    <<: *app
     image: minio/minio:latest
-    restart: unless-stopped
+    container_name: adpub-minio
     command: ['server', '/data', '--console-address', ':9001']
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?defina MINIO_ROOT_USER no .env.prod}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?defina MINIO_ROOT_PASSWORD no .env.prod}
     volumes:
       - miniodata:/data
+    # `proxy` é o que deixa o Caddy existente servir os links assinados.
+    networks: [internal, proxy]
     healthcheck:
       test: ['CMD', 'mc', 'ready', 'local']
       interval: 10s
       timeout: 5s
       retries: 10
+    deploy:
+      resources:
+        limits: { memory: 512M }
 
   # O app não cria o bucket (com S3 gerenciado quem cria é a operação); aqui o
   # MinIO nasce vazio, então o bucket é criado uma vez, de forma idempotente.
   minio-init:
+    <<: *app
     image: minio/mc:latest
+    container_name: adpub-minio-init
     restart: 'no'
+    networks: [internal]
     depends_on:
       minio:
         condition: service_healthy
@@ -78,12 +109,14 @@ services:
   migrate:
     <<: *app
     image: ${IMAGE_PREFIX:?}/adpub-api:${IMAGE_TAG:?}
+    container_name: adpub-migrate
     command: ['node', 'node_modules/@adpub/db/dist/migrate.js']
     environment:
       DATABASE_URL: postgres://adpub:${POSTGRES_PASSWORD}@postgres:5432/adpub
     restart: 'no'
     healthcheck:
       disable: true
+    networks: [internal]
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,6 +124,7 @@ services:
   api:
     <<: *app
     image: ${IMAGE_PREFIX:?}/adpub-api:${IMAGE_TAG:?}
+    container_name: adpub-api
     environment:
       DATABASE_URL: postgres://adpub:${POSTGRES_PASSWORD}@postgres:5432/adpub
       REDIS_URL: redis://redis:6379
@@ -102,6 +136,7 @@ services:
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       API_URL: http://api:4000
       WEB_URL: https://${APP_DOMAIN:?defina APP_DOMAIN no .env.prod}
+    networks: [internal]
     depends_on:
       postgres:
         condition: service_healthy
@@ -113,10 +148,14 @@ services:
         condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully
+    deploy:
+      resources:
+        limits: { memory: 512M }
 
   worker:
     <<: *app
     image: ${IMAGE_PREFIX:?}/adpub-worker:${IMAGE_TAG:?}
+    container_name: adpub-worker
     # Job de publicação em andamento tem 30s para terminar antes do SIGKILL.
     stop_grace_period: 30s
     environment:
@@ -128,6 +167,7 @@ services:
       S3_ACCESS_KEY: ${MINIO_ROOT_USER}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       WEB_URL: https://${APP_DOMAIN:?defina APP_DOMAIN no .env.prod}
+    networks: [internal]
     depends_on:
       postgres:
         condition: service_healthy
@@ -139,10 +179,16 @@ services:
         condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully
+    deploy:
+      resources:
+        # ffmpeg/ffprobe na validação de mídia são o pico do stack.
+        limits: { memory: 2G }
 
   web:
-    restart: unless-stopped
     image: ${IMAGE_PREFIX:?}/adpub-web:${IMAGE_TAG:?}
+    container_name: adpub-web
+    restart: unless-stopped
+    logging: *logging
     # Sem `env_file`: a UI só recebe o que usa (nada de MASTER_KEY, senha do
     # banco ou credencial de storage).
     environment:
@@ -155,34 +201,26 @@ services:
       FEATURE_AI_ANALYSIS: ${FEATURE_AI_ANALYSIS:-1}
       FEATURE_REPORTS: ${FEATURE_REPORTS:-1}
       FEATURE_INSIGHTS: ${FEATURE_INSIGHTS:-1}
+    # `proxy` é o que deixa o Caddy existente servir a UI.
+    networks: [internal, proxy]
     depends_on:
       api:
         condition: service_healthy
-
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    environment:
-      APP_DOMAIN: ${APP_DOMAIN:?defina APP_DOMAIN no .env.prod}
-      S3_DOMAIN: ${S3_DOMAIN:?defina S3_DOMAIN no .env.prod}
-      ACME_EMAIL: ${ACME_EMAIL:?defina ACME_EMAIL no .env.prod}
-    ports:
-      - '80:80'
-      - '443:443'
-      - '443:443/udp'
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddydata:/data
-      - caddyconfig:/config
-    depends_on:
-      web:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+    deploy:
+      resources:
+        limits: { memory: 512M }
 
 volumes:
   pgdata:
   redisdata:
   miniodata:
-  caddydata:
-  caddyconfig:
+
+networks:
+  # Nome fixo (em vez do prefixo do projeto) porque `backup.sh` entra nesta rede
+  # pelo nome para falar com o MinIO.
+  internal:
+    name: adpub_internal
+  # Rede do Caddy que já termina TLS na VPS (a mesma dos stacks mcrm/baf/bam).
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-mcrm_internal}

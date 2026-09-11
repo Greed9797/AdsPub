@@ -38,7 +38,7 @@ import {
 import { MetaClient, getAdsStatus } from '@adpub/meta-client';
 import { archiveAd, archiveCampaign } from '@adpub/meta-client/write';
 import { Storage } from '@adpub/storage';
-import { createAlerter } from '@adpub/worker/alerts';
+import { createAlerter, telegramFromEnv } from '@adpub/worker/alerts';
 import type { WorkerContext } from '@adpub/worker/context';
 import { createMetaFactory } from '@adpub/worker/meta';
 import { runPublish } from '@adpub/worker/publish/pipeline';
@@ -93,7 +93,8 @@ function check(label: string, condition: boolean, detail?: unknown): void {
   }
   failures += 1;
   console.error(`  FALHA ${label}`);
-  if (detail !== undefined) console.error('       ', JSON.stringify(detail, null, 2).slice(0, 1500));
+  if (detail !== undefined)
+    console.error('       ', JSON.stringify(detail, null, 2).slice(0, 1500));
 }
 
 /**
@@ -146,7 +147,7 @@ async function main(): Promise<void> {
   const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
   const workerCtx: WorkerContext = { env, db, sql, redis, storage, log };
-  const alert = createAlerter(env.SLACK_WEBHOOK_URL, log);
+  const alert = createAlerter(telegramFromEnv(env), log);
   const metaFactory = createMetaFactory(workerCtx, alert);
   /** Cliente usado só para conferir status e arquivar no teardown. */
   const cleanupClient = new MetaClient({
@@ -235,7 +236,10 @@ async function main(): Promise<void> {
 
     const account = await getAccount(db, smoke.adAccountId);
     check('conta de teste sincronizada', Boolean(account), smoke.adAccountId);
-    if (!account) throw new Error(`Conta ${smoke.adAccountId} não veio no sync — confira as permissões do System User.`);
+    if (!account)
+      throw new Error(
+        `Conta ${smoke.adAccountId} não veio no sync — confira as permissões do System User.`,
+      );
 
     const admin = await upsertUserFromLogin(db, {
       email: `smoke@${env.AUTH_ALLOWED_DOMAIN}`,
@@ -290,7 +294,11 @@ async function main(): Promise<void> {
         actor: { id: admin.id, email: admin.email },
       },
     );
-    check('criativo aprovado na validação de mídia', ingested.asset.validation.status === 'ok', ingested.asset.validation);
+    check(
+      'criativo aprovado na validação de mídia',
+      ingested.asset.validation.status === 'ok',
+      ingested.asset.validation,
+    );
 
     console.log('▸ Montando o lote pelo construtor manual e validando');
     const batch = (await app

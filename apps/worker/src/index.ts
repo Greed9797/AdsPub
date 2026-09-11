@@ -9,7 +9,7 @@ import {
 import { listConnections, purgeOldMetaCalls } from '@adpub/db';
 import { initTelemetry } from '@adpub/telemetry';
 import { Queue, Worker, type Job } from 'bullmq';
-import { createAlerter } from './alerts.js';
+import { createAlerter, telegramFromEnv } from './alerts.js';
 import { createContext } from './context.js';
 import { createMetaFactory } from './meta.js';
 import { runDriveImport, type DriveImportJobData } from './drive/import.js';
@@ -22,15 +22,12 @@ import { runSync, type SyncJobData } from './sync/connection.js';
 import { runInsightsSync, type InsightsSyncData } from './insights/sync.js';
 
 const ctx = createContext();
-/** T019: rastros e erros só quando configurados; sem DSN/endpoint é no-op. */
+/** T019: rastros só quando configurados; sem endpoint é no-op. */
 const telemetry = await initTelemetry({
   service: 'adpub-worker',
-  sentryDsn: ctx.env.SENTRY_DSN,
   otlpEndpoint: ctx.env.OTEL_EXPORTER_OTLP_ENDPOINT,
-  environment: ctx.env.NODE_ENV,
-  tracesSampleRate: ctx.env.SENTRY_TRACES_SAMPLE_RATE,
 });
-const alert = createAlerter(ctx.env.SLACK_WEBHOOK_URL, ctx.log);
+const alert = createAlerter(telegramFromEnv(ctx.env), ctx.log);
 const meta = createMetaFactory(ctx, alert);
 const connection = ctx.redis;
 
@@ -100,7 +97,6 @@ for (const worker of [publishWorker, syncWorker, driveWorker, statusWorker, insi
       { queue: worker.name, job: job?.id, attempts: job?.attemptsMade, err: error.message },
       'job falhou',
     );
-    telemetry.captureError(error, { queue: worker.name, job: job?.id, attempts: job?.attemptsMade });
   });
   worker.on('completed', (job) => {
     ctx.log.debug({ queue: worker.name, job: job.id }, 'job concluído');

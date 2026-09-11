@@ -1,6 +1,6 @@
 name: Deploy
 
-# Sobe as três imagens no GHCR e aplica no VPS (docs/deploy.md).
+# Sobe as três imagens no GHCR e aplica no VPS compartilhado (docs/deploy.md).
 # Dispare com a branch/tag desejada em "Run workflow" ou publique uma tag v*.
 on:
   workflow_dispatch:
@@ -70,20 +70,38 @@ jobs:
           printf 'Host deploy\n  HostName %s\n  User %s\n  Port %s\n  IdentityFile ~/.ssh/deploy\n  StrictHostKeyChecking accept-new\n' \
             "$DEPLOY_HOST" "$DEPLOY_USER" "$DEPLOY_PORT" > ~/.ssh/config
 
-      - name: Levar compose, Caddyfile e backup
+      - name: Login no GHCR no servidor
         env:
-          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/srv/adpub' }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+        # O host não tem login no GHCR (nenhum stack de lá usa registry privado).
+        # Com o secret GHCR_PAT (PAT clássico com `read:packages`) o login é
+        # feito pelo stdin, sem passar pela linha de comando; sem ele, assume
+        # que os pacotes são públicos.
         run: |
-          scp infra/docker-compose.prod.yml infra/Caddyfile infra/backup.sh "deploy:${DEPLOY_PATH}/"
+          if [ -z "$GHCR_PAT" ]; then
+            echo 'sem GHCR_PAT: assumindo pacotes públicos do GHCR'
+            exit 0
+          fi
+          printf '%s' "$GHCR_PAT" | ssh deploy "docker login ghcr.io -u '${{ github.repository_owner }}' --password-stdin"
+
+      - name: Levar compose, snippet do Caddy e backup
+        env:
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/adpub' }}
+        run: |
+          scp infra/docker-compose.prod.yml infra/Caddyfile.snippet infra/backup.sh "deploy:${DEPLOY_PATH}/"
           ssh deploy "chmod +x '${DEPLOY_PATH}/backup.sh'"
 
       - name: Migrar e subir
         env:
-          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/srv/adpub' }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/adpub' }}
         run: |
-          ssh deploy "set -e
+          ssh deploy "set -eu
             cd '${DEPLOY_PATH}'
             test -f .env.prod || { echo 'falta .env.prod em ${DEPLOY_PATH} (veja docs/deploy.md)'; exit 1; }
+            . ./.env.prod
+            # O Caddy é do stack mcrm: sem a rede dele web/minio sobem sem rota.
+            docker network inspect \"\${PROXY_NETWORK:-mcrm_internal}\" >/dev/null ||
+              { echo 'rede do proxy ausente: o stack mcrm está no ar? (docs/deploy.md §3)'; exit 1; }
             export IMAGE_PREFIX='${{ steps.prefix.outputs.value }}' IMAGE_TAG='${{ github.sha }}'
             docker compose -f docker-compose.prod.yml --env-file .env.prod pull api worker web
             docker compose -f docker-compose.prod.yml --env-file .env.prod run -T --rm migrate

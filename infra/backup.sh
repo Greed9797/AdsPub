@@ -21,7 +21,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres 
   pg_dump -U adpub -Fc adpub | gzip > "$dest/postgres-$stamp.dump.gz"
 rm -f "$dest/postgres-$stamp.dump" # caso um dump cru de execução antiga exista
 
-docker run --rm --network adpub_default \
+docker run --rm --network adpub_internal \
   --entrypoint /bin/sh \
   -e MINIO_ROOT_USER -e MINIO_ROOT_PASSWORD -e S3_BUCKET \
   -v "$dest:/backup" minio/mc:latest \

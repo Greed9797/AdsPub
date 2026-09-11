@@ -26,8 +26,9 @@
 - [ ] Registrar o **baseline manual**: cada gestor cronometra uma subida de 10 anúncios do jeito
       antigo, no Ads Manager. Sem esse número, SC-005 não tem comparação (a meta é ≤ 8 min contra
       ≥ 40 min manuais).
-- [ ] Confirmar o `SLACK_WEBHOOK_URL` (opcional, mas no piloto vale a pena: alertas de token
-      inválido, rate limit e lote com > 20 % de falhas chegam por lá).
+- [ ] Confirmar os alertas no Telegram (`TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` no `.env` do host;
+      opcional, mas no piloto vale a pena: token inválido, rate limit e lote com > 20 % de falhas
+      chegam no chat).
 
 ### 1.2 O que medir e de onde tirar
 

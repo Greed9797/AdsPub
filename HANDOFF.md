@@ -9,12 +9,19 @@ Data: 2026-09-11. Branch `main` limpa; deploy de produção entrou em `c89ea70`.
 - CI de verificação: `.github/workflows/ci.yml` (gitleaks, build, lint, typecheck, testes, scan de
   token nos logs, `smoke:integration` e e2e) + `.github/workflows/smoke.yml` (conta de teste real,
   manual ou por release).
-- **Deploy de produção existe**: `apps/{api,worker,web}/Dockerfile` + `.dockerignore`, stack do VPS
-  em `infra/docker-compose.prod.yml` (web, api, worker, Postgres, Redis, MinIO, Caddy com TLS),
-  `infra/.env.prod.example`, `infra/backup.sh`, workflow `Deploy` (GHCR + SSH) e o runbook
-  `docs/deploy.md`. Verificado localmente ponta a ponta: migrações do zero (12/12) e idempotentes,
-  upload → validação (`sharp`) → MinIO → miniatura por link assinado, UI servida pelo container,
-  backup (pg_dump + espelho do MinIO) e restore em banco limpo.
+- **Deploy de produção está NO AR** em host compartilhado (o Caddy do stack `mcrm` é dono das
+  80/443; o AdPub não sobe proxy nem publica porta): `https://adpub.179-198-104-210.sslip.io/login`
+  responde 200 com certificado Let's Encrypt emitido, `https://adpub-s3.179-198-104-210.sslip.io`
+  serve o MinIO, 12 migrações aplicadas num banco novo (`clients` = 0, sem seed demo),
+  `GET /api/v1/health` → `{"status":"ok","meta_tier":"limited"}` e o backup rodou de verdade
+  (`/var/backups/adpub/`) com cron diário instalado. Tudo sob `/opt/adpub` (`.env.prod` 600, segredos
+  gerados no próprio host) e imagens `adpub/adpub-{api,worker,web}:<sha>` construídas no host por
+  `infra/deploy-host.sh` — o repositório ainda não tem remote no GitHub, então o workflow `Deploy`
+  (GHCR) fica pronto para quando tiver.
+- **Rede/rotas**: `adpub-web` e `adpub-minio` entram em `mcrm_internal`; o bloco de rotas está
+  anexado ao `/opt/mcrm/Caddyfile` (backup em `Caddyfile.bak.adpub.*`) e foi validado + recarregado.
+- **Alertas no Telegram** (`TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`, os dois juntos ou nenhum) e
+  telemetria só de rastros OpenTelemetry — o Sentry saiu do código, das deps e do schema de env.
 
 ## 2. Como rodar local
 
@@ -31,19 +38,22 @@ open http://localhost:3000/
 
 ## 3. O que falta (infra/humano)
 
-1. **Provisionar o VPS** — DNS (`APP_DOMAIN`, `S3_DOMAIN`), usuário `deploy`, Docker, `docker login
-   ghcr.io`, `.env.prod` e os secrets/vars do GitHub (`DEPLOY_SSH_KEY`/`DEPLOY_HOST`/`DEPLOY_USER`;
-   opcionais `DEPLOY_PORT`/`DEPLOY_PATH`). Passo a passo: `docs/deploy.md` §3–5. Depois: Google
-   OAuth (redirect `https://APP_DOMAIN/api/auth/callback`) e Meta app apontando para essa URL.
+1. **Fechar a configuração de produção (só chaves externas)** — no `/opt/adpub/.env.prod` há 6
+   `TROCAR`: `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (OAuth com redirect
+   `https://adpub.179-198-104-210.sslip.io/api/auth/callback`), `META_APP_ID`/`META_APP_SECRET`,
+   `ANTHROPIC_API_KEY` e `AUTH_ALLOWED_DOMAIN` (hoje `w3bsite.com.br` — **conferir**: é o domínio
+   Google dos usuários). Depois: `docker compose -f docker-compose.prod.yml --env-file .env.prod up
+   -d web api worker`. O primeiro login Google do domínio nasce admin.
 2. **Piloto T098/T100** — plano humano em `docs/piloto-e-rollout.md`, checkboxes zerados: escolher 3
-   contas, cadastrar clientes, criar 2 gestores `manager`, rodar 2 semanas.
-3. **Meta App Review** — `docs/meta-app-review.md`; sem aprovação, token real só opera em Limited.
-   O ambiente de teste do revisor passa a ser `https://APP_DOMAIN`.
-4. **Primeiro deploy contra o banco real** — as migrações foram conferidas do zero (12/12) e são
-   idempotentes; falta rodar o checklist do `docs/deploy.md` §5 no servidor (banco novo, `meta_tier`
-   conferido, BM conectada, um criativo de teste).
-5. **Segredos de produção** — gerar `MASTER_KEY`/`AUTH_SECRET`/senhas como em `docs/deploy.md` §2 e
-   guardar só no servidor; trocar `MASTER_KEY` depois invalida os tokens cifrados.
+   contas, cadastrar clientes, criar 2 gestores `manager`, rodar 2 semanas (item 1.1 já tem os
+   alertas no Telegram prontos para preencher).
+3. **Publicar o repositório no GitHub** (ainda não tem remote) para ligar o workflow `Deploy`/GHCR,
+   o CI de verificação e os secrets `DEPLOY_SSH_KEY`/`DEPLOY_HOST`/`DEPLOY_USER` (+`GHCR_PAT`, já
+   que o host não tem login no GHCR). Até lá o deploy é `HOST=w3vps ./infra/deploy-host.sh`.
+4. **Meta App Review** — `docs/meta-app-review.md`; sem aprovação, token real só opera em Limited.
+   O ambiente de teste do revisor passa a ser `https://adpub.179-198-104-210.sslip.io`.
+5. **Segredos de produção** — já gerados no host (`MASTER_KEY`/`AUTH_SECRET`/senhas, `chmod 600`);
+   trocar `MASTER_KEY` depois invalida os tokens cifrados (é preciso reconectar).
 
 ## 4. Débitos técnicos assumidos (não mexer sem motivo)
 
@@ -55,9 +65,14 @@ open http://localhost:3000/
 - **Warning Astryx "theme build"**: tema usa runtime injection; pré-compilar quando performance importar.
 - **Mapa PT em `ui.tsx`** (`STATUS_PT/CTA_PT/FORMAT_PT/GOAL_PT`): slug novo na API precisa de rótulo aqui.
 - **`tmp/` é ignorado pelo git**: `dev-up.sh` e `dev-logs/dev.env` vivem só nesta máquina.
-- **Deploy**: só o Caddy publica portas; `S3_ENDPOINT` precisa ser o domínio público (`S3_DOMAIN`)
-  porque o browser abre o link assinado; o bucket nasce no `minio-init` (o app não cria bucket);
-  variável opcional de URL **vazia** derruba o boot — deixe comentada no `.env.prod`.
+- **Deploy**: o Caddy é do stack `mcrm` (anexar o snippet **uma vez** ao `/opt/mcrm/Caddyfile` e
+  recarregar; repetir duplica os blocos e o Caddy recusa a config); `web`/`minio` precisam da rede
+  externa `mcrm_internal` — sem ela o compose falha; `S3_ENDPOINT` precisa ser o domínio público
+  (`S3_DOMAIN`) porque o browser abre o link assinado; o bucket nasce no `minio-init` (o app não
+  cria bucket); variável opcional de URL **vazia** derruba o boot — deixe comentada no `.env.prod`;
+  `backup.sh` entra na rede pelo nome fixo `adpub_internal` (não troque o `name:` dela à toa).
+- **Host compartilhado**: cada serviço tem teto de memória (soma ~4,8 GB) e log `json-file` de
+  3 × 10 MB — subir algo sem limite atrapalha `mcrm`/`creativeos`, que dividem a máquina.
 - **Rollback**: a imagem volta por sha (`IMAGE_TAG`), o schema não; migração destrutiva exige restore
   do dump (`docs/restore.md`).
 - **`pnpm --filter … deploy` local poda devDeps do repositório** — esse comando só dentro do

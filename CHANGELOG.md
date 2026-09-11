@@ -8,24 +8,45 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ### Adicionado (deploy de produção)
 
-- `infra/docker-compose.prod.yml` (VPS único: web, api, worker, Postgres, Redis,
-  MinIO e Caddy com TLS automático), `infra/.env.prod.example`, `infra/backup.sh`
-  e o runbook `docs/deploy.md`. As migrações rodam antes de api/worker subirem,
-  o bucket do MinIO é criado uma vez (`minio-init`) e só o Caddy publica porta —
-  a UI abre a miniatura por link assinado via `S3_DOMAIN`.
+- `infra/docker-compose.prod.yml` (host compartilhado: web, api, worker,
+  Postgres, Redis e MinIO **sem** proxy próprio — o Caddy do stack `mcrm` já é
+  dono das portas 80/443 e recebe as rotas por `infra/Caddyfile.snippet`),
+  `infra/.env.prod.example`, `infra/backup.sh` e o runbook `docs/deploy.md`. As
+  migrações rodam antes de api/worker subirem, o bucket do MinIO é criado uma
+  vez (`minio-init`) e nenhuma porta é publicada: `web`/`minio` entram na rede
+  `mcrm_internal` com nome fixo de contêiner (`adpub-web`, `adpub-minio`) e a UI
+  abre a miniatura por link assinado via `S3_DOMAIN`. Cada serviço tem teto de
+  memória e de log (`json-file` 3 × 10 MB) para não atrapalhar os vizinhos.
 - Imagens de produção em `apps/{api,worker,web}/Dockerfile` + `.dockerignore`:
   `pnpm deploy` leva o workspace já resolvido (api/worker) e o web usa o
   `output: 'standalone'` do Next; ffmpeg/ffprobe entram nas imagens que
   validam mídia.
 - Workflow `Deploy`: publica as três imagens no GHCR (tag = sha) e aplica no
-  VPS por SSH — `pull`, `migrate`, `up -d` — com rollback por sha.
+  host por SSH — `login` no GHCR (secret `GHCR_PAT`), `pull`, `migrate`, `up -d`
+  — com rollback por sha, falha cedo se a rede do proxy não existir e
+  `DEPLOY_PATH` padrão em `/opt/adpub`.
+- `infra/deploy-host.sh`: deploy sem GitHub Actions — sincroniza o código para
+  `/opt/adpub/app`, constrói as três imagens no host (tag = sha curto), roda
+  `migrate` e aplica `up -d --wait`. É o caminho enquanto o repositório não tem
+  remote; o workflow `Deploy` assume depois, pelo GHCR.
 - Teste local do stack de produção documentado em `docs/deploy.md` §9.
+
+### Alterado (alertas e telemetria)
+
+- Alertas operacionais saem do Slack e passam a ir por Telegram: `TELEGRAM_BOT_TOKEN`
+  + `TELEGRAM_CHAT_ID` (os dois juntos ou nenhum — o schema de env recusa o par
+  incompleto). O envio é uma chamada à Bot API e a falha de rede nunca derruba o
+  job: o alerta continua no log estruturado.
+- Sentry removido: a telemetria fica só com o exportador OpenTelemetry de
+  rastros. `sentryDsn`, `environment` e `tracesSampleRate` saem de
+  `TelemetryOptions`; `errors` e `captureError` saem do contrato `Telemetry`.
+  A falha de job continua visível na linha `job falhou` do worker.
 
 ### Corrigido
 
 - `.env.example` (e o exemplo de produção) não definem mais
-  `SLACK_WEBHOOK_URL`, `SENTRY_DSN` e `OTEL_EXPORTER_OTLP_ENDPOINT` vazios:
-  são URLs opcionais válidas só quando ausentes, e o valor vazio derrubava o
+  `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` e `OTEL_EXPORTER_OTLP_ENDPOINT`
+  vazios: são opcionais válidos só quando ausentes, e o valor vazio derrubava o
   boot da API e do worker.
 
 ### Adicionado (SPEC-009 — alertas e operação)

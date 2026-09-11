@@ -1,0 +1,30 @@
+# Bloco a acrescentar no /opt/mcrm/Caddyfile da VPS.
+#
+# O Caddy do stack `mcrm` já é dono das portas 80/443 e resolve ACME. Subir um
+# segundo Caddy exigiria disputar porta e reemitir certificado sem ganho.
+#
+# `adpub-web` (3000) e `adpub-minio` (9000) resolvem porque esses serviços
+# entram na rede `mcrm_internal` (ver docker-compose.prod.yml, network `proxy`).
+#
+# Troque os hosts abaixo pelos domínios reais do `.env.prod` e recarregue:
+#   docker exec mcrm-caddy-1 caddy reload --config /etc/caddy/Caddyfile
+
+adpub.179-198-104-210.sslip.io {
+	encode gzip
+
+	# Assets do Next têm hash no nome; o HTML, não.
+	@static path /_next/static/*
+	header @static Cache-Control "public, max-age=31536000, immutable"
+	@html not path /_next/static/*
+	header @html Cache-Control "no-cache, must-revalidate"
+
+	handle {
+		reverse_proxy adpub-web:3000
+	}
+}
+
+# MinIO: é por aqui que o browser abre a miniatura do criativo e baixa o
+# arquivo pelo link assinado. Precisa bater com S3_DOMAIN do `.env.prod`.
+adpub-s3.179-198-104-210.sslip.io {
+	reverse_proxy adpub-minio:9000
+}
