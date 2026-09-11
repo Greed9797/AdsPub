@@ -1,6 +1,8 @@
 # HANDOFF — AdPub
 
-Data: 2026-09-11. Branch `main` limpa; deploy de produção entrou em `c89ea70`.
+Data: 2026-09-11. Branch `main` limpa até `cfcf074`. Produção **no ar** em
+`https://adpub.179-198-104-210.sslip.io` (host compartilhado, atrás do Caddy do `mcrm`); falta só
+preencher as chaves externas do `.env.prod` (§3, item 1).
 
 ## 1. Estado atual
 
