@@ -24,9 +24,20 @@ export function PageHead({
   );
 }
 
-export function Card({ title, action, children }: { title?: string; action?: ReactNode; children: ReactNode }) {
+export function Card({
+  title,
+  action,
+  children,
+  variant = 'default',
+}: {
+  title?: string;
+  action?: ReactNode;
+  children: ReactNode;
+  /** 'stat' aplica o crystalline stat-card da ID Pulmão (KPIs). */
+  variant?: 'default' | 'stat';
+}) {
   return (
-    <section className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]">
+    <section className={variant === 'stat' ? 'stat-card' : 'rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)]'}>
       {title ? (
         <header className="flex items-center justify-between gap-3 border-b border-[var(--color-border)] px-5 py-3.5">
           <h2 className="text-sm font-semibold tracking-[-0.01em]">{title}</h2>
@@ -88,7 +99,7 @@ export function Empty({
 }) {
   return (
     <div className="flex flex-col items-center gap-1.5 px-6 py-10 text-center">
-      {title ? <p className="text-sm font-semibold">{title}</p> : null}
+      {title ? <p className="text-serif-accent text-xl">{title}</p> : null}
       {hint ? <p className="max-w-md text-sm text-[var(--color-muted)]">{hint}</p> : null}
       {children && !title ? <p className="text-sm text-[var(--color-muted)]">{children}</p> : null}
       {action ? <div className="mt-3">{action}</div> : null}

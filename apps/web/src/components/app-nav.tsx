@@ -80,7 +80,7 @@ export function AppNav({ groups, variant }: { groups: NavGroup[]; variant: 'side
     <nav aria-label="Principal" className="hidden w-60 shrink-0 flex-col gap-6 lg:flex">
       {groups.map((group) => (
         <div key={group.title}>
-          <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-muted)]">
+          <p className="text-mono-eyebrow mb-1.5 px-3">
             {group.title}
           </p>
           <ul className="space-y-0.5">

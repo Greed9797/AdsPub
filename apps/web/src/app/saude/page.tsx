@@ -79,7 +79,7 @@ export default async function SaudePage() {
         }
       />
 
-      <Card title="Resumo">
+      <Card title="Resumo" variant="stat">
         <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
           {[
             ['Contas', String(linhas.length), 'text-[var(--color-text)]'],
@@ -121,9 +121,12 @@ export default async function SaudePage() {
                   <p className="text-xs text-[var(--color-muted)]">{linha.ad_account_id}</p>
                 </td>
                 <td className="px-3 py-2">
-                  <Badge tone={linha.alertas.length > 0 ? 'danger' : 'ok'}>
-                    {linha.alertas.length > 0 ? 'Atenção' : 'Normal'}
-                  </Badge>
+                  <span className="inline-flex items-center gap-2">
+                    {linha.alertas.length === 0 ? <span className="live-dot" aria-hidden="true" /> : null}
+                    <Badge tone={linha.alertas.length > 0 ? 'danger' : 'ok'}>
+                      {linha.alertas.length > 0 ? 'Atenção' : 'Normal'}
+                    </Badge>
+                  </span>
                   {linha.alertas.length > 0 ? (
                     <ul className="mt-1 space-y-0.5 text-xs text-[var(--color-danger)]">
                       {linha.alertas.map((alerta) => (

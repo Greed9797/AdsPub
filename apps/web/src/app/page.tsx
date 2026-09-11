@@ -102,7 +102,7 @@ export default async function HomePage({
         </p>
       ) : null}
 
-      <Card title={filters.size > 0 ? 'Resumo do recorte' : 'Resumo'}>
+      <Card title={filters.size > 0 ? 'Resumo do recorte' : 'Resumo'} variant="stat">
         <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
           {[
             ['Lotes', batches.length, 'text-[var(--color-text)]'],

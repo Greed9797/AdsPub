@@ -104,7 +104,7 @@ export default async function PerformancePage({
         </Card>
       ) : (
         <>
-          <Card title="Totais" action={<Badge tone="info">{data.metric_version}</Badge>}>
+          <Card title="Totais" action={<Badge tone="info">{data.metric_version}</Badge>} variant="stat">
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
               <div>
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">Gasto</dt>
