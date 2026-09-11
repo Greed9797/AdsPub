@@ -9,7 +9,7 @@ import { expect, test } from './fixtures.js';
 test('conexão sincronizada e conta com padrões aparecem em /contas', async ({ page, seed }) => {
   await page.goto('/contas');
 
-  await expect(page.getByRole('heading', { name: 'Contas', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Conexões', exact: true })).toBeVisible();
 
   const conexao = page.getByRole('row').filter({ hasText: seed.connection.label });
   await expect(conexao).toContainText(seed.connection.businessId);

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { Badge, Card, Empty, Field, PageHead, Table, inputClass } from '@/components/ui';
+import { Badge, Card, Empty, Field, PageHead, Table, inputClass, statusLabel } from '@/components/ui';
 import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
 import type { AdAccount, Batch, BatchStatus } from '@/lib/types';
@@ -90,7 +90,7 @@ export default async function HomePage({
   return (
     <div className="space-y-6">
       <PageHead
-        title="Lotes"
+        title="Anúncios"
         description="Monte, revise e publique anúncios Meta em lote."
         action={
           <ButtonLink variant="primary" label="Novo lote" href="/lotes/novo" />
@@ -127,7 +127,7 @@ export default async function HomePage({
             role="img"
             aria-label={`Distribuição: ${BATCH_STATUSES.map((s) => {
               const n = batches.filter((batch) => batch.status === s).length;
-              return n > 0 ? `${n} ${s}` : null;
+              return n > 0 ? `${n} ${statusLabel(s).toLowerCase()}` : null;
             })
               .filter(Boolean)
               .join(', ')}`}
@@ -168,7 +168,7 @@ export default async function HomePage({
             <option value="">Todos</option>
             {BATCH_STATUSES.map((batchStatus) => (
               <option key={batchStatus} value={batchStatus}>
-                {batchStatus}
+                {statusLabel(batchStatus)}
               </option>
             ))}
           </select>
@@ -212,7 +212,7 @@ export default async function HomePage({
                   <TableCell className="font-medium">{batch.name}</TableCell>
                   <TableCell className="text-[var(--color-muted)]">{getAccountName(batch.ad_account_id)}</TableCell>
                   <TableCell>
-                    <Badge tone={statusTone(batch.status)}>{batch.status}</Badge>
+                    <Badge tone={statusTone(batch.status)}>{statusLabel(batch.status)}</Badge>
                   </TableCell>
                   <TableCell className="text-center tabular-nums">{batch.items.length}</TableCell>
                   <TableCell className="whitespace-nowrap tabular-nums text-[var(--color-muted)]">

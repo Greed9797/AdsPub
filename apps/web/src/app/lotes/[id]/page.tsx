@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
-import { Badge, Card, Empty } from '@/components/ui';
+import { Badge, Card, Empty, statusLabel } from '@/components/ui';
 import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
 import type { AdAccount, AdsetRef, Asset, Batch, CampaignRef } from '@/lib/types';
@@ -76,7 +76,7 @@ export default async function LotePage({
             Conta: <span className="text-[var(--color-muted)]">{account.name}</span>
           </p>
           <p>
-            Status: <Badge tone={statusTone(batch.status)}>{batch.status}</Badge>
+            Status: <Badge tone={statusTone(batch.status)}>{statusLabel(batch.status)}</Badge>
           </p>
           <p>
             Atualizado em:{' '}

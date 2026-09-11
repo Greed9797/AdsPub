@@ -1,4 +1,4 @@
-import { Badge, Card, Empty, PageHead, Table } from '@/components/ui';
+import { Badge, Card, Empty, PageHead, plural, Table } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { AccountHealth } from '@/lib/types';
@@ -69,13 +69,13 @@ export default async function SaudePage() {
   return (
     <div className="space-y-6">
       <PageHead
-        title="Saúde das contas"
-        description="Fila, rate limit, erros e teto diário."
+        title="Contas"
+        description="Situação de cada conta: fila, erros e limite diário."
         action={
           <Badge tone={emAtencao === 0 ? 'ok' : 'warn'}>
             {emAtencao === 0
-              ? `${linhas.length} conta(s) sem alerta`
-              : `${emAtencao} de ${linhas.length} conta(s) em atenção`}
+              ? `${plural(linhas.length, 'conta sem alerta', 'contas sem alerta')}`
+              : `${emAtencao} de ${linhas.length} em atenção`}
           </Badge>
         }
       />

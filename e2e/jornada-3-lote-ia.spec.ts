@@ -20,9 +20,9 @@ test('lote no modo IA gera itens com nome e UTM preenchidos', async ({ page, see
   await expect(page.getByText('orcamento')).toBeVisible();
 
   // Nomenclatura do cliente: {cliente}_{objetivo}_{data}_{criativo}_{formato}_{v}
-  const primeiroItem = page.getByRole('row').filter({ hasText: 'single_image' }).first();
+  const primeiroItem = page.getByRole('row').filter({ hasText: 'single-image' }).first();
   await expect(primeiroItem).toContainText(/loja-teste_.*_inverno-e2e_single-image_\d+/);
-  await expect(primeiroItem).toContainText('ready');
+  await expect(primeiroItem).toContainText('Pronto');
 
   // UTMs padrão do cliente entram na copy sem o gestor digitar.
   await primeiroItem.getByRole('button', { name: 'Editar' }).click();

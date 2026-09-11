@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Badge, Card, Field, inputClass } from '@/components/ui';
+import { Badge, Card, Field, inputClass, plural } from '@/components/ui';
 import type { AdAccount, AdDraft, Batch, PublishResult, ValidationReport } from '@/lib/types';
 import type { ActionResult } from '../actions';
 import { Button } from '@astryxdesign/core/Button';
@@ -55,6 +55,9 @@ export function PublishPanel({
     onlyFailed ? item.status === 'failed' : item.status === 'ready' || item.status === 'failed',
   ).length;
   const blockedCount = items.filter((item) => item.status === 'blocked').length;
+  const account = accounts.find((a) => a.id === currentAccountId);
+  const accountName = account?.name ?? 'conta atual';
+  const teto = account?.daily_ad_cap ?? null;
 
   const validate = async () => {
     setIsValidating(true);
@@ -82,7 +85,11 @@ export function PublishPanel({
       return;
     }
 
-    if (!window.confirm(`Confirma publicar ${eligibleCount} item(ns)?`)) {
+    if (!window.confirm(
+      `Publicar ${plural(eligibleCount, 'anúncio', 'anúncios')} na conta "${accountName}"?\n` +
+      (teto ? `Teto diário dessa conta: ${teto} anúncios.\n` : '') +
+      'Isso vai gerar cobrança na sua conta de anúncios da Meta. Continuar?',
+    )) {
       return;
     }
 
@@ -146,9 +153,9 @@ export function PublishPanel({
             Publicar apenas itens em falha
           </label>
 
-          <Button variant="primary" label={isPublishing ? 'Enfileirando...' : `Publicar ${eligibleCount} item(ns)`} isDisabled={isPublishing} onClick={() => void publish()} />
+          <Button variant="primary" label={isPublishing ? 'Enfileirando...' : `Publicar ${plural(eligibleCount, 'anúncio', 'anúncios')}`} isDisabled={isPublishing} onClick={() => void publish()} />
 
-          {blockedCount > 0 ? <Badge tone="danger">{blockedCount} bloqueado(s)</Badge> : null}
+          {blockedCount > 0 ? <Badge tone="danger">{plural(blockedCount, 'bloqueado', 'bloqueados')}</Badge> : null}
         </div>
 
         {message ? <p className="text-sm text-[var(--color-danger)]">{message}</p> : null}

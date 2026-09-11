@@ -54,9 +54,9 @@ const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
   {
     title: 'Operar',
     items: [
-      { href: '/', label: 'Lotes' },
-      { href: '/criativos', label: 'Criativos' },
-      { href: '/contas', label: 'Contas' },
+      { href: '/', label: 'Anúncios' },
+      { href: '/criativos', label: 'Fotos e vídeos' },
+      { href: '/contas', label: 'Conexões' },
     ],
   },
   {
@@ -71,7 +71,7 @@ const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
     title: 'Gerenciar',
     items: [
       { href: '/clientes', label: 'Clientes' },
-      { href: '/saude', label: 'Saúde' },
+      { href: '/saude', label: 'Contas' },
       { href: '/auditoria', label: 'Auditoria' },
       { href: '/usuarios', label: 'Usuários' },
     ],

@@ -3,7 +3,7 @@
 import { Fragment, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Badge, Card, Table } from '@/components/ui';
+import { Badge, Card, ctaLabel, formatLabel, plural, statusLabel, Table } from '@/components/ui';
 import type { AdDraft } from '@/lib/types';
 import { ItemEditor } from './item-editor';
 import type { SalvarItemPayload } from './item-editor';
@@ -108,7 +108,7 @@ export function BatchItemsTable({
             <Fragment key={item.id}>
               <TableRow>
                 <TableCell>{item.position}</TableCell>
-                <TableCell>{item.format}</TableCell>
+                  <TableCell>{formatLabel(item.format)}</TableCell>
                 <TableCell className="whitespace-nowrap">
                   {item.ads_manager_url ? (
                     <a
@@ -128,16 +128,16 @@ export function BatchItemsTable({
                     {item.copy.primary_text}
                   </p>
                   <p className="truncate text-xs text-[var(--color-muted)]" title={item.copy.headline}>
-                    {item.copy.headline || 'Sem título'} · {item.copy.cta}
+                    {item.copy.headline || 'Sem título'} · {ctaLabel(item.copy.cta)}
                   </p>
                 </TableCell>
                 <TableCell>
-                  <Badge tone={statusTone(item.status)}>{item.status}</Badge>
+                    <Badge tone={statusTone(item.status)}>{statusLabel(item.status)}</Badge>
                 </TableCell>
-                <TableCell className="text-xs text-[var(--color-muted)]">{item.step ?? '-'}</TableCell>
+                  <TableCell className="text-xs text-[var(--color-muted)]">{item.step ? statusLabel(item.step) : '-'}</TableCell>
                 <TableCell className="space-x-1">
-                  {errors.length > 0 ? <Badge tone="danger">{errors.length} erro(s)</Badge> : null}
-                  {warnings.length > 0 ? <Badge tone="warn">{warnings.length} aviso(s)</Badge> : null}
+                  {errors.length > 0 ? <Badge tone="danger">{plural(errors.length, 'erro', 'erros')}</Badge> : null}
+                  {warnings.length > 0 ? <Badge tone="warn">{plural(warnings.length, 'aviso', 'avisos')}</Badge> : null}
                   {policy.length > 0 ? (
                     <Badge tone={policy.some((issue) => issue.severity === 'error') ? 'danger' : 'warn'}>
                       política: {policy.length}
@@ -149,7 +149,7 @@ export function BatchItemsTable({
                   {item.error ? (
                     <span title={item.error.fix ?? item.error.code}>
                       {item.error.message}
-                      {item.attempts > 0 ? ` (${item.attempts} tentativa(s))` : ''}
+                      {item.attempts > 0 ? ` (${plural(item.attempts, 'tentativa', 'tentativas')})` : ''}
                     </span>
                   ) : (
                     '-'

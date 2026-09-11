@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Badge, Card, Empty, Field, inputClass, PageHead } from '@/components/ui';
+import { Badge, Card, Empty, Field, formatLabel, inputClass, PageHead, plural } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { Asset, Client, Variant } from '@/lib/types';
@@ -208,11 +208,11 @@ export default async function CriativosPage({
                   >
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-medium">{variant.manifest.copy.headline || '(sem título)'}</p>
-                      <Badge tone="info">{variant.manifest.format}</Badge>
+                      <Badge tone="info">{formatLabel(variant.manifest.format)}</Badge>
                     </div>
                     <p className="text-xs text-[var(--color-muted)]">{variant.manifest.copy.primary_text}</p>
                     <p className="text-xs text-[var(--color-muted)]">
-                      {variant.manifest.assetIds.length} mídia(s) · {variant.fingerprint.slice(0, 8)}
+                      {plural(variant.manifest.assetIds.length, 'mídia', 'mídias')} · {variant.fingerprint.slice(0, 8)}
                     </p>
                   </article>
                 ))}

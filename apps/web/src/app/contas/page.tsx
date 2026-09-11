@@ -46,7 +46,7 @@ export default async function ContasPage() {
 
   return (
     <div className="space-y-6">
-      <PageHead title="Contas" description="Conexões, contas de anúncio e padrões de publicação." />
+      <PageHead title="Conexões" description="Ligação com a Meta, contas de anúncio e padrões de publicação." />
 
       {isAdmin && !passosCompletos ? (
         <Card title="Primeiros passos">
