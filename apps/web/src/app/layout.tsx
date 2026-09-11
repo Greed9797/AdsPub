@@ -100,6 +100,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="ambient-orb ambient-orb-1" />
           <div className="ambient-orb ambient-orb-2" />
           <div className="ambient-orb ambient-orb-3" />
+          <div className="ambient-orb ambient-orb-4" />
         </div>
         <div className="noise-overlay" aria-hidden="true" />
         <div className="relative z-[2]">
@@ -111,7 +112,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </a>
         {user ? (
           <div className="min-h-screen lg:flex">
-            <aside className="hidden w-64 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)] lg:block">
+            <aside className="glass-surface hidden w-64 shrink-0 border-r border-[var(--color-border)] lg:block">
               <div className="no-scrollbar sticky top-0 flex max-h-screen flex-col gap-8 overflow-y-auto p-5">
                 <Link href="/" className="font-cond px-2 pt-1 text-2xl font-semibold tracking-[0.02em]">
                   AdPub<span className="text-[var(--color-brand)]">.</span>
@@ -120,7 +121,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </div>
             </aside>
             <div className="flex min-w-0 flex-1 flex-col">
-              <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+              <header className="glass-surface sticky top-0 z-40 border-b border-[var(--color-border)]">
                 <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
                   <Link href="/" className="font-cond text-xl font-semibold tracking-[0.02em] lg:hidden">
                     AdPub<span className="text-[var(--color-brand)]">.</span>
