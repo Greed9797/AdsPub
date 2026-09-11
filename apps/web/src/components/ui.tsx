@@ -119,7 +119,7 @@ export const inputClass =
   'h-10 w-full rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-[var(--color-brand)] focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40';
 
 export const buttonClass =
-  'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-[var(--color-brand-solid)] px-4 text-sm font-semibold tracking-[0.01em] text-[var(--color-ink-on-brand)] hover:bg-[var(--color-brand-deep)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)] disabled:opacity-50';
+  'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-[var(--color-brand-solid)] px-4 text-sm font-semibold tracking-[0.01em] text-[var(--color-ink-on-brand)] transition-transform duration-150 hover:bg-[var(--color-brand-deep)] hover:text-white active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)] disabled:opacity-50';
 
 export const secondaryButtonClass =
-  'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[10px] border border-[var(--color-border)] px-4 text-sm font-medium tracking-[0.01em] hover:bg-[var(--color-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/60 disabled:opacity-50';
+  'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[10px] border border-[var(--color-border)] px-4 text-sm font-medium tracking-[0.01em] transition-transform duration-150 hover:bg-[var(--color-surface-2)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/60 disabled:opacity-50';

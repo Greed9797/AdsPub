@@ -150,7 +150,7 @@ export default async function PerformancePage({
                 {[...data.rows]
                   .sort((a, b) => b.spend - a.spend)
                   .slice(0, 8)
-                  .map((row) => {
+                  .map((row, index) => {
                     const max = Math.max(...data.rows.map((r) => r.spend), 0);
                     return (
                       <li key={row.id}>
@@ -160,8 +160,11 @@ export default async function PerformancePage({
                         </div>
                         <div className="h-2 overflow-hidden rounded-full bg-[var(--color-surface-2)]">
                           <div
-                            className={`h-full rounded-full ${data.verdict.winnerId === row.id ? 'bg-[var(--color-ok)]' : 'bg-[var(--color-brand-solid)]'}`}
-                            style={{ width: `${max > 0 ? (row.spend / max) * 100 : 0}%` }}
+                            className={`bar-draw h-full rounded-full ${data.verdict.winnerId === row.id ? 'bg-[var(--color-ok)]' : 'bg-[var(--color-brand-solid)]'}`}
+                            style={{
+                              width: `${max > 0 ? (row.spend / max) * 100 : 0}%`,
+                              animationDelay: `${Math.min(index * 60, 240)}ms`,
+                            }}
                           />
                         </div>
                       </li>

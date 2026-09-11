@@ -131,14 +131,14 @@ export default async function HomePage({
               .filter(Boolean)
               .join(', ')}`}
           >
-            {BATCH_STATUSES.map((s) => {
+            {BATCH_STATUSES.map((s, index) => {
               const n = batches.filter((batch) => batch.status === s).length;
               if (n === 0) return null;
               return (
                 <span
                   key={s}
-                  style={{ width: `${(n / batches.length) * 100}%` }}
-                  className={BAR_TONE[statusTone(s)]}
+                  style={{ width: `${(n / batches.length) * 100}%`, animationDelay: `${Math.min(index * 60, 240)}ms` }}
+                  className={`bar-draw ${BAR_TONE[statusTone(s)]}`}
                 />
               );
             })}

@@ -53,6 +53,24 @@ tbody tr:hover {
   background: color-mix(in srgb, var(--color-text) 4%, transparent);
 }
 
+/* Momento autoral: barras de dados desenham na chegada (transform-only, 1x). */
+@keyframes bar-draw {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.bar-draw {
+  transform-origin: left center;
+  animation: bar-draw 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar-draw {
+    animation: none;
+  }
+}
+
 /* Ritmo único de tabela: utilitários first:/last: continuam vencendo nas bordas. */
 .adpub-table :is(td, th) {
   padding: 10px 12px;
