@@ -24,6 +24,12 @@ export default async function ContasPage() {
 
   const clientNameById = new Map(clients.map((client) => [client.id, client.name]));
 
+  // Ativação: etapas derivadas do estado real, sem persistência extra.
+  const temConexao = connections.length > 0;
+  const temConta = accounts.length > 0;
+  const temVinculo = accounts.some((account) => account.client_id !== null);
+  const passosCompletos = temConexao && temConta && temVinculo;
+
   const head = [
     'Conta',
     'Moeda / Fuso',
@@ -40,6 +46,53 @@ export default async function ContasPage() {
   return (
     <div className="space-y-6">
       <PageHead title="Contas" description="Conexões, contas de anúncio e padrões de publicação." />
+
+      {isAdmin && !passosCompletos ? (
+        <Card title="Primeiros passos">
+          <ol className="space-y-3">
+            {[
+              {
+                feito: temConexao,
+                titulo: 'Conecte a Business Manager',
+                dica: 'Crie a conexão com o token do app Meta no formulário abaixo.',
+              },
+              {
+                feito: temConta,
+                titulo: 'Sincronize as contas',
+                dica: 'Use “Sincronizar” na conexão para importar as contas de anúncio.',
+              },
+              {
+                feito: temVinculo,
+                titulo: 'Vincule um cliente',
+                dica: 'Em Clientes, cadastre e volte aqui para definir os padrões da conta.',
+              },
+            ].map((passo, index) => (
+              <li key={passo.titulo} className="flex items-start gap-3">
+                <span
+                  aria-hidden="true"
+                  className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums ${
+                    passo.feito
+                      ? 'border-[var(--color-ok)] bg-[var(--color-ok)]/15 text-[var(--color-ok)]'
+                      : 'border-[var(--color-border)] text-[var(--color-muted)]'
+                  }`}
+                >
+                  {passo.feito ? (
+                    <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M2.5 6.5 5 9l4.5-6" />
+                    </svg>
+                  ) : (
+                    index + 1
+                  )}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold">{passo.titulo}</p>
+                  <p className="text-sm text-[var(--color-muted)]">{passo.dica}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </Card>
+      ) : null}
 
       <Card
         title="Contas de anúncio"
