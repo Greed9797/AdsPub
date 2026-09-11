@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { safeNextPath } from '@adpub/auth';
 import { currentSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 
@@ -12,10 +13,12 @@ const MESSAGES: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ erro?: string }>;
+  searchParams: Promise<{ erro?: string; next?: string }>;
 }) {
   if (await currentSession()) redirect('/');
-  const { erro } = await searchParams;
+  const { erro, next } = await searchParams;
+  // Só caminho interno volta depois do login (evita redirecionamento aberto).
+  const safeNext = safeNextPath(next);
 
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
@@ -32,7 +35,7 @@ export default async function LoginPage({
           </p>
         ) : null}
         <Link
-          href="/api/auth/login"
+          href={safeNext ? `/api/auth/login?next=${encodeURIComponent(safeNext)}` : '/api/auth/login'}
           className="mt-6 flex h-10 items-center justify-center rounded-[10px] bg-[var(--color-brand-solid)] px-4 text-sm font-semibold text-[var(--color-ink-on-brand)] hover:bg-[var(--color-brand-deep)] hover:text-white"
         >
           Entrar com Google

@@ -24,15 +24,23 @@ preencher as chaves externas do `.env.prod` (§3, item 1).
   anexado ao `/opt/mcrm/Caddyfile` (backup em `Caddyfile.bak.adpub.*`) e foi validado + recarregado.
 - **Alertas no Telegram** (`TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`, os dois juntos ou nenhum) e
   telemetria só de rastros OpenTelemetry — o Sentry saiu do código, das deps e do schema de env.
+- **MCP (connector do ChatGPT) pronto no código, ainda não no host**: `apps/mcp` publica
+  `https://APP_DOMAIN/mcp` com authorization server próprio (PKCE S256, refresh rotativo com
+  detecção de replay, revogação), 13 ferramentas que falam só com a API existente e consentimento
+  com o escopo do usuário logado — quem age é a pessoa, não um serviço. Migration `0012`
+  (`oauth_clients`, `oauth_authorization_codes`, `oauth_tokens`) entra no próximo deploy; o host
+  ainda roda a imagem anterior. Passo a passo, decisões e verificação em `docs/mcp.md`.
 
 ## 2. Como rodar local
 
 ```bash
-bash tmp/dev-up.sh   # recria colima se morto, sobe compose, migra, liga api/worker/web
+bash tmp/dev-up.sh   # recria colima se morto, sobe compose, migra, liga api/worker/web/mcp
 open http://localhost:3000/
 ```
 
-- Web `:3000`, API `:4000` (`/health`). Sem login: entra direto como admin dev.
+- Web `:3000`, API `:4000` (`/health`), MCP `:4410/mcp` — a 4100 já é do stack `openbotw3` nesta
+  máquina, então `MCP_PORT` e `MCP_PUBLIC_URL` andam juntos (issuer sai da URL pública).
+- Sem login: entra direto como admin dev.
 - Se o Mac dormiu, o colima morre — rode `dev-up.sh` de novo.
 - Banco local tem **seed demo** (BM Demo, Demo Store, act_demo, 5 lotes). Apagar antes de teste
   sério: `DELETE FROM batches; DELETE FROM ad_accounts; DELETE FROM clients; DELETE FROM meta_connections;`
@@ -47,16 +55,23 @@ open http://localhost:3000/
    `ANTHROPIC_API_KEY` e `AUTH_ALLOWED_DOMAIN` (hoje `w3bsite.com.br` — **conferir**: é o domínio
    Google dos usuários). Depois: `docker compose -f docker-compose.prod.yml --env-file .env.prod up
    -d web api worker`. O primeiro login Google do domínio nasce admin.
-2. **Piloto T098/T100** — plano humano em `docs/piloto-e-rollout.md`, checkboxes zerados: escolher 3
+2. **Subir o MCP no host** (mesma tacada do item 1, mas o Caddy muda): sincronizar o código
+   (`HOST=w3vps ./infra/deploy-host.sh` ou `git pull` em `/opt/adpub/app`), rodar `migrate` (cria as
+   tabelas `oauth_*`), `up -d mcp api web worker` e **substituir** o bloco do AdPub no
+   `/opt/mcrm/Caddyfile` pelo `infra/Caddyfile.snippet` novo — o `mcp` entrou nas rotas e duplicar o
+   bloco faz o Caddy recusar a config. Depois siga a verificação do `docs/mcp.md` §6 e conecte o
+   connector em `https://adpub.179-198-104-210.sslip.io/mcp`.
+3. **Piloto T098/T100** — plano humano em `docs/piloto-e-rollout.md`, checkboxes zerados: escolher 3
    contas, cadastrar clientes, criar 2 gestores `manager`, rodar 2 semanas (item 1.1 já tem os
    alertas no Telegram prontos para preencher).
-3. **Publicar o repositório no GitHub** (ainda não tem remote) para ligar o workflow `Deploy`/GHCR,
+4. **Publicar o repositório no GitHub** (ainda não tem remote) para ligar o workflow `Deploy`/GHCR,
    o CI de verificação e os secrets `DEPLOY_SSH_KEY`/`DEPLOY_HOST`/`DEPLOY_USER` (+`GHCR_PAT`, já
    que o host não tem login no GHCR). Até lá o deploy é `HOST=w3vps ./infra/deploy-host.sh`.
-4. **Meta App Review** — `docs/meta-app-review.md`; sem aprovação, token real só opera em Limited.
+5. **Meta App Review** — `docs/meta-app-review.md`; sem aprovação, token real só opera em Limited.
    O ambiente de teste do revisor passa a ser `https://adpub.179-198-104-210.sslip.io`.
-5. **Segredos de produção** — já gerados no host (`MASTER_KEY`/`AUTH_SECRET`/senhas, `chmod 600`);
-   trocar `MASTER_KEY` depois invalida os tokens cifrados (é preciso reconectar).
+6. **Segredos de produção** — já gerados no host (`MASTER_KEY`/`AUTH_SECRET`/senhas, `chmod 600`);
+   trocar `MASTER_KEY` depois invalida os tokens cifrados (é preciso reconectar). `AUTH_SECRET`
+   trocado revoga as sessões do app e os consentimentos do MCP de uma vez.
 
 ## 4. Débitos técnicos assumidos (não mexer sem motivo)
 

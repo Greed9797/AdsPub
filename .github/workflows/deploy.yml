@@ -20,7 +20,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        app: [api, worker, web]
+        app: [api, worker, web, mcp]
     steps:
       - uses: actions/checkout@v5
 
@@ -103,7 +103,7 @@ jobs:
             docker network inspect \"\${PROXY_NETWORK:-mcrm_internal}\" >/dev/null ||
               { echo 'rede do proxy ausente: o stack mcrm está no ar? (docs/deploy.md §3)'; exit 1; }
             export IMAGE_PREFIX='${{ steps.prefix.outputs.value }}' IMAGE_TAG='${{ github.sha }}'
-            docker compose -f docker-compose.prod.yml --env-file .env.prod pull api worker web
+            docker compose -f docker-compose.prod.yml --env-file .env.prod pull api worker web mcp
             docker compose -f docker-compose.prod.yml --env-file .env.prod run -T --rm migrate
             docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --wait --wait-timeout 180
             docker compose -f docker-compose.prod.yml --env-file .env.prod ps"

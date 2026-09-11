@@ -181,6 +181,49 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  apps/mcp:
+    dependencies:
+      '@adpub/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@adpub/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@adpub/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@adpub/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@adpub/telemetry':
+        specifier: workspace:*
+        version: link:../../packages/telemetry
+      '@modelcontextprotocol/fastify':
+        specifier: ^2.0.0
+        version: 2.0.0(@modelcontextprotocol/server@2.0.0)(fastify@5.12.3)
+      '@modelcontextprotocol/node':
+        specifier: ^2.0.0
+        version: 2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.13.7)
+      '@modelcontextprotocol/server':
+        specifier: ^2.0.0
+        version: 2.0.0
+      fastify:
+        specifier: ^5.12.3
+        version: 5.12.3
+      zod:
+        specifier: ^4.5.4
+        version: 4.5.4
+    devDependencies:
+      '@types/node':
+        specifier: ^26.5.0
+        version: 26.5.0
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   apps/web:
     dependencies:
       '@adpub/auth':
@@ -1479,6 +1522,12 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
+  '@hono/node-server@1.19.17':
+    resolution: {integrity: sha512-dSneS5qhiauZWGDCeK4o695Xd9nUNjviSZCMQrj10eetr8Uln1ucn6bbphOM6UynAMMtNIzZNSpL9vnASJwrPQ==}
+    engines: {node: '>=18.14.1'}
+    peerDependencies:
+      hono: ^4
+
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
     engines: {node: '>=18.18.0'}
@@ -1699,6 +1748,31 @@ packages:
   '@lukeed/ms@2.0.2':
     resolution: {integrity: sha512-9I2Zn6+NJLfaGoz9jN3lpwDgAYvfGeNYdbAIjJOqzs4Tpc+VU3Jqq4IofSUBKajiDS8k9fZIg18/z13mpk1bsA==}
     engines: {node: '>=8'}
+
+  '@modelcontextprotocol/core@2.0.0':
+    resolution: {integrity: sha512-pJCEwGG7Lfr/+PQp9ZTwKXNeO5wzbfKL7H3MYpCorM4oFBoQrdjnBgEoqG+RjhsvS1FKrDbKux+M1HhlnGWqcA==}
+    engines: {node: '>=20'}
+
+  '@modelcontextprotocol/fastify@2.0.0':
+    resolution: {integrity: sha512-x41AmyQ+olgAjX8EBkVpCztxIcWaInUlVpEatUBSWINZAmTnQYSYqOp9eigb7dxE2W+CtzhP1H+9uUgHRxJPVg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@modelcontextprotocol/server': ^2.0.0
+      fastify: ^5.2.0
+
+  '@modelcontextprotocol/node@2.0.0':
+    resolution: {integrity: sha512-Y4hAC2XdGDUdDOCbLDOCA4+aL3NUldjsOWlDL/YwpAxrPhRm1xHd7lZ+mLacvZ9t3PaH28wgNoaLQGrIk1P2pg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@modelcontextprotocol/server': ^2.0.0
+      hono: ^4.11.4
+    peerDependenciesMeta:
+      hono:
+        optional: true
+
+  '@modelcontextprotocol/server@2.0.0':
+    resolution: {integrity: sha512-YhHWdHfpFMQfd0prsEnxKeS3Qz3ytIGmsS0sth4KDjnacIT7hxk6hXHkJ9KysxlkvTM+WZAtQbbcUhdoP4Hvtw==}
+    engines: {node: '>=20'}
 
   '@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.4':
     resolution: {integrity: sha512-LCkGo6JDfaBhgST7UpPWgNgLINpcpabaHfyz5OBx75nUYxBsaEPxjnyNjWpeb/xBup/682QnBfRBy2/LvPutZQ==}
@@ -3806,6 +3880,10 @@ packages:
 
   hermes-parser@0.25.1:
     resolution: {integrity: sha512-6pEjquH3rqaI6cYAXYPcz9MS4rY6R4ngRgrgfDshRptUZIc3lw0MCIJIGDj9++mfySOuPTHB4nrSW99BCvOPIA==}
+
+  hono@4.13.7:
+    resolution: {integrity: sha512-c8/gF9ac8Y78/agExVocyLevgR+JlpNB444Py0FSX8pJoPdYUfUzRcXtYEYGwt6l19qIlVZPN5Mfsw9jFShmQQ==}
+    engines: {node: '>=16.9.0'}
 
   hookified@1.15.1:
     resolution: {integrity: sha512-MvG/clsADq1GPM2KGo2nyfaWVyn9naPiXrqIe4jYjXNZQt238kWyOGrsyc/DmRAQ+Re6yeo6yX/yoNCG5KAEVg==}
@@ -6076,6 +6154,10 @@ snapshots:
       protobufjs: 7.6.6
       yargs: 17.7.3
 
+  '@hono/node-server@1.19.17(hono@4.13.7)':
+    dependencies:
+      hono: 4.13.7
+
   '@humanfs/core@0.19.2':
     dependencies:
       '@humanfs/types': 0.15.0
@@ -6239,6 +6321,27 @@ snapshots:
   '@keyv/serialize@1.1.1': {}
 
   '@lukeed/ms@2.0.2': {}
+
+  '@modelcontextprotocol/core@2.0.0':
+    dependencies:
+      zod: 4.5.4
+
+  '@modelcontextprotocol/fastify@2.0.0(@modelcontextprotocol/server@2.0.0)(fastify@5.12.3)':
+    dependencies:
+      '@modelcontextprotocol/server': 2.0.0
+      fastify: 5.12.3
+
+  '@modelcontextprotocol/node@2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.13.7)':
+    dependencies:
+      '@hono/node-server': 1.19.17(hono@4.13.7)
+      '@modelcontextprotocol/server': 2.0.0
+    optionalDependencies:
+      hono: 4.13.7
+
+  '@modelcontextprotocol/server@2.0.0':
+    dependencies:
+      '@modelcontextprotocol/core': 2.0.0
+      zod: 4.5.4
 
   '@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.4':
     optional: true
@@ -8609,6 +8712,8 @@ snapshots:
   hermes-parser@0.25.1:
     dependencies:
       hermes-estree: 0.25.1
+
+  hono@4.13.7: {}
 
   hookified@1.15.1: {}
 

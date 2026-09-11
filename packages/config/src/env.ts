@@ -88,6 +88,26 @@ export const webEnvSchema = z.object({
 
 export type WebEnv = z.infer<typeof webEnvSchema>;
 
+/**
+ * Servidor MCP (`apps/mcp`). Fala no mesmo host público do app (o Caddy
+ * encaminha `/mcp` e as rotas OAuth), então a sessão do navegador vale na tela
+ * de consentimento sem cookie de domínio.
+ */
+export const mcpEnvSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  DATABASE_URL: nonEmpty,
+  AUTH_SECRET: nonEmpty,
+  API_URL: nonEmpty.default('http://localhost:4000'),
+  MCP_PORT: z.coerce.number().int().positive().default(4100),
+  /** URL pública do endpoint MCP (ex.: `https://adpub.host/mcp`) — dela saem issuer, resource e metadados. */
+  MCP_PUBLIC_URL: z.string().url(),
+  /** Hosts aceitos no header `Host` (DNS rebinding). Vazio usa só o host da URL pública. */
+  MCP_ALLOWED_HOSTS: z.string().default(''),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+});
+
+export type McpEnv = z.infer<typeof mcpEnvSchema>;
+
 function parse<T extends z.ZodType>(schema: T, source: NodeJS.ProcessEnv): z.infer<T> {
   const result = schema.safeParse(source);
   if (!result.success) {
@@ -115,8 +135,17 @@ export function loadWebEnv(source: NodeJS.ProcessEnv = process.env): WebEnv {
   return parsed;
 }
 
+let mcpCache: McpEnv | undefined;
+export function loadMcpEnv(source: NodeJS.ProcessEnv = process.env): McpEnv {
+  if (source === process.env && mcpCache) return mcpCache;
+  const parsed = parse(mcpEnvSchema, source);
+  if (source === process.env) mcpCache = parsed;
+  return parsed;
+}
+
 /** Só para testes. */
 export function resetEnvCache(): void {
   serverCache = undefined;
   webCache = undefined;
+  mcpCache = undefined;
 }

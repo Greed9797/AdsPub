@@ -845,7 +845,79 @@ export const auditLog = pgTable(
   ],
 );
 
+/**
+ * Autorização OAuth 2.1 do servidor MCP (apps/mcp): registro dinâmico de
+ * clientes, códigos com PKCE e tokens opacos guardados só como hash. São
+ * tabelas do app MCP — a API não lê nem escreve aqui.
+ */
+export const oauthClients = pgTable('oauth_clients', {
+  clientId: text('client_id').primaryKey(),
+  clientName: text('client_name').notNull().default(''),
+  redirectUris: text('redirect_uris').array().notNull(),
+  grantTypes: text('grant_types').array().notNull(),
+  responseTypes: text('response_types').array().notNull(),
+  scopes: text('scopes').array().notNull().default(sql`'{}'::text[]`),
+  tokenEndpointAuthMethod: text('token_endpoint_auth_method').notNull().default('none'),
+  registeredAt: createdAt,
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+});
+
+export const oauthAuthorizationCodes = pgTable(
+  'oauth_authorization_codes',
+  {
+    codeHash: text('code_hash').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    redirectUri: text('redirect_uri').notNull(),
+    codeChallenge: text('code_challenge').notNull(),
+    codeChallengeMethod: text('code_challenge_method').notNull().default('S256'),
+    scopes: text('scopes').array().notNull().default(sql`'{}'::text[]`),
+    resource: text('resource'),
+    /** Uso único: `consumed_at` marca a troca e barra replay do código. */
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt,
+  },
+  (t) => [index('oauth_codes_expires_idx').on(t.expiresAt)],
+);
+
+export const oauthTokens = pgTable(
+  'oauth_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Corrente de rotações do mesmo consentimento. */
+    familyId: uuid('family_id').notNull(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: 'cascade' }),
+    /** Quem consentiu: cada chamada de ferramenta age como este usuário. */
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    accessTokenHash: text('access_token_hash').notNull().unique(),
+    refreshTokenHash: text('refresh_token_hash').unique(),
+    scopes: text('scopes').array().notNull().default(sql`'{}'::text[]`),
+    resource: text('resource'),
+    accessExpiresAt: timestamp('access_expires_at', { withTimezone: true }).notNull(),
+    refreshExpiresAt: timestamp('refresh_expires_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt,
+  },
+  (t) => [
+    index('oauth_tokens_family_idx').on(t.familyId),
+    index('oauth_tokens_user_idx').on(t.userId),
+    index('oauth_tokens_access_expires_idx').on(t.accessExpiresAt),
+  ],
+);
+
 export type UserRow = typeof users.$inferSelect;
+export type OAuthClientRow = typeof oauthClients.$inferSelect;
+export type OAuthAuthorizationCodeRow = typeof oauthAuthorizationCodes.$inferSelect;
+export type OAuthTokenRow = typeof oauthTokens.$inferSelect;
 export type MetaConnectionRow = typeof metaConnections.$inferSelect;
 export type ClientRow = typeof clients.$inferSelect;
 export type AdAccountRow = typeof adAccounts.$inferSelect;

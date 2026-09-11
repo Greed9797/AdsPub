@@ -85,6 +85,13 @@
       "when": 1789063355942,
       "tag": "0011_chemical_swarm",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789168946801,
+      "tag": "0012_bouncy_nightmare",
+      "breakpoints": true
     }
   ]
 }

@@ -15,6 +15,7 @@ rede docker do Caddy existente (`mcrm_internal`) e o roteamento é feito lá.
 | Serviço | O que é | Exposto |
 |---|---|---|
 | `web` (`adpub-web`) | Next.js (BFF; única cara do produto) | rede `mcrm_internal`, atrás do Caddy |
+| `mcp` (`adpub-mcp`) | servidor MCP + OAuth (ChatGPT; `docs/mcp.md`) | rede `mcrm_internal`, atrás do Caddy (`/mcp`, `/authorize`, …) |
 | `minio` (`adpub-minio`) | storage S3 (links assinados do browser) | rede `mcrm_internal`, atrás do Caddy |
 | `api` (`adpub-api`) | Fastify (contrato OpenAPI, produtor das filas) | só a rede interna |
 | `worker` (`adpub-worker`) | consumidores BullMQ (único que escreve na Meta) | só a rede interna |
@@ -64,7 +65,9 @@ scp infra/.env.prod.example deploy@servidor:/opt/adpub/.env.prod   # e edite no 
 chmod 600 .env.prod
 
 # 2) Rotas no Caddy do mcrm (o snippet acabou de chegar). Uma vez só: repetir o
-#    `>>` duplicaria os blocos e o Caddy recusaria a config.
+#    `>>` duplicaria os blocos e o Caddy recusaria a config. Em host que já
+#    tinha o bloco do AdPub, SUBSTITUA-o pelo snippet novo (o serviço `mcp`
+#    entrou nas rotas) em vez de anexar de novo — ver docs/mcp.md §6.
 sudo cp /opt/mcrm/Caddyfile /opt/mcrm/Caddyfile.bak.adpub.$(date +%F)
 sudo sh -c 'cat /opt/adpub/Caddyfile.snippet >> /opt/mcrm/Caddyfile'
 docker exec mcrm-caddy-1 caddy reload --config /etc/caddy/Caddyfile   # `deploy` está no grupo docker
@@ -129,11 +132,14 @@ puxar imagem privada).
 
 ```bash
 curl -fsS -o /dev/null -w '%{http_code}\n' https://APP_DOMAIN/login          # 200
+curl -fsS -o /dev/null -w '%{http_code}\n' https://APP_DOMAIN/.well-known/oauth-protected-resource/mcp  # 200
 curl -fsS -o /dev/null -w '%{http_code}\n' https://S3_DOMAIN/minio/health/live  # 200
 
 cd /opt/adpub
 docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T api \
   node -e "fetch('http://127.0.0.1:4000/health').then(r=>r.text()).then(console.log)"
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T mcp \
+  node -e "fetch('http://127.0.0.1:4100/health').then(r=>r.text()).then(console.log)"
 docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres \
   psql -U adpub -d adpub -c 'select id, created_at from drizzle.__drizzle_migrations order by created_at;'
 ```
@@ -194,6 +200,7 @@ Restore: `docs/restore.md`. Teste o restore pelo menos uma vez antes do piloto.
 | Console do MinIO | túnel SSH para `<ip-do-container>:9001` |
 | Trocar rotas/hosts no proxy | editar `/opt/mcrm/Caddyfile` + `docker exec mcrm-caddy-1 caddy reload --config /etc/caddy/Caddyfile` |
 | Ver quem está na rede do proxy | `docker network inspect mcrm_internal --format '{{range .Containers}}{{.Name}} {{end}}'` |
+| Cortar o acesso do MCP | desconectar o connector no cliente, `docker compose stop mcp` ou `update oauth_tokens set revoked_at = now() where revoked_at is null;` (docs/mcp.md) |
 
 Trocar `META_TIER=limited → full` (depois do App Review) é `.env.prod` + `up -d worker api`.
 

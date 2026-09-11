@@ -40,7 +40,7 @@ echo "== construindo imagens no host (tag $TAG)"
 ssh "$HOST" "set -e
   cd '$APP'
   prefix='$PREFIX'; tag='$TAG'
-  for app in api worker web; do
+  for app in api worker web mcp; do
     echo \"-- \$app:\$tag\"
     docker build -f apps/\$app/Dockerfile -t \"\$prefix/adpub-\$app:\$tag\" .
   done"

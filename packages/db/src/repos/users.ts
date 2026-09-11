@@ -9,6 +9,11 @@ export async function findUserByEmail(db: Database, email: string): Promise<User
   return row;
 }
 
+export async function findUserById(db: Database, id: string): Promise<UserRow | undefined> {
+  const [row] = await db.select().from(users).where(eq(users.id, id));
+  return row;
+}
+
 /** Primeiro usuário do domínio nasce admin; os demais entram como manager. */
 export async function upsertUserFromLogin(
   db: Database,

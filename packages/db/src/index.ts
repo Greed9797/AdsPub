@@ -6,6 +6,7 @@ export * from './repos/connections.js';
 export * from './repos/accounts.js';
 export * from './repos/clients.js';
 export * from './repos/users.js';
+export * from './repos/oauth.js';
 export * from './repos/assets.js';
 export * from './repos/batches.js';
 export * from './repos/drafts.js';

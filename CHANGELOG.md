@@ -6,6 +6,25 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não publicado]
 
+### Adicionado (MCP: connector do ChatGPT)
+
+- `apps/mcp`: servidor MCP remoto em `https://APP_DOMAIN/mcp` com authorization server próprio —
+  metadados RFC 9728/8414, registro dinâmico (RFC 7591), PKCE S256 obrigatório, refresh rotativo com
+  detecção de replay e revogação (RFC 7009). Quem age é o usuário que consentiu: cada chamada de
+  ferramenta assina a sessão dele, então a API aplica os papéis e a auditoria registra a pessoa, não
+  um serviço.
+- 13 ferramentas (9 de leitura + 4 de publicação) que falam só com a API existente — nenhuma rota
+  nova. `publicar_lote` exige `confirm_count` e as ferramentas de escrita ficam indisponíveis sem o
+  escopo de publicação.
+- Migration `0012`: `oauth_clients`, `oauth_authorization_codes` e `oauth_tokens` (tokens opacos,
+  guardados como SHA-256; acesso de 1 h, refresh de 30 dias).
+- Serviço `mcp` no `docker-compose.prod.yml`, rotas no snippet do Caddy e tela de consentimento com
+  aviso de gasto; a volta pós-login (`?next=`) passa pelo novo `safeNextPath` em `@adpub/auth`, que
+  só aceita caminho interno (o login não vira redirecionamento aberto).
+- `docs/mcp.md` (conectar no ChatGPT, ferramentas, decisões de autorização, configuração, local,
+  produção e limites) e teste de integração do fluxo completo em
+  `apps/mcp/test/oauth-flow.test.ts` (banco descartável + duplo da API).
+
 ### Adicionado (deploy de produção)
 
 - `infra/docker-compose.prod.yml` (host compartilhado: web, api, worker,

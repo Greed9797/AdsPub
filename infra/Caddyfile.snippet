@@ -3,11 +3,15 @@
 # O Caddy do stack `mcrm` já é dono das portas 80/443 e resolve ACME. Subir um
 # segundo Caddy exigiria disputar porta e reemitir certificado sem ganho.
 #
-# `adpub-web` (3000) e `adpub-minio` (9000) resolvem porque esses serviços
-# entram na rede `mcrm_internal` (ver docker-compose.prod.yml, network `proxy`).
+# `adpub-web` (3000), `adpub-mcp` (4100) e `adpub-minio` (9000) resolvem porque
+# esses serviços entram na rede `mcrm_internal` (ver docker-compose.prod.yml,
+# network `proxy`).
 #
 # Troque os hosts abaixo pelos domínios reais do `.env.prod` e recarregue:
 #   docker exec mcrm-caddy-1 caddy reload --config /etc/caddy/Caddyfile
+#
+# Já anexou uma versão anterior deste bloco? Substitua o bloco inteiro (não
+# acrescente outro: dois sites para o mesmo host e o Caddy recusa a config).
 
 adpub.179-198-104-210.sslip.io {
 	encode gzip
@@ -17,6 +21,13 @@ adpub.179-198-104-210.sslip.io {
 	header @static Cache-Control "public, max-age=31536000, immutable"
 	@html not path /_next/static/*
 	header @html Cache-Control "no-cache, must-revalidate"
+
+	# O servidor MCP mora no mesmo host do app (assim a sessão do navegador
+	# vale na tela de consentimento): /mcp, OAuth e os dois metadados.
+	@mcp path /mcp* /.well-known/oauth-* /authorize* /token* /register* /revoke*
+	handle @mcp {
+		reverse_proxy adpub-mcp:4100
+	}
 
 	handle {
 		reverse_proxy adpub-web:3000

@@ -1,5 +1,6 @@
-# Produção num host compartilhado: web + api + worker + Postgres + Redis + MinIO
-# atrás do Caddy do stack `mcrm`, que já é dono das portas 80/443 e resolve ACME.
+# Produção num host compartilhado: web + api + worker + mcp + Postgres + Redis
+# + MinIO atrás do Caddy do stack `mcrm`, que já é dono das portas 80/443 e
+# resolve ACME.
 # Subir um segundo Caddy exigiria disputar porta e reemitir certificado sem
 # ganho: as rotas públicas entram no Caddyfile dele via `Caddyfile.snippet`.
 # Segredos, deploy e rollback: docs/deploy.md.
@@ -183,6 +184,31 @@ services:
       resources:
         # ffmpeg/ffprobe na validação de mídia são o pico do stack.
         limits: { memory: 2G }
+
+  # Servidor MCP: /mcp (ferramentas para ChatGPT e afins) + as rotas OAuth de
+  # consentimento. Fala no mesmo host do app — o Caddy encaminha os caminhos
+  # dele para cá (ver Caddyfile.snippet).
+  mcp:
+    <<: *app
+    image: ${IMAGE_PREFIX:?}/adpub-mcp:${IMAGE_TAG:?}
+    container_name: adpub-mcp
+    environment:
+      DATABASE_URL: postgres://adpub:${POSTGRES_PASSWORD}@postgres:5432/adpub
+      AUTH_SECRET: ${AUTH_SECRET:?defina AUTH_SECRET no .env.prod}
+      API_URL: http://api:4000
+      # A URL pública define issuer, resource e os metadados OAuth.
+      MCP_PUBLIC_URL: https://${APP_DOMAIN:?defina APP_DOMAIN no .env.prod}/mcp
+      MCP_ALLOWED_HOSTS: ${APP_DOMAIN:?defina APP_DOMAIN no .env.prod}
+    # `proxy` é o que deixa o Caddy existente alcançar /mcp.
+    networks: [internal, proxy]
+    depends_on:
+      api:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits: { memory: 256M }
 
   web:
     image: ${IMAGE_PREFIX:?}/adpub-web:${IMAGE_TAG:?}

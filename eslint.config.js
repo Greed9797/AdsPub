@@ -27,6 +27,7 @@ export default tseslint.config(
       'specs/**',
       'infra/**',
       '**/*.d.ts',
+      'tmp/**',
     ],
   },
   js.configs.recommended,

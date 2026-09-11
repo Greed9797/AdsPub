@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildGoogleAuthUrl, identityFromClaims, isAllowedDomain } from '../src/google.js';
-import { mintSessionToken, verifySessionToken } from '../src/session.js';
+import { mintSessionToken, safeNextPath, verifySessionToken } from '../src/session.js';
 
 const SECRET = 'segredo-de-teste-com-tamanho-suficiente';
 const user = { id: 'u1', email: 'gestor@empresa.com.br', name: 'Gestor', role: 'manager' as const };
@@ -27,6 +27,22 @@ describe('sessão interna', () => {
       SECRET,
     );
     await expect(verifySessionToken(token, SECRET)).rejects.toThrow();
+  });
+});
+
+describe('safeNextPath (volta pós-login)', () => {
+  it('aceita caminho interno, com query', () => {
+    expect(safeNextPath('/authorize?client_id=c1&state=s1')).toBe('/authorize?client_id=c1&state=s1');
+    expect(safeNextPath('/contas')).toBe('/contas');
+  });
+
+  it('recusa host externo e caminho vazio', () => {
+    expect(safeNextPath('//evil.com/login')).toBeUndefined();
+    expect(safeNextPath('https://evil.com')).toBeUndefined();
+    expect(safeNextPath('contas')).toBeUndefined();
+    expect(safeNextPath('')).toBeUndefined();
+    expect(safeNextPath(null)).toBeUndefined();
+    expect(safeNextPath(undefined)).toBeUndefined();
   });
 });
 

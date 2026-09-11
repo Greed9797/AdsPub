@@ -34,6 +34,9 @@ jobs:
 
     env:
       DATABASE_URL: postgres://adpub:adpub@localhost:5432/adpub
+      # Banco-sede dos testes que criam o próprio banco (harness do e2e e o
+      # fluxo OAuth do MCP). No runner os serviços ficam nas portas canônicas.
+      E2E_POSTGRES_BASE_URL: postgres://adpub:adpub@127.0.0.1:5432
       REDIS_URL: redis://localhost:6379
       MASTER_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
       META_APP_ID: '000000000000000'
@@ -107,9 +110,8 @@ jobs:
 
       - name: e2e Playwright (Meta em duplo local)
         env:
-          # No runner os serviços ficam nas portas canônicas; o padrão local usa
-          # portas alternativas. O banco `adpub_e2e` é criado pelo próprio harness.
-          E2E_POSTGRES_BASE_URL: postgres://adpub:adpub@127.0.0.1:5432
+          # No runner os serviços ficam nas portas canônicas (a base do Postgres
+          # vem do job); o banco `adpub_e2e` é criado pelo próprio harness.
           E2E_REDIS_URL: redis://127.0.0.1:6379/3
           E2E_S3_ENDPOINT: http://127.0.0.1:9000
         run: |
