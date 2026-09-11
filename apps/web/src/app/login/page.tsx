@@ -20,7 +20,7 @@ export default async function LoginPage({
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
       <div className="w-full max-w-sm rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-8">
-        <h1 className="text-xl font-semibold tracking-[-0.03em]">
+        <h1 className="font-cond text-3xl font-semibold tracking-[0.02em]">
           AdPub<span className="text-[var(--color-brand)]">.</span>
         </h1>
         <p className="mt-1 text-sm text-[var(--color-muted)]">

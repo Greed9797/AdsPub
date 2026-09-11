@@ -108,19 +108,19 @@ export default async function PerformancePage({
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
               <div>
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">Gasto</dt>
-                <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-[-0.03em]">{money(data.totals.spend)}</dd>
+                <dd className="mt-1 font-cond text-4xl font-semibold tabular-nums">{money(data.totals.spend)}</dd>
               </div>
               <div>
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
                   Impressões
                 </dt>
-                <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-[-0.03em]">
+                <dd className="mt-1 font-cond text-4xl font-semibold tabular-nums">
                   {data.totals.impressions.toLocaleString('pt-BR')}
                 </dd>
               </div>
               <div>
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">CPA</dt>
-                <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-[-0.03em]">
+                <dd className="mt-1 font-cond text-4xl font-semibold tabular-nums">
                   {data.totals.cpa.value === null ? '—' : money(data.totals.cpa.value)}
                 </dd>
                 {data.totals.cpa.value === null ? (
@@ -129,7 +129,7 @@ export default async function PerformancePage({
               </div>
               <div>
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">ROAS</dt>
-                <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-[-0.03em]">
+                <dd className="mt-1 font-cond text-4xl font-semibold tabular-nums">
                   {data.totals.roas.value === null ? '—' : money(data.totals.roas.value)}
                 </dd>
                 {data.totals.roas.value === null ? (
@@ -139,7 +139,8 @@ export default async function PerformancePage({
             </dl>
             <p className="mt-4 border-t border-[var(--color-border)] pt-3 text-xs text-[var(--color-muted)]">
               Fonte: {data.sources.filter} · {data.sources.observations} observações ·{' '}
-              {data.sources.snapshots.length} snapshot(s) · atualizado em {data.sources.observed_at_max ?? '—'}
+              {data.sources.snapshots.length} snapshot(s) · atualizado em {data.sources.observed_at_max ?? '—'} ·
+              definições {data.metric_version}
             </p>
           </Card>
 

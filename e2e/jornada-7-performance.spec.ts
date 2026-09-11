@@ -10,6 +10,6 @@ test('performance mostra totais e limitações do recorte', async ({ page, seed 
   await page.getByLabel('Conta').selectOption({ label: seed.account.name });
   await page.getByRole('button', { name: 'Consultar' }).click();
 
-  await expect(page.getByText('Gasto:')).toBeVisible();
+  await expect(page.getByText('Impressões', { exact: true })).toBeVisible();
   await expect(page.getByText(/definições v1/)).toBeVisible();
 });

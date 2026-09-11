@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
-import { Bricolage_Grotesque } from 'next/font/google';
+import { Bricolage_Grotesque, Oswald } from 'next/font/google';
 import Link from 'next/link';
 import './globals.css';
 import { currentSession } from '@/lib/session';
 import { AppNav, type NavGroup, type NavItem } from '@/components/app-nav';
-import { ThemeToggle } from '@/components/theme-toggle';
 
 export const metadata: Metadata = {
   title: 'AdPub',
@@ -17,6 +16,14 @@ const display = Bricolage_Grotesque({
   weight: ['400', '500', '600', '700'],
   display: 'swap',
   variable: '--font-display',
+});
+
+/** Condensada estilo refs (AXIS/BAS): títulos, KPIs e números grandes. */
+const condensed = Oswald({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  display: 'swap',
+  variable: '--font-condensed',
 });
 
 const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
@@ -61,14 +68,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const user = await currentSession();
 
   return (
-    <html lang="pt-BR" className={display.variable} suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{document.documentElement.dataset.theme=localStorage.getItem('adpub-theme')||'dark'}catch(e){}`,
-          }}
-        />
-      </head>
+    <html lang="pt-BR" className={`${display.variable} ${condensed.variable}`}>
       <body className="min-h-screen">
         <a
           href="#conteudo"
@@ -80,7 +80,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="min-h-screen lg:flex">
             <aside className="hidden w-64 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)] lg:block">
               <div className="no-scrollbar sticky top-0 flex max-h-screen flex-col gap-8 overflow-y-auto p-5">
-                <Link href="/" className="px-2 pt-1 text-xl font-semibold tracking-[-0.03em]">
+                <Link href="/" className="font-cond px-2 pt-1 text-2xl font-semibold tracking-[0.02em]">
                   AdPub<span className="text-[var(--color-brand)]">.</span>
                 </Link>
                 <AppNav groups={visibleNav()} variant="sidebar" />
@@ -89,11 +89,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="flex min-w-0 flex-1 flex-col">
               <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
                 <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
-                  <Link href="/" className="text-base font-semibold tracking-[-0.03em] lg:hidden">
+                  <Link href="/" className="font-cond text-xl font-semibold tracking-[0.02em] lg:hidden">
                     AdPub<span className="text-[var(--color-brand)]">.</span>
                   </Link>
                   <div className="flex-1" />
-                  <ThemeToggle />
                   <span className="hidden max-w-48 truncate text-xs text-[var(--color-muted)] sm:block">
                     {user.email}
                   </span>

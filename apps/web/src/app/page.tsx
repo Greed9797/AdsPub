@@ -114,7 +114,7 @@ export default async function HomePage({
               <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
                 {label}
               </dt>
-              <dd className={`mt-1 text-3xl font-semibold tabular-nums tracking-[-0.03em] ${tone}`}>
+              <dd className={`font-cond mt-1 text-4xl font-semibold tabular-nums ${tone}`}>
                 {value}
               </dd>
             </div>

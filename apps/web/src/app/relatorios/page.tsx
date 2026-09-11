@@ -27,7 +27,7 @@ export default async function RelatoriosPage({
     <div className="space-y-6">
       <PageHead title="Relatórios" description="Arquivo vira base confiável." />
       <Card>
-        <form method="get" action="/relatorios" aria-label="Escolher cliente" className="flex flex-wrap items-end gap-3">
+        <form method="get" action="/relatorios" className="flex flex-wrap items-end gap-3">
           <Field label="Cliente" className="w-full sm:w-64">
             <select name="client_id" defaultValue={clientId ?? ''} className={inputClass}>
               <option value="">Selecione</option>

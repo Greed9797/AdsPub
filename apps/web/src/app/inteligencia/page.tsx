@@ -27,7 +27,7 @@ export default async function InteligenciaPage({
     <div className="space-y-6">
       <PageHead title="Inteligência" description="Fatos, hipóteses e próximos testes." />
       <Card>
-        <form method="get" action="/inteligencia" aria-label="Escolher conta" className="flex flex-wrap items-end gap-3">
+        <form method="get" action="/inteligencia" className="flex flex-wrap items-end gap-3">
           <Field label="Conta" className="w-full sm:w-64">
             <select name="ad_account_id" defaultValue={accountId ?? ''} className={inputClass}>
               <option value="">Selecione</option>

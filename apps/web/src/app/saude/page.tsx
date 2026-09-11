@@ -61,6 +61,9 @@ export default async function SaudePage() {
   const rows = await api<AccountHealth[]>('/health/accounts');
   const linhas: LinhaSaude[] = rows.map((row) => ({ ...row, alertas: alertasDaConta(row) }));
   const emAtencao = linhas.filter((linha) => linha.alertas.length > 0).length;
+  const noTeto = linhas.filter((linha) => linha.published_today >= linha.daily_cap).length;
+  const erroMedio =
+    linhas.length === 0 ? 0 : linhas.reduce((soma, linha) => soma + linha.error_rate_1h, 0) / linhas.length;
 
   return (
     <div className="space-y-6">
@@ -75,6 +78,24 @@ export default async function SaudePage() {
           </Badge>
         }
       />
+
+      <Card title="Resumo">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+          {[
+            ['Contas', String(linhas.length), 'text-[var(--color-text)]'],
+            ['Em atenção', String(emAtencao), emAtencao > 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-ok)]'],
+            ['Erro médio 1h', toPercent(erroMedio), erroMedio > ERROR_RATE_LIMIT ? 'text-[var(--color-danger)]' : 'text-[var(--color-text)]'],
+            ['No teto diário', String(noTeto), noTeto > 0 ? 'text-[var(--color-warn)]' : 'text-[var(--color-muted)]'],
+          ].map(([label, value, tone]) => (
+            <div key={label as string}>
+              <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
+                {label}
+              </dt>
+              <dd className={`font-cond mt-1 text-4xl font-semibold tabular-nums ${tone}`}>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </Card>
 
       <Card title="Contas">
         {linhas.length === 0 ? (
