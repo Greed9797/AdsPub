@@ -29,6 +29,10 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
   `/opt/adpub/app`, constrói as três imagens no host (tag = sha curto), roda
   `migrate` e aplica `up -d --wait`. É o caminho enquanto o repositório não tem
   remote; o workflow `Deploy` assume depois, pelo GHCR.
+- `docs/credenciais-externas.md`: passo a passo de cada credencial que falta no
+  `.env.prod` de produção (Google OAuth com o redirect exato, app Meta e token do
+  System User, chave Anthropic, bot do Telegram), onde cada valor entra, como
+  aplicar no host e o checklist de aceite.
 - Teste local do stack de produção documentado em `docs/deploy.md` §9.
 
 ### Alterado (alertas e telemetria)

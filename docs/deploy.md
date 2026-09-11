@@ -48,6 +48,8 @@ do servidor, então isso dá TLS válido sem tocar no DNS. Quando houver domíni
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` (opcional) | bot do @BotFather e o id do chat; os dois juntos (docs/piloto-e-rollout.md §1.1) |
 
 O `.env.prod` vive **só no servidor** (`chmod 600`) — nunca no repositório. O CI já roda `gitleaks`.
+Como criar cada credencial (Google OAuth, app Meta, chave Anthropic, bot do Telegram) e onde colar:
+`docs/credenciais-externas.md`.
 
 ## 3. Preparar o host (uma vez)
 

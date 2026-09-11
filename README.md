@@ -123,6 +123,7 @@ Da [constituição do projeto](memory/constitution.md) — não são convençõe
 | [`docs/migracao-v26.md`](docs/migracao-v26.md) | Plano de migração `v25.0` → `v26.0`, inventário de campos e rollback |
 | [`docs/piloto-e-rollout.md`](docs/piloto-e-rollout.md) | Piloto de 2 gestores, medição de SC-003/SC-005, treinamento e rollout às 17 contas |
 | [`docs/deploy.md`](docs/deploy.md) | Deploy de produção num host compartilhado: `infra/docker-compose.prod.yml` atrás do Caddy do `mcrm`, segredos, backup, rollback e teste local do stack |
+| [`docs/credenciais-externas.md`](docs/credenciais-externas.md) | Passo a passo para criar Google OAuth, app Meta, chave Anthropic e bot do Telegram, onde cada valor entra e como aplicar no host |
 
 Da especificação:
 

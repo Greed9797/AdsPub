@@ -40,8 +40,9 @@ open http://localhost:3000/
 
 ## 3. O que falta (infra/humano)
 
-1. **Fechar a configuração de produção (só chaves externas)** — no `/opt/adpub/.env.prod` há 6
-   `TROCAR`: `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (OAuth com redirect
+1. **Fechar a configuração de produção (só chaves externas)** — passo a passo em
+   `docs/credenciais-externas.md`: no `/opt/adpub/.env.prod` há 6 `TROCAR` —
+   `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (OAuth com redirect
    `https://adpub.179-198-104-210.sslip.io/api/auth/callback`), `META_APP_ID`/`META_APP_SECRET`,
    `ANTHROPIC_API_KEY` e `AUTH_ALLOWED_DOMAIN` (hoje `w3bsite.com.br` — **conferir**: é o domínio
    Google dos usuários). Depois: `docker compose -f docker-compose.prod.yml --env-file .env.prod up
