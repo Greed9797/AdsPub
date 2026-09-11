@@ -1,0 +1,15 @@
+# Contexto dos Dockerfiles (raiz do repo): só código; o build acontece na imagem.
+**/node_modules/
+**/dist/
+**/.next/
+**/.turbo/
+**/*.tsbuildinfo
+**/coverage/
+**/playwright-report/
+**/test-results/
+**/.artifacts/
+tmp/
+.git/
+.github/
+**/.env
+**/.env.*

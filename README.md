@@ -122,6 +122,7 @@ Da [constituição do projeto](memory/constitution.md) — não são convençõe
 | [`docs/meta-app-review.md`](docs/meta-app-review.md) | Checklist do App Review para Full Access, roteiro do screencast e registro da submissão |
 | [`docs/migracao-v26.md`](docs/migracao-v26.md) | Plano de migração `v25.0` → `v26.0`, inventário de campos e rollback |
 | [`docs/piloto-e-rollout.md`](docs/piloto-e-rollout.md) | Piloto de 2 gestores, medição de SC-003/SC-005, treinamento e rollout às 17 contas |
+| [`docs/deploy.md`](docs/deploy.md) | Deploy de produção: VPS único com `infra/docker-compose.prod.yml`, segredos, backup, rollback e teste local do stack |
 
 Da especificação:
 

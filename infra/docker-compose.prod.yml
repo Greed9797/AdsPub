@@ -1,0 +1,188 @@
+# Produção num VPS único: web + api + worker + Postgres + Redis + MinIO atrás
+# do Caddy (TLS automático). Passo a passo, segredos e rollback: docs/deploy.md.
+#
+#   cd /srv/adpub
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+#
+# Nenhuma porta de banco, storage ou app é publicada: só o Caddy (80/443)
+# conversa com a internet. As imagens vêm do GHCR (IMAGE_PREFIX/IMAGE_TAG).
+
+name: adpub
+
+x-app: &app
+  env_file: [.env.prod]
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: adpub
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env.prod}
+      POSTGRES_DB: adpub
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U adpub -d adpub']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?defina MINIO_ROOT_USER no .env.prod}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?defina MINIO_ROOT_PASSWORD no .env.prod}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # O app não cria o bucket (com S3 gerenciado quem cria é a operação); aqui o
+  # MinIO nasce vazio, então o bucket é criado uma vez, de forma idempotente.
+  minio-init:
+    image: minio/mc:latest
+    restart: 'no'
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?defina MINIO_ROOT_USER no .env.prod}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?defina MINIO_ROOT_PASSWORD no .env.prod}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
+        mc mb --ignore-existing "local/${S3_BUCKET:-adpub}"
+
+  # Aplica as migrações antes de api/worker subirem; roda e sai.
+  migrate:
+    <<: *app
+    image: ${IMAGE_PREFIX:?}/adpub-api:${IMAGE_TAG:?}
+    command: ['node', 'node_modules/@adpub/db/dist/migrate.js']
+    environment:
+      DATABASE_URL: postgres://adpub:${POSTGRES_PASSWORD}@postgres:5432/adpub
+    restart: 'no'
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    image: ${IMAGE_PREFIX:?}/adpub-api:${IMAGE_TAG:?}
+    environment:
+      DATABASE_URL: postgres://adpub:${POSTGRES_PASSWORD}@postgres:5432/adpub
+      REDIS_URL: redis://redis:6379
+      # URL pública do storage: os links assinados são abertos pelo browser.
+      S3_ENDPOINT: https://${S3_DOMAIN:?defina S3_DOMAIN no .env.prod}
+      S3_BUCKET: ${S3_BUCKET:-adpub}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      API_URL: http://api:4000
+      WEB_URL: https://${APP_DOMAIN:?defina APP_DOMAIN no .env.prod}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    image: ${IMAGE_PREFIX:?}/adpub-worker:${IMAGE_TAG:?}
+    # Job de publicação em andamento tem 30s para terminar antes do SIGKILL.
+    stop_grace_period: 30s
+    environment:
+      DATABASE_URL: postgres://adpub:${POSTGRES_PASSWORD}@postgres:5432/adpub
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: https://${S3_DOMAIN:?defina S3_DOMAIN no .env.prod}
+      S3_BUCKET: ${S3_BUCKET:-adpub}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      WEB_URL: https://${APP_DOMAIN:?defina APP_DOMAIN no .env.prod}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    restart: unless-stopped
+    image: ${IMAGE_PREFIX:?}/adpub-web:${IMAGE_TAG:?}
+    # Sem `env_file`: a UI só recebe o que usa (nada de MASTER_KEY, senha do
+    # banco ou credencial de storage).
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET:?defina AUTH_SECRET no .env.prod}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?defina GOOGLE_CLIENT_ID no .env.prod}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?defina GOOGLE_CLIENT_SECRET no .env.prod}
+      AUTH_ALLOWED_DOMAIN: ${AUTH_ALLOWED_DOMAIN:?defina AUTH_ALLOWED_DOMAIN no .env.prod}
+      API_URL: http://api:4000
+      WEB_URL: https://${APP_DOMAIN:?defina APP_DOMAIN no .env.prod}
+      FEATURE_AI_ANALYSIS: ${FEATURE_AI_ANALYSIS:-1}
+      FEATURE_REPORTS: ${FEATURE_REPORTS:-1}
+      FEATURE_INSIGHTS: ${FEATURE_INSIGHTS:-1}
+    depends_on:
+      api:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?defina APP_DOMAIN no .env.prod}
+      S3_DOMAIN: ${S3_DOMAIN:?defina S3_DOMAIN no .env.prod}
+      ACME_EMAIL: ${ACME_EMAIL:?defina ACME_EMAIL no .env.prod}
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  caddydata:
+  caddyconfig:

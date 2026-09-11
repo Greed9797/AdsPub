@@ -1,0 +1,16 @@
+# TLS automático (Let's Encrypt) para os dois hostnames do .env.prod.
+{
+	email {$ACME_EMAIL}
+}
+
+# UI (BFF): é o único ponto do app que o usuário acessa.
+{$APP_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:3000
+}
+
+# MinIO: os links assinados de criativo/thumbnail são abertos pelo browser.
+# O Caddy preserva o Host, que faz parte da assinatura SigV4.
+{$S3_DOMAIN} {
+	reverse_proxy minio:9000
+}

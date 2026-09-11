@@ -116,6 +116,31 @@ jobs:
           pnpm exec playwright install --with-deps chromium
           pnpm test:e2e
 
+      # O modo de produção do web é o standalone (apps/web/Dockerfile); o e2e
+      # usa `next start`, então o boot do servidor real precisa de smoke próprio.
+      - name: Web em modo produção (standalone)
+        env:
+          NEXT_STANDALONE: '1'
+          PORT: '3310'
+          HOSTNAME: 127.0.0.1
+          WEB_URL: http://127.0.0.1:3310
+        run: |
+          pnpm --filter @adpub/web build
+          node apps/web/.next/standalone/apps/web/server.js &
+          server=$!
+          code=000
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3310/login || true)
+            if [ "$code" = "200" ]; then break; fi
+            sleep 1
+          done
+          kill "$server" || true
+          if [ "$code" != "200" ]; then
+            echo "::error::standalone não respondeu 200 em /login (código $code)."
+            exit 1
+          fi
+          echo 'standalone ok.'
+
       - name: Scan de token nos artefatos do e2e
         if: always()
         run: |

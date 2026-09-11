@@ -6,6 +6,28 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não publicado]
 
+### Adicionado (deploy de produção)
+
+- `infra/docker-compose.prod.yml` (VPS único: web, api, worker, Postgres, Redis,
+  MinIO e Caddy com TLS automático), `infra/.env.prod.example`, `infra/backup.sh`
+  e o runbook `docs/deploy.md`. As migrações rodam antes de api/worker subirem,
+  o bucket do MinIO é criado uma vez (`minio-init`) e só o Caddy publica porta —
+  a UI abre a miniatura por link assinado via `S3_DOMAIN`.
+- Imagens de produção em `apps/{api,worker,web}/Dockerfile` + `.dockerignore`:
+  `pnpm deploy` leva o workspace já resolvido (api/worker) e o web usa o
+  `output: 'standalone'` do Next; ffmpeg/ffprobe entram nas imagens que
+  validam mídia.
+- Workflow `Deploy`: publica as três imagens no GHCR (tag = sha) e aplica no
+  VPS por SSH — `pull`, `migrate`, `up -d` — com rollback por sha.
+- Teste local do stack de produção documentado em `docs/deploy.md` §9.
+
+### Corrigido
+
+- `.env.example` (e o exemplo de produção) não definem mais
+  `SLACK_WEBHOOK_URL`, `SENTRY_DSN` e `OTEL_EXPORTER_OTLP_ENDPOINT` vazios:
+  são URLs opcionais válidas só quando ausentes, e o valor vazio derrubava o
+  boot da API e do worker.
+
 ### Adicionado (SPEC-009 — alertas e operação)
 
 - `alert_events` com dedup por regra+entidade+janela (retry nunca realerta)
