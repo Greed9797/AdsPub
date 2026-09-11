@@ -88,7 +88,7 @@ export default async function HomePage({
   };
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <PageHead
         title="Lotes"
         description="Monte, revise e publique anúncios Meta em lote."
@@ -229,6 +229,6 @@ export default async function HomePage({
           </Table>
         )}
       </Card>
-    </main>
+    </div>
   );
 }

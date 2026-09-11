@@ -10,7 +10,7 @@ test('inteligência gera relatório e rascunho', async ({ page, seed }) => {
   await page.getByLabel('Conta').selectOption({ label: seed.account.name });
   await page.getByRole('button', { name: 'Usar conta' }).click();
 
-  await page.getByLabel('De').fill('2026-09-01');
+  await page.getByLabel('De', { exact: true }).fill('2026-09-01');
   await page.getByLabel('Até').fill('2026-09-02');
   await page.getByRole('button', { name: 'Gerar relatório' }).click();
 

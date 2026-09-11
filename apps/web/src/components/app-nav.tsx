@@ -2,6 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { SideNav } from '@astryxdesign/core/SideNav';
+import { SideNavHeading } from '@astryxdesign/core/SideNav';
+import { SideNavItem } from '@astryxdesign/core/SideNav';
+import { SideNavSection } from '@astryxdesign/core/SideNav';
+import { TopNav } from '@astryxdesign/core/TopNav';
 
 export interface NavItem {
   href: string;
@@ -15,24 +20,7 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-function Icon({ d, filled }: { d: string; filled?: boolean }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 16 16"
-      className="h-4 w-4 shrink-0"
-      fill={filled ? 'currentColor' : 'none'}
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d={d} />
-    </svg>
-  );
-}
-
-const ICONS: Record<string, string> = {
+const ICON_PATHS: Record<string, string> = {
   '/': 'M2.5 8 8 2.5 13.5 8M4 7v6.5h8V7',
   '/criativos': 'M8 2.5v11M2.5 8h11M8 2.5 5.5 5M8 2.5 10.5 5M8 13.5 5.5 11M8 13.5l2.5-2.5M2.5 8l2.5-2.5M2.5 8l2.5 2.5M13.5 8 11 5.5M13.5 8 11 10.5',
   '/contas': 'M3 5.5h10v8H3zM3 5.5 8 2.5l5 3M6 8.5h4',
@@ -45,60 +33,79 @@ const ICONS: Record<string, string> = {
   '/usuarios': 'M8 8.5c1.4 0 2.5-1.1 2.5-2.5S9.4 3.5 8 3.5 5.5 4.6 5.5 6 6.6 8.5 8 8.5ZM3 13.5c0-2.5 2.2-4 5-4s5 1.5 5 4',
 };
 
-function linkClass(active: boolean): string {
-  return active
-    ? 'flex items-center gap-2.5 rounded-[10px] bg-[var(--color-accent-subtle)] px-3 py-2 text-sm font-semibold text-[var(--color-text)]'
-    : 'flex items-center gap-2.5 rounded-[10px] px-3 py-2 text-sm font-medium text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]';
+function RouteIcon({ d }: { d: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={d} />
+    </svg>
+  );
 }
 
-/** Navegação do app: `sidebar` agrupada no desktop, `strip` com scroll no mobile. */
-export function AppNav({ groups, variant }: { groups: NavGroup[]; variant: 'sidebar' | 'strip' }) {
+function iconFor(href: string) {
+  const d = ICON_PATHS[href] ?? 'M3 3h10v10H3z';
+  return <RouteIcon d={d} />;
+}
+
+/** Navegação lateral agrupada (desktop + drawer mobile via AppShell). */
+export function AppSideNav({ groups }: { groups: NavGroup[] }) {
   const pathname = usePathname();
 
-  if (variant === 'strip') {
-    const flat = groups.flatMap((group) => group.items);
-    return (
-      <nav aria-label="Principal" className="border-t border-[var(--color-border)] lg:hidden">
-        <ul className="no-scrollbar flex gap-1 overflow-x-auto px-4 py-2">
-          {flat.map((item) => (
-            <li key={item.href} className="shrink-0">
-              <Link
-                href={item.href}
-                aria-current={pathname === item.href ? 'page' : undefined}
-                className={linkClass(pathname === item.href)}
-              >
-                {item.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    );
-  }
-
   return (
-    <nav aria-label="Principal" className="hidden w-60 shrink-0 flex-col gap-6 lg:flex">
+    <SideNav header={<SideNavHeading heading="AdPub." headingHref="/" />}>
       {groups.map((group) => (
-        <div key={group.title}>
-          <p className="text-mono-eyebrow mb-1.5 px-3">
-            {group.title}
-          </p>
-          <ul className="space-y-0.5">
-            {group.items.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  aria-current={pathname === item.href ? 'page' : undefined}
-                  className={linkClass(pathname === item.href)}
-                >
-                  <Icon d={ICONS[item.href] ?? 'M3 3h10v10H3z'} />
-                  {item.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <SideNavSection key={group.title} title={group.title}>
+          {group.items.map((item) => (
+            <SideNavItem
+              key={item.href}
+              label={item.label}
+              href={item.href}
+              as={Link}
+              icon={iconFor(item.href)}
+              isSelected={pathname === item.href}
+            />
+          ))}
+        </SideNavSection>
       ))}
-    </nav>
+    </SideNav>
+  );
+}
+
+/** Barra superior: email, papel e saída. */
+export function AppTopNav({ email, role }: { email: string; role: string }) {
+  return (
+    <TopNav
+      label="Barra superior"
+      heading={
+        <Link href="/" className="font-cond text-xl font-semibold tracking-[0.02em] lg:hidden">
+          AdPub<span className="text-[var(--color-brand)]">.</span>
+        </Link>
+      }
+      endContent={
+        <>
+          <span className="hidden max-w-48 truncate text-xs text-[var(--color-muted)] sm:block">{email}</span>
+          <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--color-muted)]">
+            {role}
+          </span>
+          <form action="/api/auth/logout" method="post">
+            <button
+              type="submit"
+              className="rounded-[8px] px-2 py-1.5 text-xs font-medium text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"
+            >
+              Sair
+            </button>
+          </form>
+        </>
+      }
+    />
   );
 }

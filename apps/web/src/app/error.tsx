@@ -14,7 +14,7 @@ export default function RouteError({
   reset: () => void;
 }) {
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <PageHead
         title="Algo falhou ao carregar"
         description="Confira se a API está no ar e tente de novo."
@@ -28,6 +28,6 @@ export default function RouteError({
       {error.digest ? (
         <p className="text-xs tabular-nums text-[var(--color-muted)]">ref {error.digest}</p>
       ) : null}
-    </main>
+    </div>
   );
 }

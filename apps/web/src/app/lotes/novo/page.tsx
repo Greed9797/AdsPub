@@ -29,7 +29,7 @@ export default async function NovoLotePage({
   }
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       <PageHead title="Novo lote" description="Escolha cliente, conta e criativos para montar o lote." />
       <NewBatchForm
         clients={clients}
@@ -38,6 +38,6 @@ export default async function NovoLotePage({
         clientId={clientId ?? ''}
         criarLoteAction={criarLote}
       />
-    </main>
+    </div>
   );
 }

@@ -63,7 +63,7 @@ export default async function LotePage({
   }
 
   return (
-    <main className="space-y-6">
+    <div className="space-y-6">
       {errorMessage ? (
         <p className="rounded-lg border border-[var(--color-danger)] p-3 text-sm text-[var(--color-danger)]">
           {errorMessage}
@@ -138,6 +138,6 @@ export default async function LotePage({
           reprocessarItemAction={reprocessarItem}
         />
       )}
-    </main>
+    </div>
   );
 }
