@@ -1,6 +1,6 @@
 # HANDOFF — AdPub
 
-Data: 2026-09-11. Branch `main` limpa.
+Data: 2026-09-11. Branch `main` limpa; deploy de produção entrou em `c89ea70`.
 
 ## 1. Estado atual
 
