@@ -52,9 +52,9 @@ export async function criarLoteComIa(page: Page, seed: SeedData, nome: string): 
   await page.getByLabel('Conta de anúncios').selectOption({ label: seed.account.name });
   await page.getByLabel('Nome do lote').fill(nome);
   await page.getByRole('combobox', { name: /^Modo/ }).selectOption('ai');
-  await page.getByLabel(/Cópias por criativo/).fill('2');
+  await page.getByLabel(/Textos diferentes por foto/).fill('2');
   await page
-    .getByLabel(/Briefing/)
+    .getByLabel(/Sobre o que anunciar/)
     .fill('Vendas no site, 20% OFF na coleção de inverno, cupom INVERNO20.');
 
   await page.getByRole('checkbox', { name: new RegExp(seed.asset.filename) }).check();

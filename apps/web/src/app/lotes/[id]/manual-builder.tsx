@@ -11,7 +11,7 @@ import {
   type BatchPlan,
 } from '@adpub/shared';
 
-import { Card, Empty, Field, goalLabel, inputClass } from '@/components/ui';
+import { Card, Empty, Field, goalLabel, inputClass, plural } from '@/components/ui';
 import type { AdsetRef, Asset, Batch, CampaignRef } from '@/lib/types';
 import type { ActionResult } from '../actions';
 import { Button } from '@astryxdesign/core/Button';
@@ -224,7 +224,7 @@ export function ManualBuilder({
       notes: `Plano manual: ${selectedAssetIds.length} criativo(s) × ${copies.length} copy(ies).`,
     };
 
-    if (hasItems && !window.confirm(`Isto substitui os itens atuais por ${totalAds} anúncio(s). Continuar?`)) {
+    if (hasItems && !window.confirm(`Isto APAGA os textos e itens atuais e monta ${plural(totalAds, 'anúncio novo', 'anúncios novos')}. Não dá para desfazer. Continuar?`)) {
       return;
     }
 

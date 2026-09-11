@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Badge, Card, Field, inputClass, plural } from '@/components/ui';
+import { Badge, Card, Field, inputClass, plural, statusLabel } from '@/components/ui';
 import type { AdAccount, AdDraft, Batch, PublishResult, ValidationReport } from '@/lib/types';
 import type { ActionResult } from '../actions';
 import { Button } from '@astryxdesign/core/Button';
@@ -172,16 +172,16 @@ export function PublishPanel({
             <ul className="space-y-1">
               {report.items
                 .filter((item) => item.errors.length + item.warnings.length + item.policy.length > 0)
-                .map((item) => (
+                .map((item, index) => (
                   <li key={item.item_id} className="rounded-lg border border-[var(--color-border)] p-2 text-sm">
                     <p className="font-medium">
-                      Item {item.item_id.slice(0, 8)} — {item.status}
+                      Anúncio {index + 1} — {statusLabel(item.status)}
                     </p>
                     <ul className="mt-1 list-disc pl-5 text-xs text-[var(--color-muted)]">
                       {item.errors.map((issue) => (
                         <li key={`erro-${issue.code}-${issue.field}`}>
                           {issue.message}
-                          {issue.fix ? ` — ${issue.fix}` : ''}
+                          {issue.fix ? ` — Como resolver: ${issue.fix}` : ''}
                         </li>
                       ))}
                       {item.warnings.map((issue) => (
@@ -189,7 +189,7 @@ export function PublishPanel({
                       ))}
                       {item.policy.map((issue, index) => (
                         <li key={`politica-${issue.category}-${index}`}>
-                          [{issue.severity}] {issue.category}: {issue.excerpt}
+                          {issue.category}: {issue.excerpt}
                         </li>
                       ))}
                     </ul>

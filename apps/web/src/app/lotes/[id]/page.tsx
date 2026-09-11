@@ -127,7 +127,7 @@ export default async function LotePage({
 
       {batch.items.length === 0 ? (
         <Card title="Itens">
-          <Empty title="Lote sem itens" hint="Este lote ainda não possui itens gerados." />
+          <Empty title="Lote sem itens" hint="Monte os anúncios no construtor abaixo e valide antes de publicar." />
         </Card>
       ) : (
         <BatchItemsTable

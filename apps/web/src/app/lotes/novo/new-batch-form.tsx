@@ -8,6 +8,7 @@ import { Card, Empty, Field, inputClass, plural } from '@/components/ui';
 import type { AdAccount, Asset, Client } from '@/lib/types';
 import type { ActionResult } from '../actions';
 import { Button } from '@astryxdesign/core/Button';
+import { ButtonLink } from '@/components/button-link';
 
 type NewBatchFormProps = {
   clients: Client[];
@@ -50,7 +51,7 @@ export function NewBatchForm({ clients, accounts, assets, clientId, criarLoteAct
   if (clients.length === 0) {
     return (
       <Card title="Criar lote">
-        <Empty title="Nenhum cliente cadastrado" hint="Cadastre um cliente antes de criar lotes." />
+        <Empty title="Nenhum cliente cadastrado" hint="Cadastre um cliente antes de criar lotes." action={<ButtonLink variant="primary" label="Cadastrar cliente" href="/clientes" />} />
       </Card>
     );
   }
@@ -159,7 +160,7 @@ export function NewBatchForm({ clients, accounts, assets, clientId, criarLoteAct
           </div>
 
           {assets.length === 0 ? (
-            <Empty title="Nenhum criativo aprovado" hint="Aprove criativos para este cliente para montar o lote." />
+            <Empty title="Nenhum criativo aprovado" hint="Aprove criativos para este cliente para montar o lote." action={<ButtonLink variant="primary" label="Enviar fotos e vídeos" href={`/criativos?client_id=${clientId}`} />} />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {assets.map((asset) => (
