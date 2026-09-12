@@ -281,6 +281,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@adpub/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@adpub/analytics':
         specifier: workspace:*
         version: link:../../packages/analytics
@@ -290,6 +293,9 @@ importers:
       '@adpub/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@adpub/creative-intel':
+        specifier: workspace:*
+        version: link:../../packages/creative-intel
       '@adpub/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto

@@ -21,6 +21,8 @@ export interface Queues {
   enqueuePublish(
     items: Array<{ draftId: string; adAccountId: string; batchId: string }>,
   ): Promise<JobRef[]>;
+  /** A9: enfileira a análise de mídia de um job persistido. */
+  enqueueAnalysis(jobId: string): Promise<JobRef>;
   enqueueInsights(input: {
     adAccountId: string;
     since: string;

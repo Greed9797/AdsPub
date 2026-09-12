@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { AI_MAX_TOKENS_BY_PURPOSE } from '@adpub/config';
 
 /** Finalidade da chamada, para contabilidade de custo por fluxo. */
 export type AiUsagePurpose = 'plan' | 'copy' | 'policy' | 'analysis' | 'report' | 'unknown';
@@ -53,6 +54,30 @@ export type AiInvoker = (request: AiToolRequest) => Promise<AiToolResult>;
  */
 const CACHE_CONTROL = { type: 'ephemeral' } as const;
 
+/** Teto de saída da chamada: explícito, ou o padrão da finalidade. */
+export function maxTokensFor(request: Pick<AiToolRequest, 'purpose' | 'maxTokens'>): number {
+  if (request.maxTokens !== undefined) return request.maxTokens;
+  return AI_MAX_TOKENS_BY_PURPOSE[request.purpose ?? 'unknown'];
+}
+
+/**
+ * Saída cortada no limite é falha explícita, não schema inválido: sem isto o
+ * erro aparecia como "resposta em formato inesperado" e escondia a causa
+ * (limite baixo para o tamanho da resposta).
+ */
+export function assertResponseComplete(input: {
+  stopReason: string | null;
+  outputTokens: number;
+  maxTokens: number;
+  purpose?: string;
+}): void {
+  if (input.stopReason !== 'max_tokens') return;
+  throw new Error(
+    `Resposta da IA truncada no limite de ${input.maxTokens} tokens ` +
+      `(finalidade ${input.purpose ?? 'unknown'}, ${input.outputTokens} tokens gerados).`,
+  );
+}
+
 export function anthropicInvoker(apiKey: string): AiInvoker {
   const client = new Anthropic({ apiKey });
   return async (request) => {
@@ -65,10 +90,11 @@ export function anthropicInvoker(apiKey: string): AiInvoker {
       ),
       { type: 'text', text: request.prompt },
     ];
+    const maxTokens = maxTokensFor(request);
     const response = await client.messages.create(
       {
         model: request.model,
-        max_tokens: request.maxTokens ?? 8192,
+        max_tokens: maxTokens,
         system: [{ type: 'text', text: request.system, cache_control: CACHE_CONTROL }],
         messages: [{ role: 'user', content }],
         tools: [
@@ -83,6 +109,13 @@ export function anthropicInvoker(apiKey: string): AiInvoker {
       },
       { timeout: request.timeoutMs ?? 40_000 },
     );
+
+    assertResponseComplete({
+      stopReason: response.stop_reason,
+      outputTokens: response.usage.output_tokens,
+      maxTokens,
+      ...(request.purpose ? { purpose: request.purpose } : {}),
+    });
 
     const toolUse = response.content.find(
       (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use',

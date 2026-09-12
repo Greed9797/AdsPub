@@ -1,12 +1,20 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { listAnalyses } from '@adpub/db';
-import type { ContentAnalysis } from '@adpub/creative-intel';
+import {
+  analysisJobTimings,
+  createAnalysisJob,
+  findActiveAnalysisJob,
+  getAnalysisById,
+  getAnalysisJob,
+  getAssetsByIds,
+  listAnalyses,
+} from '@adpub/db';
+import { assertMediaWithinLimits, type ContentAnalysis } from '@adpub/creative-intel';
 import { currentUser, requireRole } from '../plugins/auth.js';
 import { requireFeature } from '../lib/features.js';
-import { notFound } from '../lib/problem.js';
+import { notFound, unprocessable } from '../lib/problem.js';
 import type { ApiDeps } from '../lib/deps.js';
-import { analyzeAsset, correctAnalysis } from '../services/analyses.js';
+import { correctAnalysis } from '../services/analyses.js';
 
 const observationSchema = z.object({
   tipo: z.string().min(1),
@@ -29,6 +37,10 @@ const findingsSchema = z.object({
 
 /** T-006-2: análise de conteúdo versionada, sem performance junto. */
 export function analysisRoutes(app: FastifyInstance, deps: ApiDeps): void {
+  /**
+   * A9: a rota confirma o recebimento e devolve o job. ffmpeg e IA rodam no
+   * worker; o cliente acompanha em `/analysis-jobs/:id`.
+   */
   app.post('/assets/:id/analyses', async (request, reply) => {
     const user = requireRole(request, ['admin', 'coordinator', 'manager']);
     requireFeature(deps, 'featureAiAnalysis');
@@ -37,18 +49,44 @@ export function analysisRoutes(app: FastifyInstance, deps: ApiDeps): void {
       .object({ brand_context: z.string().max(2000).optional(), force: z.boolean().default(false) })
       .default({ force: false })
       .parse(request.body ?? {});
-    const { analysis, cached } = await analyzeAsset(
-      deps,
-      { id: user.id, email: user.email },
-      id,
-      {
-        // O corpo HTTP fala snake_case; o serviço fala camelCase. Sem este
-        // mapeamento o contexto de marca era aceito e descartado em silêncio.
-        ...(body.brand_context ? { brandContext: body.brand_context } : {}),
-        force: body.force,
-      },
-    );
-    return reply.status(cached ? 200 : 201).send(analysisDto(analysis));
+
+    const [asset] = await getAssetsByIds(deps.db, [id]);
+    if (!asset) throw notFound(`Criativo ${id} não encontrado.`);
+    // Teto conferido por metadado, antes de enfileirar: arquivo sabidamente
+    // grande falha aqui, não depois de ocupar a fila.
+    try {
+      assertMediaWithinLimits(asset);
+    } catch (error) {
+      throw unprocessable(error instanceof Error ? error.message : String(error));
+    }
+
+    // Pedir de novo enquanto roda não duplica trabalho nem cobrança.
+    const active = await findActiveAnalysisJob(deps.db, asset.id);
+    if (active) return reply.status(202).send(jobDto(active));
+
+    const job = await createAnalysisJob(deps.db, {
+      assetId: asset.id,
+      brandContext: body.brand_context ?? '',
+      force: body.force,
+      requestedBy: user.id,
+    });
+    const queued = await deps.queues.enqueueAnalysis(job.id);
+    return reply.status(202).send({ ...jobDto(job), queue: queued.queue, queue_job_id: queued.job_id });
+  });
+
+  app.get('/analysis-jobs/:id', async (request) => {
+    currentUser(request);
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const job = await getAnalysisJob(deps.db, id);
+    if (!job) throw notFound(`Job ${id} não encontrado.`);
+    const analysis = job.analysisId ? await getAnalysisById(deps.db, job.analysisId) : undefined;
+    return {
+      ...jobDto(job),
+      // Fila e execução medidos separadamente: é o número que diz se o
+      // gargalo é espera ou processamento.
+      ...analysisJobTimings(job),
+      analysis: analysis ? analysisDto(analysis) : null,
+    };
   });
 
   app.get('/assets/:id/analyses', async (request) => {
@@ -71,6 +109,26 @@ export function analysisRoutes(app: FastifyInstance, deps: ApiDeps): void {
     );
     return analysisDto(revision);
   });
+}
+
+function jobDto(row: {
+  id: string;
+  assetId: string;
+  status: string;
+  error: string | null;
+  queuedAt: Date;
+  startedAt: Date | null;
+  finishedAt: Date | null;
+}) {
+  return {
+    job_id: row.id,
+    asset_id: row.assetId,
+    status: row.status,
+    error: row.error,
+    queued_at: row.queuedAt,
+    started_at: row.startedAt,
+    finished_at: row.finishedAt,
+  };
 }
 
 function analysisDto(row: {

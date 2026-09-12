@@ -20,6 +20,10 @@ export interface DriveImportJobData {
   actorId: string | null;
 }
 
+export interface AnalysisJobData {
+  jobId: string;
+}
+
 export interface InsightsSyncJobData {
   adAccountId: string;
   since: string;
@@ -33,6 +37,8 @@ export function createQueues(connection: Redis): Queues {
   const sync = new Queue<SyncJobData>(QUEUES.sync, { connection });
   const drive = new Queue<DriveImportJobData>(QUEUES.driveImport, { connection });
   const insights = new Queue<InsightsSyncJobData>(QUEUES.insightsSync, { connection });
+  // A9: análise de mídia em fila própria — ffmpeg e IA fora da requisição.
+  const analysis = new Queue<AnalysisJobData>(QUEUES.analysis, { connection });
 
   const defaultJobOptions = {
     attempts: RETRY.maxAttempts,
@@ -42,6 +48,16 @@ export function createQueues(connection: Redis): Queues {
   };
 
   return {
+    async enqueueAnalysis(jobId) {
+      const job = await analysis.add(
+        'analysis',
+        { jobId },
+        // Chave por job do banco: reentrega do Redis não vira segunda cobrança
+        // de IA, porque o worker confere o estado da linha antes de rodar.
+        { ...defaultJobOptions, jobId: `analysis:${jobId}` },
+      );
+      return { job_id: String(job.id), queue: QUEUES.analysis };
+    },
     async enqueueSync(connectionId) {
       const job = await sync.add('sync', { connectionId }, { ...defaultJobOptions, jobId: `sync:${connectionId}:${Date.now()}` });
       return { job_id: String(job.id), queue: QUEUES.sync };
@@ -70,12 +86,14 @@ export function createQueues(connection: Redis): Queues {
     },
     async queueCounts() {
       const entries = await Promise.all(
-        [publish, sync, drive, insights].map(async (queue) => [queue.name, await queue.getJobCounts()] as const),
+        [publish, sync, drive, insights, analysis].map(
+          async (queue) => [queue.name, await queue.getJobCounts()] as const,
+        ),
       );
       return Object.fromEntries(entries);
     },
     async close() {
-      await Promise.all([publish.close(), sync.close(), drive.close(), insights.close()]);
+      await Promise.all([publish.close(), sync.close(), drive.close(), insights.close(), analysis.close()]);
     },
   };
 }

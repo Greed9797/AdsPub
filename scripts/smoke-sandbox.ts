@@ -171,6 +171,9 @@ async function main(): Promise<void> {
       await runSync(workerCtx, metaFactory, alert, { connectionId });
       return { job_id: `sync-${connectionId}`, queue: 'adpub.sync' };
     },
+    async enqueueAnalysis() {
+      throw new Error('Análise de mídia não faz parte da fumaça em sandbox.');
+    },
     async enqueueImportDrive() {
       throw new Error('Importação do Drive não faz parte da fumaça em sandbox.');
     },

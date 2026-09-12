@@ -37,6 +37,7 @@ import type { ApiDeps, JobRef, Queues } from '@adpub/api/lib/deps';
 import { createAlerter } from '@adpub/worker/alerts';
 import { createMetaFactory } from '@adpub/worker/meta';
 import type { WorkerContext } from '@adpub/worker/context';
+import { runAnalysis } from '@adpub/worker/analysis/run';
 import { runPublish } from '@adpub/worker/publish/pipeline';
 import { runSync } from '@adpub/worker/sync/connection';
 import { Redis } from 'ioredis';
@@ -121,6 +122,23 @@ function fakeAiInvoker(assetId: string) {
 }
 
 /**
+ * A9: análise de conteúdo da IA falsa — uma observação com evidência no frame
+ * em t=0, que é o único instante de uma imagem estática.
+ */
+function fakeAnalysisPayload() {
+  return {
+    observations: [
+      {
+        tipo: 'oferta',
+        texto: 'A peça mostra a coleção de inverno com 20% OFF.',
+        evidence_refs: [{ kind: 'frame', t: 0, detail: 'texto de oferta visível no frame t=0' }],
+      },
+    ],
+    limitations: ['transcrição indisponível'],
+  };
+}
+
+/**
  * O e2e roda em um banco só dele (`adpub_e2e`): cria se não existir e aplica as
  * migrações antes de qualquer conexão de trabalho. Idempotente — a partir da
  * segunda execução custa uma consulta e um `drizzle migrate` sem trabalho.
@@ -178,6 +196,11 @@ const queues: Queues = {
   },
   async enqueueImportDrive() {
     return { job_id: 'drive-e2e', queue: 'adpub.drive-import' };
+  },
+  async enqueueAnalysis(jobId) {
+    // A9: o harness roda o worker embutido — mesma função que a fila chama.
+    await runAnalysis(workerCtx, deps.ai, { jobId });
+    return { job_id: `analysis-${jobId}`, queue: 'adpub.analysis' };
   },
   async enqueueInsights(input: { adAccountId: string; since: string; until: string }) {
     return { job_id: `insights-e2e-${input.adAccountId}-${input.since}`, queue: 'adpub.insights-sync' };
@@ -330,6 +353,9 @@ const planInvoker = fakeAiInvoker(ingested.asset.id);
 deps.ai = new AiClient({
   invoke: trackedInvoker(
     (async (request: { toolName: string }) => {
+      if (request.toolName === 'submit_content_analysis') {
+        return { input: fakeAnalysisPayload(), inputTokens: 900, outputTokens: 200 };
+      }
       if (request.toolName === 'submit_analysis_report') {
         return {
           input: {

@@ -12,9 +12,11 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@adpub/ai": "workspace:*",
     "@adpub/analytics": "workspace:*",
     "@adpub/assets": "workspace:*",
     "@adpub/config": "workspace:*",
+    "@adpub/creative-intel": "workspace:*",
     "@adpub/crypto": "workspace:*",
     "@adpub/db": "workspace:*",
     "@adpub/media": "workspace:*",

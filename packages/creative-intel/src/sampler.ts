@@ -11,6 +11,26 @@ export const SAMPLE_LIMITS = {
   frameWidth: 640,
 } as const;
 
+/**
+ * A9: os mesmos tetos valem na API (recusa rápida antes de enfileirar) e no
+ * worker (execução). Função pura: quem chama decide como virar erro HTTP.
+ */
+export function assertMediaWithinLimits(input: {
+  sizeBytes: number;
+  durationMs?: number | null;
+}): void {
+  if (input.sizeBytes > SAMPLE_LIMITS.maxBytes) {
+    throw new Error(
+      `Criativo com ${(input.sizeBytes / 1024 / 1024).toFixed(1)} MB excede o limite de ${SAMPLE_LIMITS.maxBytes / 1024 / 1024} MB para análise.`,
+    );
+  }
+  if (input.durationMs && input.durationMs > SAMPLE_LIMITS.maxDurationMs) {
+    throw new Error(
+      `Vídeo com ${Math.round(input.durationMs / 1000)}s excede o limite de ${SAMPLE_LIMITS.maxDurationMs / 1000}s para análise.`,
+    );
+  }
+}
+
 export interface Frame {
   /** Segundos desde o início, com 1 casa. */
   t: number;

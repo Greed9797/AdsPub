@@ -99,6 +99,20 @@ export const AI_PRICING_USD_PER_MTOK: Record<string, { input: number; output: nu
  * valores publicados pelo provedor na data desta configuração; revisar junto
  * da tabela de preços quando o catálogo mudar.
  */
+/**
+ * Teto de saída por finalidade: o classificador de política devolve poucos
+ * achados, um plano pode ser grande. Truncamento não passa silencioso — o
+ * invoker falha explícito quando o provedor para por limite de tokens.
+ */
+export const AI_MAX_TOKENS_BY_PURPOSE = {
+  plan: 8192,
+  copy: 4096,
+  policy: 2048,
+  analysis: 8192,
+  report: 8192,
+  unknown: 4096,
+} as const;
+
 export const AI_CACHE_PRICING = {
   readMultiplier: 0.1,
   writeMultiplier: 1.25,
@@ -117,6 +131,13 @@ export const QUEUES = {
   driveImport: 'adpub.drive-import',
   statusPoll: 'adpub.status-poll',
   insightsSync: 'adpub.insights-sync',
+  analysis: 'adpub.analysis',
 } as const;
+
+/**
+ * A9: análise de mídia roda 1 por vez — ffmpeg satura CPU e memória, e a fila
+ * existe justamente para não derrubar a API nem a publicação.
+ */
+export const ANALYSIS_CONCURRENCY = 1;
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];

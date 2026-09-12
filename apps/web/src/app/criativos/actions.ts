@@ -105,18 +105,46 @@ export interface AnalysisView {
   };
 }
 
-/** T-006-2: analisa o asset e devolve a versão atual da análise. */
+/** A9: a API aceita o pedido e devolve o job; quem analisa é o worker. */
+export interface AnalysisJobView {
+  job_id: string;
+  asset_id: string;
+  status: 'queued' | 'running' | 'done' | 'failed';
+  error: string | null;
+  queueWaitMs: number | null;
+  runMs: number | null;
+  analysis: AnalysisView | null;
+}
+
+/** T-006-2: enfileira a análise do criativo. */
 export async function analisarCriativo(
   assetId: string,
-): Promise<{ erro: string } | { ok: true; analysis: AnalysisView }> {
+): Promise<{ erro: string } | { ok: true; job_id: string; status: string }> {
   try {
     await requireSession();
-    const analysis = await api<AnalysisView>(`/assets/${assetId}/analyses`, { method: 'POST', body: {} });
-    revalidatePath('/criativos');
-    return { ok: true, analysis };
+    const job = await api<{ job_id: string; status: string }>(`/assets/${assetId}/analyses`, {
+      method: 'POST',
+      body: {},
+    });
+    return { ok: true, job_id: job.job_id, status: job.status };
   } catch (error) {
     if (error instanceof ApiError) return { erro: error.problem.detail ?? error.problem.title };
-    return { erro: 'Não foi possível analisar o criativo.' };
+    return { erro: 'Não foi possível pedir a análise do criativo.' };
+  }
+}
+
+/** Acompanha o job até terminar; a lista é atualizada quando ele conclui. */
+export async function acompanharAnalise(
+  jobId: string,
+): Promise<{ erro: string } | { ok: true; job: AnalysisJobView }> {
+  try {
+    await requireSession();
+    const job = await api<AnalysisJobView>(`/analysis-jobs/${jobId}`);
+    if (job.status === 'done' || job.status === 'failed') revalidatePath('/criativos');
+    return { ok: true, job };
+  } catch (error) {
+    if (error instanceof ApiError) return { erro: error.problem.detail ?? error.problem.title };
+    return { erro: 'Não foi possível acompanhar a análise.' };
   }
 }
 

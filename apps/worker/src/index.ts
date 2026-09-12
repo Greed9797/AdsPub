@@ -1,4 +1,5 @@
 import {
+  ANALYSIS_CONCURRENCY,
   CONCURRENCY_BY_TIER,
   QUEUES,
   RETRY,
@@ -10,6 +11,8 @@ import { listConnections, purgeOldMetaCalls } from '@adpub/db';
 import { initTelemetry } from '@adpub/telemetry';
 import { Queue, Worker, type Job } from 'bullmq';
 import { createAlerter, telegramFromEnv } from './alerts.js';
+import { createWorkerAi } from './ai.js';
+import { runAnalysis } from './analysis/run.js';
 import { createContext } from './context.js';
 import { createMetaFactory } from './meta.js';
 import { runDriveImport, type DriveImportJobData } from './drive/import.js';
@@ -22,6 +25,8 @@ import { runSync, type SyncJobData } from './sync/connection.js';
 import { runInsightsSync, type InsightsSyncData } from './insights/sync.js';
 
 const ctx = createContext();
+/** IA do worker: só contabilidade compartilhada com a API; sem cache de plano. */
+const workerAi = createWorkerAi(ctx);
 /** T019: rastros só quando configurados; sem endpoint é no-op. */
 const telemetry = await initTelemetry({
   service: 'adpub-worker',
@@ -81,6 +86,16 @@ const statusWorker = new Worker(
   { connection, concurrency: 1 },
 );
 
+/**
+ * A9: ffmpeg + IA de análise numa fila própria, uma por vez. Nem a API nem a
+ * publicação competem com o processamento de mídia.
+ */
+const analysisWorker = new Worker<{ jobId: string }>(
+  QUEUES.analysis,
+  async (job: Job<{ jobId: string }>) => runAnalysis(ctx, workerAi, job.data),
+  { connection, concurrency: ANALYSIS_CONCURRENCY },
+);
+
 /** T-004-3: fila separada do publish — vídeo/IA nunca travam publicação (009). */
 const insightsWorker = new Worker<InsightsSyncData>(
   QUEUES.insightsSync,
@@ -91,7 +106,14 @@ const insightsWorker = new Worker<InsightsSyncData>(
 const statusQueue = new Queue(QUEUES.statusPoll, { connection });
 const syncQueue = new Queue<SyncJobData>(QUEUES.sync, { connection });
 
-for (const worker of [publishWorker, syncWorker, driveWorker, statusWorker, insightsWorker]) {
+for (const worker of [
+  publishWorker,
+  syncWorker,
+  driveWorker,
+  statusWorker,
+  insightsWorker,
+  analysisWorker,
+]) {
   worker.on('failed', (job, error) => {
     ctx.log.warn(
       { queue: worker.name, job: job?.id, attempts: job?.attemptsMade, err: error.message },
@@ -135,6 +157,7 @@ async function shutdown(signal: string): Promise<void> {
     driveWorker.close(),
     statusWorker.close(),
     insightsWorker.close(),
+    analysisWorker.close(),
     statusQueue.close(),
     syncQueue.close(),
   ]);

@@ -25,4 +25,5 @@ export * from './repos/locks.js';
 export * from './repos/meta-calls.js';
 export * from './repos/ai-generations.js';
 export * from './repos/ai-usage.js';
+export * from './repos/analysis-jobs.js';
 export { assertTruncateAllowed, truncateAllTables, TRUNCATE_OPT_IN } from './testing.js';

@@ -146,6 +146,12 @@ export const jobStateEnum = pgEnum('job_state', [
 ]);
 export const aiPurposeEnum = pgEnum('ai_purpose', ['plan', 'copy', 'policy']);
 export const aiFeedbackEnum = pgEnum('ai_feedback', ['used', 'edited', 'rejected']);
+export const analysisJobStatusEnum = pgEnum('analysis_job_status', [
+  'queued',
+  'running',
+  'done',
+  'failed',
+]);
 
 const createdAt = timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 const updatedAt = timestamp('updated_at', { withTimezone: true }).notNull().defaultNow();
@@ -835,6 +841,36 @@ export const aiGenerations = pgTable(
 );
 
 /**
+ * A9: análise de mídia em job. A requisição confirma o recebimento e o
+ * worker roda ffmpeg + IA longe do processo da API; o estado fica aqui para o
+ * usuário acompanhar, recuperar o resultado e ver a falha.
+ */
+export const analysisJobs = pgTable(
+  'analysis_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    assetId: uuid('asset_id')
+      .notNull()
+      .references(() => assets.id, { onDelete: 'cascade' }),
+    status: analysisJobStatusEnum('status').notNull().default('queued'),
+    brandContext: text('brand_context').notNull().default(''),
+    force: boolean('force').notNull().default(false),
+    requestedBy: uuid('requested_by').references(() => users.id, { onDelete: 'set null' }),
+    analysisId: uuid('analysis_id').references(() => contentAnalyses.id, { onDelete: 'set null' }),
+    error: text('error'),
+    queuedAt: timestamp('queued_at', { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    index('analysis_jobs_asset_idx').on(t.assetId, t.status),
+    index('analysis_jobs_status_idx').on(t.status, t.queuedAt),
+  ],
+);
+
+/**
  * Cada tentativa que chegou ao provedor de IA, com tokens e custo estimado.
  * É a fonte do custo operacional: `ai_generations` guarda o resultado
  * reutilizável (cache), não a conta — duas chamadas iguais pagas aparecem
@@ -972,5 +1008,6 @@ export type PublishJobRow = typeof publishJobs.$inferSelect;
 export type AuditLogRow = typeof auditLog.$inferSelect;
 export type AiGenerationRow = typeof aiGenerations.$inferSelect;
 export type AiUsageRow = typeof aiUsage.$inferSelect;
+export type AnalysisJobRow = typeof analysisJobs.$inferSelect;
 export type CampaignCacheRow = typeof campaignsCache.$inferSelect;
 export type AdsetCacheRow = typeof adsetsCache.$inferSelect;

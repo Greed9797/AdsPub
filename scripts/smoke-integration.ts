@@ -192,6 +192,9 @@ async function main(): Promise<void> {
       await runSync(workerCtx, metaFactory, alert, { connectionId });
       return { job_id: `sync-${connectionId}`, queue: 'adpub.sync' };
     },
+    async enqueueAnalysis() {
+      throw new Error('Análise de mídia não faz parte da fumaça de integração.');
+    },
     async enqueueImportDrive() {
       return { job_id: 'drive-1', queue: 'adpub.drive-import' };
     },

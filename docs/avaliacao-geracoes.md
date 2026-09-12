@@ -81,6 +81,56 @@ order by lotes desc;
 Meta provisória para o piloto: `used` ≥ 40% dos planos com feedback. Abaixo
 disso o problema é prompt (ou briefing), não gestor.
 
+## Roteamento econômico (frente 6 do diagnóstico)
+
+Trocar de modelo só depois de medir, com o mesmo conjunto reservado:
+
+```bash
+pnpm tsx scripts/eval-generations.ts --model claude-sonnet-4-6 --out tmp/eval-sonnet.json
+pnpm tsx scripts/eval-generations.ts --model claude-haiku-4-6  --out tmp/eval-haiku.json
+```
+
+Compare os dois arquivos: violações determinísticas, notas humanas (às cegas,
+mesmo revisor), custo total e latência. Regra de decisão do diagnóstico:
+chamar o modelo barato e escalar custa `barato + p × caro` e só vence a
+chamada cara direta enquanto `p < 2/3` — ou seja, vale quando menos de dois
+terços escalam. Sem baseline, não trocar modelo.
+
+A **escalada automática não está implementada de propósito**: o próprio
+diagnóstico condiciona o roteamento à avaliação, e ligar antes disso tornaria
+o custo do piloto imprevisível. O que já existe para decidir com número:
+
+- teto de saída por finalidade (`AI_MAX_TOKENS_BY_PURPOSE`) e falha explícita
+  quando a resposta é truncada, em vez de erro de schema;
+- cache de prefixo do provedor marcado no system + ferramenta, com tokens de
+  leitura/gravação contabilizados com multiplicador próprio;
+- `ai_usage` por tentativa, com finalidade, cliente, modelo, latência e custo.
+
+Custo por geração aceita (a métrica principal do diagnóstico):
+
+```sql
+with tentativas as (
+  select client_id, sum(cost_usd) as custo, count(*) as chamadas
+  from ai_usage
+  where purpose in ('plan', 'copy') and created_at > now() - interval '30 days'
+  group by client_id
+)
+select t.client_id,
+       t.custo,
+       t.chamadas,
+       count(*) filter (where b.plan_feedback = 'used') as planos_aceitos,
+       case when count(*) filter (where b.plan_feedback = 'used') = 0 then null
+            else t.custo / count(*) filter (where b.plan_feedback = 'used') end as custo_por_aceite
+from tentativas t
+join batches b on b.client_id = t.client_id
+group by t.client_id, t.custo, t.chamadas
+order by custo_por_aceite desc nulls last;
+```
+
+Tempo de edição humana e aceite sem edição saem de `batches.plan_feedback` +
+`ad_drafts.edited_fields` (o prefixo `auto:` marca o que a máquina preencheu,
+não o que a pessoa mexeu).
+
 ## Custo e latência por fluxo
 
 `ai_usage` registra uma linha por tentativa que chegou ao provedor — inclusive
