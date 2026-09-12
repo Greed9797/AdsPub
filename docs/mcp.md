@@ -25,7 +25,8 @@ Sem ChatGPT: qualquer cliente MCP com OAuth funciona; o MCP Inspector conecta no
 
 ## 2. Ferramentas
 
-Todas falam com a **API existente** (`/api/v1/...`) — nenhuma rota nova foi criada para o MCP.
+Todas falam com a **API existente** (`/api/v1/...`) — nenhuma rota nova foi criada para o MCP. Os
+caminhos da tabela são relativos a esse prefixo (o cliente do MCP monta a URL).
 
 | Ferramenta | Endpoint da API | Escopo |
 |---|---|---|

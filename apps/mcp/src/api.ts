@@ -45,10 +45,12 @@ export function createApiClient(options: {
   fetchImpl?: typeof fetch;
 }): ApiClient {
   const fetchImpl = options.fetchImpl ?? fetch;
+  const baseUrl = options.apiUrl.replace(/\/+$/, '');
 
   return {
     async call(user: SessionUser, path: string, call: ApiCall = {}): Promise<unknown> {
-      const url = new URL(`${options.apiUrl}${path}`);
+      // A API monta todas as rotas sob /api/v1 (apps/api/src/app.ts).
+      const url = new URL(`${baseUrl}/api/v1${path}`);
       for (const [key, value] of Object.entries(call.query ?? {})) {
         if (value !== undefined) url.searchParams.set(key, String(value));
       }
