@@ -1,7 +1,9 @@
 import {
   CONTENT_PROMPT_VERSION,
+  SAMPLE_LIMITS,
   analyzeContent,
   contentInputHash,
+  sampleTimestamps,
   sampleVideo,
   unavailableTranscriber,
   type ContentAnalysis,
@@ -28,6 +30,39 @@ export interface AnalysisInput {
  * T-006-2: análise de conteúdo versionada. Imagem = 1 frame; vídeo =
  * amostragem. Transcrição indisponível fica visível (sem provedor aprovado).
  */
+/**
+ * A5: limites conferidos por metadado, antes de baixar o original. Arquivo
+ * sabidamente fora do teto falha sem gastar download nem ffmpeg.
+ */
+export function assertAnalysisEligible(asset: {
+  sizeBytes: number;
+  durationMs?: number | null;
+}): void {
+  if (asset.sizeBytes > SAMPLE_LIMITS.maxBytes) {
+    throw unprocessable(
+      `Criativo com ${(asset.sizeBytes / 1024 / 1024).toFixed(1)} MB excede o limite de ${SAMPLE_LIMITS.maxBytes / 1024 / 1024} MB para análise.`,
+    );
+  }
+  if (asset.durationMs && asset.durationMs > SAMPLE_LIMITS.maxDurationMs) {
+    throw unprocessable(
+      `Vídeo com ${Math.round(asset.durationMs / 1000)}s excede o limite de ${SAMPLE_LIMITS.maxDurationMs / 1000}s para análise.`,
+    );
+  }
+}
+
+/**
+ * A5: os instantes que a amostragem vai usar, derivados do metadado — é o que
+ * permite decidir cache hit sem baixar o arquivo. Sem duração conhecida não há
+ * como prever a grade, e aí o cache é conferido depois da amostragem.
+ */
+export function expectedAnalysisTimestamps(asset: {
+  kind: 'image' | 'video';
+  durationMs?: number | null;
+}): number[] | null {
+  if (asset.kind !== 'video') return [0];
+  return asset.durationMs && asset.durationMs > 0 ? sampleTimestamps(asset.durationMs) : null;
+}
+
 export async function analyzeAsset(
   deps: ApiDeps,
   actor: { id?: string | null; email?: string | null },
@@ -37,33 +72,59 @@ export async function analyzeAsset(
   if (!deps.ai) throw unprocessable('IA indisponível no ambiente.');
   const [asset] = await getAssetsByIds(deps.db, [assetId]);
   if (!asset) throw notFound(`Criativo ${assetId} não encontrado.`);
-  const bytes = await deps.storage.get(asset.storageKey);
 
-  const frames =
-    asset.kind === 'video'
-      ? (await sampleVideo(bytes, asset.filename)).frames
-      // PNG/WebP chegavam ao provedor declarados como JPEG; o frame agora é
-      // sempre JPEG e com o maior lado limitado (custo por pixel).
-      : [{ t: 0, jpeg: await makeVisionFrame(bytes) }];
+  assertAnalysisEligible(asset);
+  // A transcrição não olha a mídia (não há provedor aprovado): dá para saber
+  // a identidade antes de baixar.
   const transcript = await unavailableTranscriber('sem provedor de transcrição aprovado').transcribe(
     new Uint8Array(),
     'pt-BR',
   );
   const { invoke, model } = deps.ai.contentBackend();
   const brandContext = input.brandContext ?? '';
-  const inputHash = contentInputHash({
-    assetSha256: asset.sha256,
-    model,
-    promptVersion: CONTENT_PROMPT_VERSION,
-    brandContext,
-    timestamps: frames.map((frame) => frame.t),
-    transcriptStatus: transcript.status,
-  });
+  const timestamps = expectedAnalysisTimestamps(asset);
+  const preComputedHash = timestamps
+    ? contentInputHash({
+        assetSha256: asset.sha256,
+        model,
+        promptVersion: CONTENT_PROMPT_VERSION,
+        brandContext,
+        timestamps,
+        transcriptStatus: transcript.status,
+      })
+    : null;
 
-  if (!input.force) {
-    const cached = await findAnalysisByInput(deps.db, asset.id, inputHash);
+  if (!input.force && preComputedHash) {
+    const cached = await findAnalysisByInput(deps.db, asset.id, preComputedHash);
     if (cached) return { analysis: cached, cached: true };
   }
+
+  const bytes = await deps.storage.get(asset.storageKey);
+  const frames =
+    asset.kind === 'video'
+      ? (await sampleVideo(bytes, asset.filename)).frames
+      // PNG/WebP chegavam ao provedor declarados como JPEG; o frame agora é
+      // sempre JPEG e com o maior lado limitado (custo por pixel).
+      : [{ t: 0, jpeg: await makeVisionFrame(bytes) }];
+
+  if (!input.force && !preComputedHash) {
+    // Sem grade previsível, a checagem de cache acontece aqui — depois do
+    // trabalho caro, mas ainda antes de pagar o provedor.
+    const cached = await findAnalysisByInput(
+      deps.db,
+      asset.id,
+      contentInputHash({
+        assetSha256: asset.sha256,
+        model,
+        promptVersion: CONTENT_PROMPT_VERSION,
+        brandContext,
+        timestamps: frames.map((frame) => frame.t),
+        transcriptStatus: transcript.status,
+      }),
+    );
+    if (cached) return { analysis: cached, cached: true };
+  }
+
   const { analysis, meta } = await analyzeContent(invoke, model, {
     assetSha256: asset.sha256,
     frames,

@@ -48,6 +48,13 @@ export const GRAPH_BATCH_MAX = 50;
 /** Concorrência por conta conforme tier (R6). */
 export const CONCURRENCY_BY_TIER = { limited: 1, full: 3 } as const;
 
+/**
+ * Teto de classificações de política simultâneas na validação de um lote.
+ * Textos iguais são classificados uma vez só; o teto existe para não abrir
+ * uma chamada por item em lote grande.
+ */
+export const POLICY_AI_CONCURRENCY = 3;
+
 /** A partir deste uso de rate limit a conta cai para concorrência 1. */
 export const RATE_LIMIT_THROTTLE_PERCENT = 75;
 
