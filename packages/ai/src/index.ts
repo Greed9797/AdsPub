@@ -4,3 +4,5 @@ export * from './invoker.js';
 export * from './normalize.js';
 export * from './prompts.js';
 export * from './cost.js';
+export * from './eval.js';
+export * from './usage.js';

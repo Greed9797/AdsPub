@@ -119,6 +119,8 @@ export async function analyzeContent(
     transcript: TranscriptResult;
     brandContext: string;
     filename: string;
+    /** Só contabilidade: a quem atribuir o consumo desta análise. */
+    attribution?: { clientId?: string | null; assetId?: string | null };
   },
 ): Promise<{ analysis: ContentAnalysis; meta: AnalysisMeta }> {
   const images = input.frames.map((frame) => ({
@@ -155,6 +157,8 @@ export async function analyzeContent(
     toolDescription: 'Devolve observações de conteúdo com evidências. Sem performance, sem vencedor.',
     inputSchema: ANALYSIS_SCHEMA as unknown as Record<string, unknown>,
     timeoutMs: 120_000,
+    purpose: 'analysis',
+    ...(input.attribution ? { attribution: input.attribution } : {}),
   });
   const parsed = validateAnalysis(result.input, {
     timestamps: input.frames.map((frame) => frame.t),

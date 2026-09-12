@@ -78,6 +78,8 @@ export async function generateReport(
     toolDescription: 'Devolve fatos, hipóteses, testes e limitações com evidências. Sem causalidade prometida.',
     inputSchema: REPORT_SCHEMA as unknown as Record<string, unknown>,
     timeoutMs: 120_000,
+    purpose: 'report',
+    attribution: { clientId: account.clientId, batchId: null, assetId: null },
   });
   const output = result.input as ReportOutput;
   const issues = validateReportOutput(output, snapshot);

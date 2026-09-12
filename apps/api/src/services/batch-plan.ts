@@ -5,6 +5,7 @@ import {
   getBatch,
   insertDrafts,
   listDraftsOfBatch,
+  linkBatchPlanGeneration,
   refreshBatchStatus,
   saveGeneration,
   findCachedGeneration,
@@ -142,11 +143,27 @@ export async function generatePlan(
 
   const { plan, meta } = await deps.ai.generatePlan(planContext, {
     scope: batch.clientId,
+    batchId: batch.id,
     // Recriar o plano é pedir outra alternativa: sem isto o cache devolvia o
     // plano antigo e o botão de regenerar não fazia nada.
     bypassCache: input.regenerate,
   });
   assertPlanRefs(plan);
+
+  // A12: o lote fica ligado à geração que consumiu — inclusive quando o plano
+  // veio do cache, que é a linha em `ai_generations` que já existia. Regenerar
+  // também marca o plano descartado.
+  const generation = await findCachedGeneration(
+    deps.db,
+    'plan',
+    meta.promptVersion,
+    meta.model,
+    meta.inputHash,
+  );
+  await linkBatchPlanGeneration(deps.db, batch.id, {
+    generationId: generation?.id ?? null,
+    regenerated: Boolean(input.regenerate),
+  });
 
   const drafts = await buildPlanDrafts(deps, { batch, plan, assets });
   const items = await swapPlan(deps, { batchId: batch.id, plan, drafts });

@@ -1,3 +1,4 @@
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import {
   bigint,
   bigserial,
@@ -382,6 +383,17 @@ export const batches = pgTable(
     version: integer('version').notNull().default(1),
     /** T-000-3: aprovação vinculada à revisão — publicar exige fingerprint igual. */
     approvalFingerprint: text('approval_fingerprint'),
+    /**
+     * A12: qual geração de plano este lote consumiu (inclusive quando veio do
+     * cache) e o que aconteceu com ela. Sem isso o feedback ficaria preso à
+     * linha de cache, que é compartilhada por vários lotes.
+     */
+    planGenerationId: uuid('plan_generation_id').references((): AnyPgColumn => aiGenerations.id, {
+      onDelete: 'set null',
+    }),
+    planFeedback: aiFeedbackEnum('plan_feedback'),
+    /** Quantas vezes o plano foi descartado por regeneração. */
+    planRegenerations: integer('plan_regenerations').notNull().default(0),
     validatedAt: timestamp('validated_at', { withTimezone: true }),
     createdAt,
     updatedAt,
@@ -817,10 +829,40 @@ export const aiGenerations = pgTable(
     outputTokens: integer('output_tokens').notNull().default(0),
     costUsd: numeric('cost_usd', { precision: 12, scale: 6 }).notNull().default('0'),
     latencyMs: integer('latency_ms').notNull().default(0),
-    feedback: aiFeedbackEnum('feedback'),
     createdAt,
   },
   (t) => [unique('ai_generations_cache_unique').on(t.purpose, t.promptVersion, t.inputHash)],
+);
+
+/**
+ * Cada tentativa que chegou ao provedor de IA, com tokens e custo estimado.
+ * É a fonte do custo operacional: `ai_generations` guarda o resultado
+ * reutilizável (cache), não a conta — duas chamadas iguais pagas aparecem
+ * aqui, mas só a última fica no cache.
+ */
+export const aiUsage = pgTable(
+  'ai_usage',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    purpose: text('purpose').notNull(),
+    model: text('model').notNull(),
+    clientId: uuid('client_id').references(() => clients.id, { onDelete: 'set null' }),
+    batchId: uuid('batch_id').references(() => batches.id, { onDelete: 'set null' }),
+    assetId: uuid('asset_id').references(() => assets.id, { onDelete: 'set null' }),
+    status: text('status').notNull(),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    cacheReadTokens: integer('cache_read_tokens').notNull().default(0),
+    cacheCreationTokens: integer('cache_creation_tokens').notNull().default(0),
+    costUsd: numeric('cost_usd', { precision: 12, scale: 6 }).notNull().default('0'),
+    latencyMs: integer('latency_ms').notNull().default(0),
+    error: text('error'),
+    createdAt,
+  },
+  (t) => [
+    index('ai_usage_created_idx').on(t.createdAt),
+    index('ai_usage_purpose_idx').on(t.purpose, t.createdAt),
+  ],
 );
 
 export const auditLog = pgTable(
@@ -929,5 +971,6 @@ export type BatchRefRow = typeof batchRefs.$inferSelect;
 export type PublishJobRow = typeof publishJobs.$inferSelect;
 export type AuditLogRow = typeof auditLog.$inferSelect;
 export type AiGenerationRow = typeof aiGenerations.$inferSelect;
+export type AiUsageRow = typeof aiUsage.$inferSelect;
 export type CampaignCacheRow = typeof campaignsCache.$inferSelect;
 export type AdsetCacheRow = typeof adsetsCache.$inferSelect;

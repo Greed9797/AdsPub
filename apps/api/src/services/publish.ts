@@ -5,6 +5,7 @@ import {
   getBatch,
   getDraft,
   listDraftsOfBatch,
+  setBatchPlanFeedback,
   markDraftsQueued,
   patchBatch,
   refreshBatchStatus,
@@ -97,6 +98,18 @@ export async function publishBatch(
   await patchBatch(deps.db, batch.id, { status: 'publishing' });
   await refreshBatchStatus(deps.db, batch.id);
 
+  // A12: publicar fecha o ciclo do plano — veio como a IA entregou (`used`)
+  // ou passou por edição humana (`edited`). Campos automáticos contam como
+  // inalterados: só entra em `edited` o que a pessoa mexeu. Lote sem plano
+  // (modo manual) não entra na conta.
+  const humanEdited = toQueue.some((draft) =>
+    draft.editedFields.some((field) => !field.startsWith('auto:')),
+  );
+  const planFeedback = humanEdited ? 'edited' : 'used';
+  if (batch.planGenerationId) {
+    await setBatchPlanFeedback(deps.db, batch.id, planFeedback);
+  }
+
   await audit(deps.db, {
     actor: { id: actor.id, email: actor.email },
     action: 'batch.publish',
@@ -109,6 +122,7 @@ export async function publishBatch(
       confirmed: input.confirmCount,
       daily_cap: cap,
       published_today: publishedToday,
+      plan_feedback: batch.planGenerationId ? planFeedback : null,
     },
   });
 

@@ -1,6 +1,6 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { AiPurpose } from '@adpub/shared';
-import { aiGenerations } from '../schema.js';
+import { aiGenerations, batches } from '../schema.js';
 import type { AiGenerationRow } from '../schema.js';
 import type { Database } from '../client.js';
 
@@ -68,10 +68,35 @@ export async function saveGeneration(
   return row;
 }
 
-export async function setGenerationFeedback(
+/**
+ * A12: liga o lote à geração de plano que ele consumiu — inclusive quando o
+ * plano veio do cache, caso em que a linha já existia para outro lote.
+ * `regenerated` conta o plano descartado nesta chamada.
+ */
+export async function linkBatchPlanGeneration(
   db: Database,
-  id: string,
+  batchId: string,
+  input: { generationId: string | null; regenerated: boolean },
+): Promise<void> {
+  await db
+    .update(batches)
+    .set({
+      planGenerationId: sql`coalesce(${input.generationId}::uuid, ${batches.planGenerationId})`,
+      ...(input.regenerated
+        ? {
+            planFeedback: 'rejected' as const,
+            planRegenerations: sql`${batches.planRegenerations} + 1`,
+          }
+        : {}),
+    })
+    .where(eq(batches.id, batchId));
+}
+
+/** A12: `used` = publicado como veio; `edited` = publicado após edição humana. */
+export async function setBatchPlanFeedback(
+  db: Database,
+  batchId: string,
   feedback: 'used' | 'edited' | 'rejected',
 ): Promise<void> {
-  await db.update(aiGenerations).set({ feedback }).where(eq(aiGenerations.id, id));
+  await db.update(batches).set({ planFeedback: feedback }).where(eq(batches.id, batchId));
 }

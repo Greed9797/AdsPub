@@ -1,0 +1,158 @@
+{
+  "cases": [
+    {
+      "case": {
+        "id": "inverno-cupom",
+        "title": "Loja de roupa — coleção de inverno com cupom",
+        "briefing": "Vendas no site. Coleção de inverno com 20% OFF e cupom INVERNO20. Público adulto, cidade fria. Sem promessa de resultado.",
+        "copiesPerCreative": 2,
+        "forbiddenTerms": ["garantido", "imperdível", "melhor do mercado"],
+        "requiredMentions": ["20%", "INVERNO20"],
+        "maxHeadlineChars": 40,
+        "expectedFormat": "single_image"
+      },
+      "context": {
+        "account": {
+          "id": "act_111111111",
+          "name": "Loja Inverno",
+          "currency": "BRL",
+          "timezone": "America/Sao_Paulo",
+          "default_page_id": "100000000000001",
+          "default_ig_user_id": "17841400000000001",
+          "default_pixel_id": "200000000000001"
+        },
+        "client": {
+          "name": "Loja Inverno",
+          "voice_profile": {
+            "tone": "direto, acolhedor, sem exagero",
+            "audience": "adultos de 25 a 45 anos em cidades frias",
+            "forbidden_terms": ["garantido", "imperdível", "melhor do mercado"],
+            "allowed_claims": ["peça de inverno com desconto sazonal"],
+            "examples": ["Frio chegou: a coleção de inverno saiu com 20% OFF.", "Use o cupom INVERNO20 no site."]
+          },
+          "naming_template": "{formato}-{cliente}-{v}",
+          "default_utm": { "utm_source": "facebook", "utm_medium": "paid" },
+          "landing_domains": ["lojainverno.com.br"]
+        },
+        "assets": [
+          {
+            "id": "11111111-1111-4111-8111-111111111111",
+            "filename": "casaco-inverno.jpg",
+            "kind": "image",
+            "aspect_ratio": "1:1"
+          },
+          {
+            "id": "22222222-2222-4222-8222-222222222222",
+            "filename": "look-completo.jpg",
+            "kind": "image",
+            "aspect_ratio": "4:5"
+          }
+        ],
+        "campaigns": [
+          { "id": "120000000000001", "name": "Vendas - Inverno", "objective": "OUTCOME_SALES" }
+        ],
+        "adsets": [
+          {
+            "id": "120000000000002",
+            "name": "Interesses - Inverno",
+            "campaign_id": "120000000000001"
+          }
+        ]
+      }
+    },
+    {
+      "case": {
+        "id": "clinica-avaliacao",
+        "title": "Clínica odontológica — agendamento de avaliação",
+        "briefing": "Gerar conversas no WhatsApp para avaliação odontológica. Sem prometer resultado clínico. Público local, raio de 5 km da clínica.",
+        "copiesPerCreative": 3,
+        "forbiddenTerms": ["cura", "sem dor", "resultado garantido"],
+        "requiredMentions": ["avaliação"],
+        "maxHeadlineChars": 40
+      },
+      "context": {
+        "account": {
+          "id": "act_222222222",
+          "name": "Clínica Sorriso",
+          "currency": "BRL",
+          "timezone": "America/Sao_Paulo",
+          "default_page_id": "100000000000002",
+          "default_ig_user_id": null,
+          "default_pixel_id": null
+        },
+        "client": {
+          "name": "Clínica Sorriso",
+          "voice_profile": {
+            "tone": "cuidadoso, informativo, sem apelo alarmista",
+            "audience": "moradores do bairro, 30 a 60 anos",
+            "forbidden_terms": ["cura", "sem dor", "resultado garantido"],
+            "allowed_claims": ["avaliação clínica com profissional habilitado"],
+            "examples": ["Agende sua avaliação e entenda o que pode ser feito.", "Atendimento com profissional habilitado."]
+          },
+          "naming_template": "{formato}-{cliente}-{v}",
+          "default_utm": { "utm_source": "facebook", "utm_medium": "paid" },
+          "landing_domains": ["clinicasorriso.com.br"]
+        },
+        "assets": [
+          {
+            "id": "33333333-3333-4333-8333-333333333333",
+            "filename": "consultorio.jpg",
+            "kind": "image",
+            "aspect_ratio": "1:1"
+          }
+        ],
+        "campaigns": [],
+        "adsets": []
+      }
+    },
+    {
+      "case": {
+        "id": "imobiliaria-lancamento",
+        "title": "Imobiliária — visita ao decorado",
+        "briefing": "Vídeo do apartamento decorado. Objetivo: agendar visitas no fim de semana. 3 ambientes, 2 quartos, bairro central. Sem promessa de valorização.",
+        "copiesPerCreative": 2,
+        "forbiddenTerms": ["valorização garantida", "investimento garantido", "lucro certo"],
+        "requiredMentions": ["visita"],
+        "maxHeadlineChars": 40,
+        "expectedFormat": "single_video"
+      },
+      "context": {
+        "account": {
+          "id": "act_333333333",
+          "name": "Imobiliária Central",
+          "currency": "BRL",
+          "timezone": "America/Sao_Paulo",
+          "default_page_id": "100000000000003",
+          "default_ig_user_id": "17841400000000003",
+          "default_pixel_id": "200000000000003"
+        },
+        "client": {
+          "name": "Imobiliária Central",
+          "voice_profile": {
+            "tone": "objetivo, informativo",
+            "audience": "famílias buscando primeiro imóvel na região central",
+            "forbidden_terms": ["valorização garantida", "investimento garantido", "lucro certo"],
+            "allowed_claims": ["agendamento de visita ao decorado"],
+            "examples": ["Agende sua visita ao decorado neste fim de semana."]
+          },
+          "naming_template": "{formato}-{cliente}-{v}",
+          "default_utm": { "utm_source": "facebook", "utm_medium": "paid" },
+          "landing_domains": ["imobiliariacentral.com.br"]
+        },
+        "assets": [
+          {
+            "id": "44444444-4444-4444-8444-444444444444",
+            "filename": "decorado-sala.mp4",
+            "kind": "video",
+            "aspect_ratio": "9:16",
+            "duration_ms": 18000
+          }
+        ],
+        "campaigns": [
+          { "id": "120000000000010", "name": "Leads - Lançamento Central", "objective": "OUTCOME_LEADS" }
+        ],
+        "adsets": []
+      }
+    }
+  ]
+}

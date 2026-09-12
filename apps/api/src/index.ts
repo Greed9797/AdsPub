@@ -1,6 +1,6 @@
-import { AiClient, anthropicInvoker } from '@adpub/ai';
+import { AiClient, anthropicInvoker, trackedInvoker } from '@adpub/ai';
 import { loadServerEnv } from '@adpub/config';
-import { createDb, getConnectionToken, recordMetaCall } from '@adpub/db';
+import { createDb, getConnectionToken, recordMetaCall, saveAiUsage } from '@adpub/db';
 import { MetaClient } from '@adpub/meta-client';
 import { Storage } from '@adpub/storage';
 import { initTelemetry, redactingLogger } from '@adpub/telemetry';
@@ -73,16 +73,35 @@ const deps: ApiDeps = {
   },
 };
 
+// A11: cada tentativa que chega ao provedor vira uma linha de consumo, com
+// tokens, latência e custo — inclusive quando a resposta é recusada depois.
+const log = redactingLogger(env.LOG_LEVEL);
+const invokeWithUsage = trackedInvoker(
+  anthropicInvoker(env.ANTHROPIC_API_KEY),
+  (event) =>
+    saveAiUsage(db, {
+      ...event,
+      clientId: event.attribution?.clientId ?? null,
+      batchId: event.attribution?.batchId ?? null,
+      assetId: event.attribution?.assetId ?? null,
+    }),
+  {
+    onRecordError: (error) => {
+      log.warn({ err: String(error) }, 'falha ao registrar consumo de IA');
+    },
+  },
+);
+
 // R14: o cache de gerações precisa do próprio `deps` (db) já montado.
 deps.ai = new AiClient({
-  invoke: anthropicInvoker(env.ANTHROPIC_API_KEY),
+  invoke: invokeWithUsage,
   models: { generation: env.AI_MODEL_GENERATION, classify: env.AI_MODEL_CLASSIFY },
   timeoutMs: env.AI_PLAN_TIMEOUT_MS,
   cache: aiCacheFor(deps, null),
 });
 
 const app = await buildApp(deps, {
-  logger: redactingLogger(env.LOG_LEVEL),
+  logger: log,
   docs: true,
   corsOrigin: env.WEB_URL,
 });

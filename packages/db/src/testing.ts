@@ -41,7 +41,7 @@ export async function truncateAllTables(db: Database, url: string): Promise<void
   assertTruncateAllowed(url);
   await db.execute(sql`truncate table
     oauth_tokens, oauth_authorization_codes, oauth_clients,
-    audit_log, meta_api_calls, ai_generations, publish_jobs, batch_refs, ad_creative_bindings,
+    audit_log, meta_api_calls, ai_usage, ai_generations, publish_jobs, batch_refs, ad_creative_bindings,
     creative_variants, metric_observations, report_rows, report_imports, report_feedbacks,
     analysis_reports, learnings,
     insight_snapshots, account_sync_state, ad_drafts,

@@ -77,6 +77,7 @@ export async function validateBatch(
         policyMode: ctx.client.policyMode,
         forbiddenTerms: ctx.client.voiceProfile.forbidden_terms ?? [],
         clientId: ctx.client.id,
+        batchId: batch.id,
       });
     }
 
@@ -144,9 +145,14 @@ async function withAiPolicy(
   deps: ApiDeps,
   validation: ItemValidation,
   draft: ReturnType<typeof adDraftInputSchema.parse>,
-  context: { policyMode: 'warn' | 'block'; forbiddenTerms: string[]; clientId: string },
+  context: {
+    policyMode: 'warn' | 'block';
+    forbiddenTerms: string[];
+    clientId: string;
+    batchId: string;
+  },
 ): Promise<ItemValidation> {
-  const { policyMode, forbiddenTerms, clientId } = context;
+  const { policyMode, forbiddenTerms, clientId, batchId } = context;
   const text = [draft.copy.primary_text, draft.copy.headline, draft.copy.description]
     .filter(Boolean)
     .join('\n');
@@ -156,6 +162,7 @@ async function withAiPolicy(
     const { issues } = await deps.ai.classifyPolicy(text, {
       forbiddenTerms,
       scope: clientId,
+      batchId,
     });
     const extraErrors = [...validation.errors];
     const extraWarnings = [...validation.warnings];

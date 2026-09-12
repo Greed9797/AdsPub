@@ -17,7 +17,7 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
-import { AiClient } from '@adpub/ai';
+import { AiClient, trackedInvoker } from '@adpub/ai';
 import { ingestFile, tempFileFromBytes } from '@adpub/assets';
 import { mintSessionToken } from '@adpub/auth';
 import { loadServerEnv } from '@adpub/config';
@@ -27,10 +27,12 @@ import {
   truncateAllTables,
   updateAccountDefaults,
   upsertUserFromLogin,
+  saveAiUsage,
 } from '@adpub/db';
 import { MetaClient } from '@adpub/meta-client';
 import { Storage } from '@adpub/storage';
 import { buildApp } from '@adpub/api/app';
+import { aiCacheFor } from '@adpub/api/services/batch-plan';
 import type { ApiDeps, JobRef, Queues } from '@adpub/api/lib/deps';
 import { createAlerter } from '@adpub/worker/alerts';
 import { createMetaFactory } from '@adpub/worker/meta';
@@ -322,24 +324,39 @@ if (ingested.asset.validation.status !== 'ok') {
 
 // Só agora o copiloto entra: o invoker devolve um plano fixo com o criativo semeado.
 const planInvoker = fakeAiInvoker(ingested.asset.id);
+// A contabilidade roda no e2e como em produção (só o provedor é falso): o
+// caminho `ai_usage` precisa ser exercitado, senão a conta do custo só é
+// testada em unidade.
 deps.ai = new AiClient({
-  invoke: (async (request: { toolName: string }) => {
-    if (request.toolName === 'submit_analysis_report') {
-      return {
-        input: {
-          performance_findings: [],
-          content_observations: [],
-          hypotheses: [],
-          recommended_tests: [],
-          limitations: ['sem dados no período'],
-        },
-        inputTokens: 10,
-        outputTokens: 10,
-      };
-    }
-    return planInvoker();
-  }) as never,
+  invoke: trackedInvoker(
+    (async (request: { toolName: string }) => {
+      if (request.toolName === 'submit_analysis_report') {
+        return {
+          input: {
+            performance_findings: [],
+            content_observations: [],
+            hypotheses: [],
+            recommended_tests: [],
+            limitations: ['sem dados no período'],
+          },
+          inputTokens: 10,
+          outputTokens: 10,
+        };
+      }
+      return planInvoker();
+    }) as never,
+    (event) =>
+      saveAiUsage(db, {
+        ...event,
+        clientId: event.attribution?.clientId ?? null,
+        batchId: event.attribution?.batchId ?? null,
+        assetId: event.attribution?.assetId ?? null,
+      }),
+  ),
   models: { generation: 'claude-sonnet-4-6', classify: 'claude-haiku-4-6' },
+  // Mesmo cache de produção: a jornada de publicar precisa fechar o ciclo do
+  // plano (`used`/`edited`) e o de regenerar precisa marcar `rejected`.
+  cache: aiCacheFor(deps, null),
 });
 
 const seed: SeedData = {

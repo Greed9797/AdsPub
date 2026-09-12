@@ -87,6 +87,16 @@ export const AI_PRICING_USD_PER_MTOK: Record<string, { input: number; output: nu
   'claude-sonnet-4-6': { input: 3, output: 15 },
 };
 
+/**
+ * Multiplicadores do cache de prefixo sobre o preço de entrada. São os
+ * valores publicados pelo provedor na data desta configuração; revisar junto
+ * da tabela de preços quando o catálogo mudar.
+ */
+export const AI_CACHE_PRICING = {
+  readMultiplier: 0.1,
+  writeMultiplier: 1.25,
+} as const;
+
 export function adsManagerUrl(adAccountId: string, adId?: string): string {
   const act = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
   const base = `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${act.replace('act_', '')}`;

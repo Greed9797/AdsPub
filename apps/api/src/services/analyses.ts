@@ -70,6 +70,7 @@ export async function analyzeAsset(
     transcript,
     brandContext,
     filename: asset.filename,
+    attribution: { clientId: asset.clientId, assetId: asset.id },
   });
   const row = await insertAnalysis(deps.db, {
     assetId: asset.id,

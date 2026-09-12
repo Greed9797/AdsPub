@@ -14,7 +14,7 @@ import { costUsd } from './cost.js';
 import { loadPrompt, PROMPT_VERSIONS } from './prompts.js';
 import { renderCopyContext, renderPlanContext, type CopyContext, type PlanContext } from './context.js';
 import { AiSchemaError, normalizePlan } from './normalize.js';
-import type { AiInvoker } from './invoker.js';
+import type { AiInvoker, AiUsageAttribution } from './invoker.js';
 
 /** De onde veio a resposta: provedor, cache do banco ou chamada em voo reaproveitada. */
 export type GenerationSource = 'provider' | 'cache' | 'inflight';
@@ -64,6 +64,7 @@ export interface AiCache {
 export interface GenerationOptions {
   scope?: string;
   bypassCache?: boolean;
+  batchId?: string | null;
 }
 
 export interface AiClientOptions {
@@ -102,6 +103,10 @@ export class AiClient {
     const model = this.options.models.generation;
     const inputHash = this.identity('plan', promptVersion, model, options.scope, prompt);
     const key = `plan:${inputHash}`;
+    const attribution: AiUsageAttribution = {
+      clientId: options.scope ?? null,
+      batchId: options.batchId ?? null,
+    };
 
     const cached = options.bypassCache
       ? undefined
@@ -127,6 +132,8 @@ export class AiClient {
         toolDescription:
           'Devolve o plano completo do lote: campanhas novas, conjuntos novos, itens (criativo × copies) e pendências.',
         inputSchema: batchPlanJsonSchema(),
+        purpose: 'plan',
+        ...(attribution ? { attribution } : {}),
         ...(this.options.timeoutMs ? { timeoutMs: this.options.timeoutMs } : {}),
       });
       const latencyMs = this.now() - started;
@@ -170,6 +177,7 @@ export class AiClient {
     const model = this.options.models.generation;
     const inputHash = this.identity('copy', promptVersion, model, options.scope, prompt);
     const key = `copy:${inputHash}`;
+    const attribution: AiUsageAttribution = { clientId: options.scope ?? null };
 
     const cached = options.bypassCache
       ? undefined
@@ -196,6 +204,8 @@ export class AiClient {
         toolName: 'submit_copies',
         toolDescription: 'Devolve as variações de copy pedidas.',
         inputSchema: copyListJsonSchema(),
+        purpose: 'copy',
+        ...(attribution ? { attribution } : {}),
         ...(this.options.timeoutMs ? { timeoutMs: this.options.timeoutMs } : {}),
       });
       const latencyMs = this.now() - started;
@@ -244,6 +254,7 @@ export class AiClient {
     const model = this.options.models.classify;
     const inputHash = this.identity('policy', promptVersion, model, options.scope, prompt);
     const key = `policy:${inputHash}`;
+    const attribution: AiUsageAttribution = { clientId: options.scope ?? null };
 
     const cached = options.bypassCache
       ? undefined
@@ -270,6 +281,8 @@ export class AiClient {
         toolName: 'submit_policy_review',
         toolDescription: 'Devolve os achados de política encontrados na copy.',
         inputSchema: toJsonSchema(z.object({ issues: z.array(policyIssueSchema) })),
+        purpose: 'policy',
+        ...(attribution ? { attribution } : {}),
         ...(this.options.timeoutMs ? { timeoutMs: this.options.timeoutMs } : {}),
       });
       const latencyMs = this.now() - started;
