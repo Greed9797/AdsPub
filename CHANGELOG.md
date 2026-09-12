@@ -6,6 +6,17 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não publicado]
 
+### Corrigido
+
+- Imagem do MinIO: o Docker Hub aposentou `minio/minio` e `minio/mc` (`pull access denied`), então o
+  compose local, o de produção, o `backup.sh` e os workflows passam a puxar do registro oficial no
+  Quay — pinados por release (`RELEASE.2025-09-07T16-13-09Z` no servidor,
+  `RELEASE.2025-08-13T08-35-41Z` no `mc`). Sem isso, o próximo `docker compose pull` no host falha.
+  O host de produção segue com a imagem antiga até o próximo deploy.
+- `apps/mcp`: o cliente da API montava o caminho sem o prefixo `/api/v1`, então toda ferramenta
+  respondia 404 contra a API de verdade (o teste de integração usa um duplo e não pegava isso).
+  Agora o caminho sai sob `/api/v1` e há teste do contrato em `apps/mcp/test/api.test.ts`.
+
 ### Adicionado (MCP: connector do ChatGPT)
 
 - `apps/mcp`: servidor MCP remoto em `https://APP_DOMAIN/mcp` com authorization server próprio —

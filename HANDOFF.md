@@ -40,6 +40,10 @@ open http://localhost:3000/
 
 - Web `:3000`, API `:4000` (`/health`), MCP `:4410/mcp` — a 4100 já é do stack `openbotw3` nesta
   máquina, então `MCP_PORT` e `MCP_PUBLIC_URL` andam juntos (issuer sai da URL pública).
+- `dev-up.sh` checa a **porta** de cada serviço (não só o processo): se um ficou travado com o filho
+  morto, ele reinicia sozinho. E `node tmp/mcp-real-journey.mjs` (com o stack no ar) roda a jornada
+  do MCP contra a **API real** — consentimento, escopos, ferramentas e um `criar_lote` de smoke
+  (cria um lote "Smoke MCP (pode apagar)" no seed demo; não há rota de DELETE para ele).
 - Sem login: entra direto como admin dev.
 - Se o Mac dormiu, o colima morre — rode `dev-up.sh` de novo.
 - Banco local tem **seed demo** (BM Demo, Demo Store, act_demo, 5 lotes). Apagar antes de teste
@@ -89,6 +93,12 @@ open http://localhost:3000/
   (`S3_DOMAIN`) porque o browser abre o link assinado; o bucket nasce no `minio-init` (o app não
   cria bucket); variável opcional de URL **vazia** derruba o boot — deixe comentada no `.env.prod`;
   `backup.sh` entra na rede pelo nome fixo `adpub_internal` (não troque o `name:` dela à toa).
+- **MinIO**: a imagem saiu do Docker Hub para o Quay (`quay.io/minio/...`, pinada por release) — o
+  container do host ainda roda a antiga até o próximo `pull`; o `mc` embutido no servidor é o que o
+  healthcheck usa (`mc ready local`).
+- **MCP**: o cliente fala com a API sob `/api/v1` (o prefixo é montado em `apps/mcp/src/api.ts`, com
+  teste) — caminho novo de ferramenta não deve incluir o prefixo; as ferramentas de escrita só
+  existem com o escopo `adpub:write` e a checagem vem antes da chamada à API.
 - **Host compartilhado**: cada serviço tem teto de memória (soma ~4,8 GB) e log `json-file` de
   3 × 10 MB — subir algo sem limite atrapalha `mcrm`/`creativeos`, que dividem a máquina.
 - **Rollback**: a imagem volta por sha (`IMAGE_TAG`), o schema não; migração destrutiva exige restore
