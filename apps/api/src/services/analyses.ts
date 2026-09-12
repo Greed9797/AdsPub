@@ -1,10 +1,12 @@
 import {
+  CONTENT_PROMPT_VERSION,
   analyzeContent,
   contentInputHash,
   sampleVideo,
   unavailableTranscriber,
   type ContentAnalysis,
 } from '@adpub/creative-intel';
+import { makeVisionFrame } from '@adpub/media';
 import {
   audit,
   findAnalysisByInput,
@@ -40,13 +42,23 @@ export async function analyzeAsset(
   const frames =
     asset.kind === 'video'
       ? (await sampleVideo(bytes, asset.filename)).frames
-      : [{ t: 0, jpeg: bytes }];
+      // PNG/WebP chegavam ao provedor declarados como JPEG; o frame agora é
+      // sempre JPEG e com o maior lado limitado (custo por pixel).
+      : [{ t: 0, jpeg: await makeVisionFrame(bytes) }];
   const transcript = await unavailableTranscriber('sem provedor de transcrição aprovado').transcribe(
     new Uint8Array(),
     'pt-BR',
   );
   const { invoke, model } = deps.ai.contentBackend();
-  const inputHash = contentInputHash(asset.sha256, frames.length);
+  const brandContext = input.brandContext ?? '';
+  const inputHash = contentInputHash({
+    assetSha256: asset.sha256,
+    model,
+    promptVersion: CONTENT_PROMPT_VERSION,
+    brandContext,
+    timestamps: frames.map((frame) => frame.t),
+    transcriptStatus: transcript.status,
+  });
 
   if (!input.force) {
     const cached = await findAnalysisByInput(deps.db, asset.id, inputHash);
@@ -56,7 +68,7 @@ export async function analyzeAsset(
     assetSha256: asset.sha256,
     frames,
     transcript,
-    brandContext: input.brandContext ?? '',
+    brandContext,
     filename: asset.filename,
   });
   const row = await insertAnalysis(deps.db, {

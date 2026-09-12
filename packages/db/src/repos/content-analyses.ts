@@ -1,5 +1,6 @@
-import { and, desc, eq } from 'drizzle-orm';
-import { contentAnalyses } from '../schema.js';
+import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { assets, contentAnalyses } from '../schema.js';
+import type { ContentAnalysisLike } from '../schema.js';
 import type { Database } from '../client.js';
 
 export type ContentAnalysisRow = typeof contentAnalyses.$inferSelect;
@@ -41,4 +42,20 @@ export async function listAnalyses(db: Database, assetId: string): Promise<Conte
     .where(eq(contentAnalyses.assetId, assetId))
     .orderBy(desc(contentAnalyses.revision))
     .limit(20);
+}
+
+/**
+ * Análises atuais dos criativos de um cliente numa consulta só: o relatório
+ * fazia uma consulta por ativo e lia até 50.
+ */
+export async function listCurrentAnalysesForClient(
+  db: Database,
+  clientId: string,
+): Promise<Array<{ assetId: string; findings: ContentAnalysisLike }>> {
+  return db
+    .select({ assetId: contentAnalyses.assetId, findings: contentAnalyses.findings })
+    .from(contentAnalyses)
+    .innerJoin(assets, eq(assets.id, contentAnalyses.assetId))
+    .where(and(eq(assets.clientId, clientId), isNull(contentAnalyses.supersededBy)))
+    .orderBy(asc(contentAnalyses.assetId));
 }

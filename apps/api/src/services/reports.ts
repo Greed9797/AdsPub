@@ -3,10 +3,10 @@ import {
   REPORT_PROMPT_VERSION,
   REPORT_SCHEMA,
   REPORT_SCHEMA_VERSION,
+  buildReportSnapshot,
   loadReportPrompt,
   validateReportOutput,
   type ReportOutput,
-  type ReportSnapshot,
 } from '@adpub/creative-intel';
 import {
   addFeedback,
@@ -16,8 +16,7 @@ import {
   getClient,
   getReport,
   insertReport,
-  listAnalyses,
-  listAssets,
+  listCurrentAnalysesForClient,
   listFeedbacks,
   type AnalysisReportRow,
 } from '@adpub/db';
@@ -49,37 +48,32 @@ export async function generateReport(
     to: input.to,
     ...(input.source ? { source: input.source } : {}),
   });
-  const assets = await listAssets(deps.db, { clientId: account.clientId });
-  const content = [];
-  for (const asset of assets.slice(0, 50)) {
-    const analyses = await listAnalyses(deps.db, asset.id);
-    const current = analyses.find((a) => !a.supersededBy) ?? analyses[0];
-    if (!current) continue;
-    content.push({
-      assetId: asset.id,
-      observations: current.findings.observations.map((o) => ({ tipo: o.tipo, texto: o.texto })),
-    });
-  }
+  // Uma consulta só: antes era uma por criativo, até 50.
+  const analyses = await listCurrentAnalysesForClient(deps.db, account.clientId);
+  const content = analyses.map((row) => ({
+    assetId: row.assetId,
+    observations: row.findings.observations.map((o) => ({ tipo: o.tipo, texto: o.texto })),
+  }));
 
-  const snapshot: ReportSnapshot = {
+  const built = buildReportSnapshot({
     accountId: input.adAccountId,
     from: input.from,
     to: input.to,
     source: input.source ?? 'all',
     totals: { spend: perf.totals.spend, results: perf.totals.results },
     rows: perf.rows.map((r) => ({ id: r.id, name: r.name, spend: r.spend, results: r.results, cpa: r.cpa })),
-    hasMetrics: perf.sources.observations > 0,
-    hasMedia: content.length > 0,
-    selectionCoverage: input.source ? 'selected' : 'all',
     content,
-  };
+    selectionCoverage: input.source ? 'selected' : 'all',
+  });
+  const snapshot = built.snapshot;
 
   const { invoke, model } = deps.ai.contentBackend();
   const started = Date.now();
+  const promptVersion = REPORT_PROMPT_VERSION;
   const result = await invoke({
     model,
-    system: loadReportPrompt(),
-    prompt: `Snapshot (verdade única, não recalcule):\n${JSON.stringify(snapshot).slice(0, 12000)}`,
+    system: loadReportPrompt(promptVersion),
+    prompt: `Snapshot (verdade única, não recalcule):\n${built.json}`,
     toolName: 'submit_analysis_report',
     toolDescription: 'Devolve fatos, hipóteses, testes e limitações com evidências. Sem causalidade prometida.',
     inputSchema: REPORT_SCHEMA as unknown as Record<string, unknown>,
@@ -98,7 +92,7 @@ export async function generateReport(
     inputSnapshot: snapshot,
     output,
     modelId: model,
-    promptVersion: REPORT_PROMPT_VERSION,
+    promptVersion,
     schemaVersion: REPORT_SCHEMA_VERSION,
     costUsd: String(costUsd(model, result.inputTokens, result.outputTokens)),
     latencyMs,

@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { sampleTimestamps, SAMPLE_LIMITS } from '../src/sampler.js';
 import { unavailableTranscriber } from '../src/transcribe.js';
-import { analyzeContent } from '../src/analyze.js';
+import { analyzeContent, contentInputHash } from '../src/analyze.js';
 import type { AiInvoker } from '@adpub/ai';
 
 function hasFfmpeg(): boolean {
@@ -70,6 +70,101 @@ describe('analyzeContent', () => {
     await expect(
       analyzeContent(invoke, 'x', { assetSha256: 'abc', frames, transcript: { status: 'unavailable', reason: 'x' }, brandContext: '', filename: 'a' }),
     ).rejects.toThrow(/schema/);
+  });
+
+  it('recusa observação sem evidência', async () => {
+    const invoke: AiInvoker = async () => ({
+      input: { observations: [{ tipo: 'abertura', texto: 'plano aberto', evidence_refs: [] }], limitations: [] },
+      inputTokens: 10,
+      outputTokens: 5,
+    });
+    await expect(
+      analyzeContent(invoke, 'x', {
+        assetSha256: 'abc',
+        frames,
+        transcript: { status: 'unavailable', reason: 'sem provedor' },
+        brandContext: '',
+        filename: 'a.mp4',
+      }),
+    ).rejects.toThrow(/sem evidência/);
+  });
+
+  it('recusa frame que não foi observado', async () => {
+    const invoke: AiInvoker = async () => ({
+      input: {
+        observations: [
+          { tipo: 'abertura', texto: 'cena em 9s', evidence_refs: [{ kind: 'frame', t: 9, detail: 'cena' }] },
+        ],
+        limitations: [],
+      },
+      inputTokens: 10,
+      outputTokens: 5,
+    });
+    await expect(
+      analyzeContent(invoke, 'x', {
+        assetSha256: 'abc',
+        frames,
+        transcript: { status: 'unavailable', reason: 'sem provedor' },
+        brandContext: '',
+        filename: 'a.mp4',
+      }),
+    ).rejects.toThrow(/não observado/);
+  });
+
+  it('recusa citação de transcrição quando ela não existe', async () => {
+    const invoke: AiInvoker = async () => ({
+      input: {
+        observations: [
+          {
+            tipo: 'fala',
+            texto: 'locutor promete desconto',
+            evidence_refs: [{ kind: 'transcript', t: 0, detail: 'fala do locutor' }],
+          },
+        ],
+        limitations: [],
+      },
+      inputTokens: 10,
+      outputTokens: 5,
+    });
+    await expect(
+      analyzeContent(invoke, 'x', {
+        assetSha256: 'abc',
+        frames,
+        transcript: { status: 'unavailable', reason: 'sem provedor' },
+        brandContext: '',
+        filename: 'a.mp4',
+      }),
+    ).rejects.toThrow(/transcrição/);
+  });
+
+  it('hash muda com modelo, marca, instantes e transcrição', () => {
+    const baseHash = contentInputHash({
+      assetSha256: 'abc',
+      model: 'modelo-a',
+      promptVersion: 'content.v1',
+      brandContext: 'marca A',
+      timestamps: [0, 1.5],
+      transcriptStatus: 'unavailable',
+    });
+    const variants = [
+      { model: 'modelo-b' },
+      { brandContext: 'marca B' },
+      { timestamps: [0, 1.5, 3] },
+      { transcriptStatus: 'ready' },
+    ];
+    for (const variant of variants) {
+      expect(
+        contentInputHash({
+          assetSha256: 'abc',
+          model: 'modelo-a',
+          promptVersion: 'content.v1',
+          brandContext: 'marca A',
+          timestamps: [0, 1.5],
+          transcriptStatus: 'unavailable',
+          ...variant,
+        }),
+      ).not.toBe(baseHash);
+    }
   });
 
   it('injeção no nome não altera formato nem vaza', async () => {

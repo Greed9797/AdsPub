@@ -50,6 +50,7 @@ const ANALYSIS_SCHEMA = {
           texto: { type: 'string' },
           evidence_refs: {
             type: 'array',
+            minItems: 1,
             items: {
               type: 'object',
               required: ['kind', 'detail'],
@@ -75,10 +76,31 @@ function loadSystemPrompt(): string {
   }
 }
 
-/** Hash determinístico da entrada (asset + prompt + nº frames): base do cache. */
-export function contentInputHash(assetSha256: string, frameCount: number): string {
+/**
+ * Hash da identidade da análise: ativo, modelo, versão do prompt, contexto de
+ * marca, instantes observados e disponibilidade de transcrição. Antes só o
+ * ativo e a contagem de frames entravam, então trocar marca ou modelo
+ * reaproveitava uma análise que não correspondia ao pedido.
+ */
+export function contentInputHash(input: {
+  assetSha256: string;
+  model: string;
+  promptVersion: string;
+  brandContext: string;
+  timestamps: readonly number[];
+  transcriptStatus: string;
+}): string {
   return createHash('sha256')
-    .update(JSON.stringify({ asset: assetSha256, prompt: CONTENT_PROMPT_VERSION, frames: frameCount }))
+    .update(
+      JSON.stringify({
+        asset: input.assetSha256,
+        model: input.model,
+        prompt: input.promptVersion,
+        brand: input.brandContext.trim(),
+        frames: input.timestamps,
+        transcript: input.transcriptStatus,
+      }),
+    )
     .digest('hex');
 }
 
@@ -115,7 +137,14 @@ export async function analyzeContent(
     transcriptText,
     'Devolva observações APENAS do observável, cada uma com evidence_refs.',
   ].join('\n');
-  const inputHash = contentInputHash(input.assetSha256, input.frames.length);
+  const inputHash = contentInputHash({
+    assetSha256: input.assetSha256,
+    model,
+    promptVersion: CONTENT_PROMPT_VERSION,
+    brandContext: input.brandContext,
+    timestamps: input.frames.map((frame) => frame.t),
+    transcriptStatus: input.transcript.status,
+  });
   const started = Date.now();
   const result = await invoke({
     model,
@@ -127,7 +156,10 @@ export async function analyzeContent(
     inputSchema: ANALYSIS_SCHEMA as unknown as Record<string, unknown>,
     timeoutMs: 120_000,
   });
-  const parsed = validateAnalysis(result.input);
+  const parsed = validateAnalysis(result.input, {
+    timestamps: input.frames.map((frame) => frame.t),
+    transcriptReady: input.transcript.status === 'ready',
+  });
   return {
     analysis: parsed,
     meta: {
@@ -144,7 +176,15 @@ export async function analyzeContent(
   };
 }
 
-function validateAnalysis(input: unknown): ContentAnalysis {
+/**
+ * Observação sem evidência é opinião: o schema exige ao menos uma referência e
+ * ela precisa apontar para algo que o modelo realmente recebeu (frame em um
+ * dos instantes amostrados ou transcrição existente).
+ */
+function validateAnalysis(
+  input: unknown,
+  allowed: { timestamps: readonly number[]; transcriptReady: boolean },
+): ContentAnalysis {
   const root = input as Partial<ContentAnalysis>;
   if (!root || !Array.isArray(root.observations) || !Array.isArray(root.limitations)) {
     throw new Error('Análise fora do schema: observations/limitations.');
@@ -153,9 +193,25 @@ function validateAnalysis(input: unknown): ContentAnalysis {
     if (typeof obs?.tipo !== 'string' || typeof obs?.texto !== 'string' || !Array.isArray(obs?.evidence_refs)) {
       throw new Error('Análise fora do schema: observação inválida.');
     }
+    if (obs.evidence_refs.length === 0) {
+      throw new Error('Análise sem evidência: toda observação precisa citar frame ou transcrição.');
+    }
     for (const ref of obs.evidence_refs) {
       if ((ref?.kind !== 'frame' && ref?.kind !== 'transcript') || typeof ref?.detail !== 'string') {
         throw new Error('Análise fora do schema: evidence_ref inválida.');
+      }
+      if (ref.kind === 'transcript') {
+        if (!allowed.transcriptReady) {
+          throw new Error('Análise cita transcrição que não foi fornecida.');
+        }
+        continue;
+      }
+      if (typeof ref.t !== 'number' || !Number.isFinite(ref.t)) {
+        throw new Error('Análise cita frame sem instante.');
+      }
+      const matches = allowed.timestamps.some((t) => Math.abs(t - ref.t!) <= 0.25);
+      if (!matches) {
+        throw new Error(`Análise cita frame não observado em t=${ref.t}s.`);
       }
     }
   }

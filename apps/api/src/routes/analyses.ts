@@ -41,7 +41,12 @@ export function analysisRoutes(app: FastifyInstance, deps: ApiDeps): void {
       deps,
       { id: user.id, email: user.email },
       id,
-      body,
+      {
+        // O corpo HTTP fala snake_case; o serviço fala camelCase. Sem este
+        // mapeamento o contexto de marca era aceito e descartado em silêncio.
+        ...(body.brand_context ? { brandContext: body.brand_context } : {}),
+        force: body.force,
+      },
     );
     return reply.status(cached ? 200 : 201).send(analysisDto(analysis));
   });

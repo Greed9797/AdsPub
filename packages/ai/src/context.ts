@@ -48,6 +48,8 @@ export interface CopyContext {
   url_tags: string;
   variations: number;
   briefing?: string;
+  /** Fatos observados no criativo (análise visual revisada), nunca inferidos aqui. */
+  observations?: string[];
 }
 
 export function renderPlanContext(ctx: PlanContext): string {
@@ -109,19 +111,32 @@ export function renderPlanContext(ctx: PlanContext): string {
 }
 
 export function renderCopyContext(ctx: CopyContext): string {
-  return [
+  const voice = ctx.client.voice_profile;
+  const lines = [
     `Cliente: ${ctx.client.name}`,
-    `Tom: ${ctx.client.voice_profile.tone || '(livre)'}`,
-    `Público: ${ctx.client.voice_profile.audience || '(não informado)'}`,
-    `Termos proibidos: ${ctx.client.voice_profile.forbidden_terms.join(', ') || '(nenhum)'}`,
+    `Tom: ${voice.tone || '(livre)'}`,
+    `Público: ${voice.audience || '(não informado)'}`,
+    `Termos proibidos: ${voice.forbidden_terms.join(', ') || '(nenhum)'}`,
+    `Claims permitidos: ${voice.allowed_claims.join(', ') || '(nenhum — não invente prova)'}`,
+  ];
+  if (voice.examples.length > 0) {
+    lines.push('Exemplos aprovados (referência de voz; não copie literalmente):');
+    for (const example of voice.examples.slice(0, 5)) lines.push(`  - ${example}`);
+  }
+  lines.push(
     `Criativo: ${ctx.asset.filename} (${ctx.asset.kind}, ${ctx.asset.aspect_ratio})`,
     `Formato: ${ctx.format}`,
     `CTA: ${ctx.cta}`,
     `Link: ${ctx.link || '(pendente — deixe vazio)'}`,
     `url_tags: ${ctx.url_tags || '(vazio)'}`,
     `Variações: ${ctx.variations}`,
-    '',
-    'Briefing:',
-    ctx.briefing?.trim() || '(sem briefing adicional)',
-  ].join('\n');
+  );
+  if (ctx.observations && ctx.observations.length > 0) {
+    lines.push('', 'Observações do criativo (fatos observados; não invente o que não está aqui):');
+    for (const observation of ctx.observations.slice(0, 12)) {
+      lines.push(`- ${observation}`);
+    }
+  }
+  lines.push('', 'Briefing:', ctx.briefing?.trim() || '(sem briefing adicional)');
+  return lines.join('\n');
 }

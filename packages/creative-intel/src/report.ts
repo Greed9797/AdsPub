@@ -22,8 +22,21 @@ export interface ReportSnapshot {
   rows: SnapshotRow[];
   hasMetrics: boolean;
   hasMedia: boolean;
-  selectionCoverage: 'all' | 'selected' | 'unknown';
+  selectionCoverage: 'all' | 'selected' | 'partial' | 'unknown';
   content: SnapshotContent[];
+  /** O que ficou de fora do recorte enviado: o modelo nunca deve supor totalidade. */
+  omitted?: { rows: number; contentAssets: number; contentObservations: number } | null;
+}
+
+export interface SnapshotInput {
+  accountId: string;
+  from: string;
+  to: string;
+  source: string;
+  totals: { spend: number; results: number | null };
+  rows: SnapshotRow[];
+  content: SnapshotContent[];
+  selectionCoverage: 'all' | 'selected' | 'unknown';
 }
 
 export interface FindingRef {
@@ -61,12 +74,12 @@ export interface ReportOutput {
   limitations: string[];
 }
 
-export const REPORT_PROMPT_VERSION = 'report.v1';
+export const REPORT_PROMPT_VERSION = 'report.v2';
 export const REPORT_SCHEMA_VERSION = 'report.v1';
 
-export function loadReportPrompt(): string {
+export function loadReportPrompt(version = REPORT_PROMPT_VERSION): string {
   try {
-    return readFileSync(new URL('../prompts/report.v1.md', import.meta.url), 'utf8');
+    return readFileSync(new URL(`../prompts/${version}.md`, import.meta.url), 'utf8');
   } catch {
     return 'Responda só com fatos do snapshot, hipóteses com evidências e testes. Sem causalidade prometida.';
   }
@@ -129,7 +142,23 @@ export const REPORT_SCHEMA = {
 } as const;
 
 function recompute(snapshot: ReportSnapshot, metric: string, entityId?: string): number | null {
-  const rows = entityId ? snapshot.rows.filter((r) => r.id === entityId) : snapshot.rows;
+  if (!entityId) {
+    // Totais são calculados sobre o recorte inteiro; `rows` pode estar cortado
+    // por orçamento de contexto e não serve para recompor o total.
+    switch (metric) {
+      case 'spend':
+        return snapshot.totals.spend;
+      case 'results':
+        return snapshot.totals.results;
+      case 'cpa':
+        return snapshot.totals.results && snapshot.totals.results > 0
+          ? snapshot.totals.spend / snapshot.totals.results
+          : null;
+      default:
+        return null;
+    }
+  }
+  const rows = snapshot.rows.filter((r) => r.id === entityId);
   if (rows.length === 0) return null;
   const spend = rows.reduce((a, r) => a + r.spend, 0);
   const results = rows.reduce((a, r) => a + (r.results ?? 0), 0);
@@ -144,6 +173,71 @@ function recompute(snapshot: ReportSnapshot, metric: string, entityId?: string):
     default:
       return null;
   }
+}
+
+/**
+ * Monta o snapshot dentro de um orçamento de caracteres sem cortar JSON no meio.
+ * O corte acontece antes de serializar: linhas por gasto, conteúdo por id e
+ * observações por ativo, com o que sobrou registrado em `omitted`.
+ */
+export const REPORT_CONTEXT_BUDGET_CHARS = 14_000;
+
+const SNAPSHOT_STEPS = [
+  { rows: 40, contentAssets: 25, observations: 6 },
+  { rows: 30, contentAssets: 15, observations: 4 },
+  { rows: 20, contentAssets: 10, observations: 3 },
+  { rows: 10, contentAssets: 6, observations: 2 },
+  { rows: 5, contentAssets: 3, observations: 1 },
+] as const;
+
+export function buildReportSnapshot(
+  input: SnapshotInput,
+  budgetChars: number = REPORT_CONTEXT_BUDGET_CHARS,
+): { snapshot: ReportSnapshot; json: string } {
+  const rows = [...input.rows].sort((a, b) => b.spend - a.spend || a.id.localeCompare(b.id));
+  const content = [...input.content]
+    .filter((item) => item.observations.length > 0)
+    .sort((a, b) => a.assetId.localeCompare(b.assetId));
+
+  let chosen: { snapshot: ReportSnapshot; json: string } | null = null;
+  for (const step of SNAPSHOT_STEPS) {
+    const keptRows = rows.slice(0, step.rows);
+    const keptContent = content.slice(0, step.contentAssets).map((item) => ({
+      assetId: item.assetId,
+      observations: item.observations.slice(0, step.observations).map((o) => ({ tipo: o.tipo, texto: o.texto })),
+    }));
+    const omitted = {
+      rows: rows.length - keptRows.length,
+      contentAssets: content.length - keptContent.length,
+      contentObservations: content.reduce((total, item) => total + Math.max(0, item.observations.length - step.observations), 0),
+    };
+    const truncated = omitted.rows > 0 || omitted.contentAssets > 0 || omitted.contentObservations > 0;
+    const snapshot: ReportSnapshot = {
+      accountId: input.accountId,
+      from: input.from,
+      to: input.to,
+      source: input.source,
+      totals: input.totals,
+      rows: keptRows,
+      hasMetrics: input.rows.length > 0,
+      hasMedia: keptContent.length > 0,
+      selectionCoverage: truncated
+        ? input.selectionCoverage === 'all'
+          ? 'partial'
+          : input.selectionCoverage
+        : input.selectionCoverage,
+      content: keptContent,
+      omitted: truncated ? omitted : null,
+    };
+    const json = JSON.stringify(snapshot);
+    chosen = { snapshot, json };
+    if (json.length <= budgetChars) return chosen;
+  }
+
+  const smallest = chosen!;
+  throw new Error(
+    `Snapshot acima do orçamento de contexto (${budgetChars} caracteres) mesmo no menor recorte: ${smallest.json.length} caracteres. Reduza o período ou o recorte antes de gerar o relatório.`,
+  );
 }
 
 /**

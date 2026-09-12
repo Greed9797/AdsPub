@@ -197,6 +197,19 @@ export async function makeVideoThumbnailFile(path: string, atSeconds = 1): Promi
   }
 }
 
+/**
+ * Frame para o provedor de visão: sempre JPEG e com o maior lado limitado.
+ * Formato fora do aceito pelo provedor quebrava a chamada; imagem gigante
+ * pagava token por pixel que o modelo reduz sozinho.
+ */
+export async function makeVisionFrame(bytes: Uint8Array, maxEdge = 1568): Promise<Uint8Array> {
+  const out = await sharp(bytes)
+    .resize({ width: maxEdge, height: maxEdge, fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 82 })
+    .toBuffer();
+  return new Uint8Array(out);
+}
+
 /** Miniatura de imagem lida do disco. */
 export async function makeImageThumbnailFile(path: string, size = 480): Promise<Uint8Array> {
   const out = await sharp(path).resize({ width: size, height: size, fit: 'inside' }).jpeg({ quality: 78 }).toBuffer();

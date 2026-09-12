@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AiClient } from '../src/client.js';
 import { AiSchemaError, normalizePlan } from '../src/normalize.js';
-import { renderPlanContext, type PlanContext } from '../src/context.js';
+import { renderCopyContext, renderPlanContext, type PlanContext } from '../src/context.js';
 import { loadPrompt, PROMPT_VERSIONS } from '../src/prompts.js';
 import type { AiInvoker } from '../src/invoker.js';
 
@@ -231,6 +231,40 @@ describe('AiClient.generatePlan', () => {
 });
 
 describe('AiClient.generateCopies e classifyPolicy', () => {
+  it('contexto de copy carrega claims, exemplos e observações do criativo', () => {
+    const base = {
+      client: { name: 'Loja', voice_profile: ctx().client.voice_profile },
+      asset: ctx().assets[0]!,
+      format: 'single_image' as const,
+      cta: 'SHOP_NOW',
+      link: 'https://lojateste.com.br/inverno',
+      url_tags: 'utm_source=facebook',
+      variations: 3,
+    };
+    const prompt = renderCopyContext(base);
+    expect(prompt).toContain('Claims permitidos: (nenhum — não invente prova)');
+    expect(prompt).toContain('Exemplos aprovados');
+    expect(prompt).toContain('Inverno com 20% OFF');
+
+    const outro = renderCopyContext({
+      ...base,
+      client: {
+        name: 'Loja',
+        voice_profile: {
+          ...ctx().client.voice_profile,
+          allowed_claims: ['frete grátis acima de R$ 199'],
+          examples: ['Frete grátis na primeira compra'],
+        },
+      },
+    });
+    expect(outro).not.toBe(prompt);
+    expect(outro).toContain('frete grátis acima de R$ 199');
+
+    const comObservacao = renderCopyContext({ ...base, observations: ['produto aparece em close no rótulo'] });
+    expect(comObservacao).toContain('Observações do criativo');
+    expect(comObservacao).toContain('produto aparece em close');
+  });
+
   it('gera no máximo o número de variações pedidas', async () => {
     const copy = {
       primary_text: 'texto',
