@@ -177,7 +177,7 @@ Uma sessão por turma de até 5 gestores, ao vivo, com a conta de teste aberta. 
 |---|---|---|
 | 0–3 min | Por que existe | Antes: tela por tela no Ads Manager. Agora: briefing → grade → publicar pausado. O que **não** muda: quem ativa, quem define orçamento e público continua sendo o gestor |
 | 3–6 min | Regras que o produto impõe | Tudo nasce `PAUSED`; a IA só sugere dados, nunca executa; existe teto diário por conta; toda ação fica na auditoria |
-| 6–11 min | Criativos (`/criativos`) | Importar pasta do Drive ou arrastar arquivos; o que é rejeitado e por quê (proporção, < 600 px, vídeo fora do limite); o mesmo arquivo nunca sobe duas vezes |
+| 6–11 min | Criativos (`/criativos`) | Importar pasta do Drive ou arrastar arquivos; o que é rejeitado e por quê (proporção, < 600 px, vídeo fora do limite, vídeo fora do H.264 — reexportar); o mesmo arquivo nunca sobe duas vezes. O card do vídeo toca no lugar e o aviso aparece junto, sem impedir o anúncio |
 | 11–19 min | Montar o lote (`/lotes/novo`) | Escolher cliente e conta, colar briefing, **Gerar plano**; editar a grade; campos "Pendente" bloqueiam a publicação — a IA não inventa URL; modo manual dá o mesmo resultado |
 | 19–24 min | Validar e publicar (`/lotes/[id]`) | Erro bloqueia, aviso não; a confirmação pede a contagem exata de itens; acompanhar as etapas; abrir o item no Ads Manager pelo link |
 | 24–28 min | Quando dá errado | Ler a mensagem traduzida + "detalhes"; corrigir e reprocessar **só** o item que falhou; o que significa "Aguardando (rate limit da conta)"; quando chamar o admin (conexão em "Requer atenção") |

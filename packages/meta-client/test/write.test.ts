@@ -9,7 +9,7 @@ import {
   createCampaign,
   getVideoStatus,
   uploadImage,
-  uploadVideo,
+  uploadVideoFromSource,
 } from '../src/write/index.js';
 import { fixture, makeClient, stubFetch } from './helpers.js';
 
@@ -256,22 +256,59 @@ describe('escrita na Meta', () => {
     expect(form.get('source')).toBeInstanceOf(Blob);
   });
 
-  it('uploadVideo faz start → transfer → finish e devolve video_id', async () => {
-    const stub = stubFetch([
-      { match: /advideos/, json: fixture('advideos_start') },
-    ]);
-    // start devolve end_offset 4194304; transfer devolve start=end → encerra
-    const routes = [
-      { match: /advideos/, json: fixture('advideos_start') },
+  it('uploadVideoFromSource fatia o arquivo nas fronteiras que a Meta devolve', async () => {
+    // 9 MB + 5 bytes: três pedaços (4 MB, 4 MB, o resto) — o último não é múltiplo.
+    const size = 9 * 1024 * 1024 + 5;
+    const file = new Uint8Array(size).fill(7);
+    const phases: string[] = [];
+    const chunks: number[] = [];
+    const ranges: Array<[number, number]> = [];
+    const titles: string[] = [];
+    const replies = [
+      { upload_session_id: '1500000000001', video_id: '1200000000001', start_offset: '0', end_offset: '4194304' },
+      { start_offset: '4194304', end_offset: '8388608' },
+      { start_offset: '8388608', end_offset: String(size) },
+      { success: true },
     ];
-    void routes;
-    const client = makeClient(stub);
-    const videoId = await uploadVideo(client, 'act_1', {
-      filename: 'reel.mp4',
-      bytes: new Uint8Array(10),
+
+    const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = init?.body;
+      if (body instanceof FormData) {
+        phases.push('transfer');
+        const chunk = body.get('video_file_chunk');
+        chunks.push(chunk instanceof Blob ? chunk.size : -1);
+      } else if (body instanceof URLSearchParams) {
+        const phase = body.get('upload_phase') ?? '';
+        phases.push(phase);
+        if (phase === 'finish') titles.push(body.get('title') ?? '');
+      }
+      const reply = replies[phases.length - 1] ?? {};
+      return new Response(JSON.stringify(reply), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as unknown as typeof fetch;
+
+    const client = makeClient({ fetchImpl, calls: [], logs: [] });
+    const videoId = await uploadVideoFromSource(client, 'act_1', {
+      filename: `${'a'.repeat(300)}.mp4`,
+      sizeBytes: size,
+      readRange: async (start, end) => {
+        ranges.push([start, end]);
+        return file.subarray(start, end + 1);
+      },
     });
+
     expect(videoId).toBe('1200000000001');
-    expect(stub.calls.length).toBeGreaterThanOrEqual(2);
+    expect(phases).toEqual(['start', 'transfer', 'transfer', 'transfer', 'finish']);
+    // Intervalos inclusivos nas duas pontas, sem buraco nem sobreposição.
+    expect(ranges).toEqual([
+      [0, 4194303],
+      [4194304, 8388607],
+      [8388608, size - 1],
+    ]);
+    expect(chunks).toEqual([4194304, 4194304, size - 8388608]);
+    expect(titles[0]).toHaveLength(250);
   });
 
   it('getVideoStatus lê o status de processamento', async () => {

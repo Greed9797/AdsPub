@@ -14,6 +14,11 @@ export interface Probe {
   height: number;
   durationMs: number | null;
   mime: string;
+  /** Só em vídeo: codec do vídeo (ex.: h264) e do áudio (ex.: aac). */
+  videoCodec?: string;
+  audioCodec?: string;
+  /** Quadros por segundo (média do arquivo). */
+  frameRate?: number;
 }
 
 export function kindForMime(mime: string): AssetKind | null {
@@ -50,21 +55,31 @@ export async function probeImage(bytes: Uint8Array, mime: string): Promise<Probe
 
 export interface FfprobeStream {
   codec_type?: string;
+  codec_name?: string;
   width?: number;
   height?: number;
   duration?: string;
+  avg_frame_rate?: string;
+  r_frame_rate?: string;
 }
 
-/** R8/FR-004: dimensões e duração de vídeo via ffprobe. */
-export async function probeVideo(
-  bytes: Uint8Array,
+/** "30000/1001" → 29.97; "0/0" → undefined. */
+function parseFrameRate(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const [numerator, denominator] = value.split('/').map(Number);
+  if (!numerator || !denominator) return undefined;
+  return Math.round((numerator / denominator) * 100) / 100;
+}
+
+/**
+ * R8/FR-004: dimensões, duração e codecs de vídeo via ffprobe. Recebe um
+ * arquivo em disco — vídeo de 500 MB não passa pela memória.
+ */
+export async function probeVideoFile(
+  path: string,
   mime: string,
-  filename = 'video.mp4',
 ): Promise<Probe> {
-  const dir = await mkdtemp(join(tmpdir(), 'adpub-probe-'));
-  const path = join(dir, filename.replace(/[^\w.-]/g, '_'));
   try {
-    await writeFile(path, bytes);
     const { stdout } = await exec('ffprobe', [
       '-v',
       'error',
@@ -79,6 +94,7 @@ export async function probeVideo(
       format?: { duration?: string };
     };
     const video = parsed.streams?.find((s) => s.codec_type === 'video');
+    const audio = parsed.streams?.find((s) => s.codec_type === 'audio');
     const durationSeconds = Number(parsed.format?.duration ?? video?.duration ?? 0);
     return {
       kind: 'video',
@@ -86,6 +102,11 @@ export async function probeVideo(
       height: video?.height ?? 0,
       durationMs: Number.isFinite(durationSeconds) ? Math.round(durationSeconds * 1000) : null,
       mime,
+      ...(video?.codec_name ? { videoCodec: video.codec_name } : {}),
+      ...(audio?.codec_name ? { audioCodec: audio.codec_name } : {}),
+      ...(parseFrameRate(video?.avg_frame_rate ?? video?.r_frame_rate) !== undefined
+        ? { frameRate: parseFrameRate(video?.avg_frame_rate ?? video?.r_frame_rate) }
+        : {}),
     };
   } catch (error) {
     if (isMissingBinary(error)) {
@@ -95,9 +116,41 @@ export async function probeVideo(
       );
     }
     throw error;
+  }
+}
+
+/** Variante em memória (arquivos pequenos e testes): grava num temporário. */
+export async function probeVideo(
+  bytes: Uint8Array,
+  mime: string,
+  filename = 'video.mp4',
+): Promise<Probe> {
+  const dir = await mkdtemp(join(tmpdir(), 'adpub-probe-'));
+  const path = join(dir, filename.replace(/[^\w.-]/g, '_'));
+  try {
+    await writeFile(path, bytes);
+    return await probeVideoFile(path, mime);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+/** Prova a partir de um arquivo em disco (imagem ou vídeo). */
+export async function probeFile(path: string, filename: string, mime?: string): Promise<Probe> {
+  const resolvedMime = mime ?? mimeForFilename(filename);
+  const kind = kindForMime(resolvedMime);
+  if (kind === 'image') {
+    const metadata = await sharp(path).metadata();
+    return {
+      kind: 'image',
+      width: metadata.width ?? 0,
+      height: metadata.height ?? 0,
+      durationMs: null,
+      mime: resolvedMime,
+    };
+  }
+  if (kind === 'video') return probeVideoFile(path, resolvedMime);
+  throw new Error(`Tipo de arquivo não suportado: ${resolvedMime}`);
 }
 
 export async function probe(bytes: Uint8Array, filename: string, mime?: string): Promise<Probe> {
@@ -116,17 +169,20 @@ export async function makeImageThumbnail(bytes: Uint8Array, size = 480): Promise
   return new Uint8Array(out);
 }
 
-/** Extrai o primeiro segundo do vídeo como thumbnail (R8). */
-export async function makeVideoThumbnail(
-  bytes: Uint8Array,
-  filename = 'video.mp4',
-): Promise<Uint8Array> {
+/** Extrai um frame do vídeo como thumbnail (R8) — direto do arquivo. */
+export async function makeVideoThumbnailFile(path: string, atSeconds = 1): Promise<Uint8Array> {
   const dir = await mkdtemp(join(tmpdir(), 'adpub-thumb-'));
-  const input = join(dir, filename.replace(/[^\w.-]/g, '_'));
   const output = join(dir, 'thumb.jpg');
+  const grab = (seek: number) =>
+    exec('ffmpeg', ['-y', '-ss', String(seek), '-i', path, '-frames:v', '1', '-q:v', '3', output]);
   try {
-    await writeFile(input, bytes);
-    await exec('ffmpeg', ['-y', '-ss', '1', '-i', input, '-frames:v', '1', '-q:v', '3', output]);
+    try {
+      await grab(atSeconds);
+    } catch (error) {
+      // Vídeo mais curto que o segundo pedido: ffmpeg sai sem frame nenhum.
+      if (atSeconds === 0) throw error;
+      await grab(0);
+    }
     const { readFile } = await import('node:fs/promises');
     return new Uint8Array(await readFile(output));
   } catch (error) {
@@ -136,6 +192,42 @@ export async function makeVideoThumbnail(
       });
     }
     throw error;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/** Miniatura de imagem lida do disco. */
+export async function makeImageThumbnailFile(path: string, size = 480): Promise<Uint8Array> {
+  const out = await sharp(path).resize({ width: size, height: size, fit: 'inside' }).jpeg({ quality: 78 }).toBuffer();
+  return new Uint8Array(out);
+}
+
+/** Miniatura a partir do arquivo em disco; `null` quando não dá para gerar. */
+export async function makeThumbnailFile(
+  path: string,
+  kind: AssetKind,
+  atSeconds?: number,
+): Promise<Uint8Array | null> {
+  try {
+    return kind === 'image'
+      ? await makeImageThumbnailFile(path)
+      : await makeVideoThumbnailFile(path, atSeconds);
+  } catch {
+    return null;
+  }
+}
+
+/** Variante em memória (arquivos pequenos e testes). */
+export async function makeVideoThumbnail(
+  bytes: Uint8Array,
+  filename = 'video.mp4',
+): Promise<Uint8Array> {
+  const dir = await mkdtemp(join(tmpdir(), 'adpub-thumb-'));
+  const input = join(dir, filename.replace(/[^\w.-]/g, '_'));
+  try {
+    await writeFile(input, bytes);
+    return await makeVideoThumbnailFile(input);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

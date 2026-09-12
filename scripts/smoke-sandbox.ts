@@ -21,7 +21,7 @@
  */
 import { buildApp } from '@adpub/api/app';
 import type { ApiDeps, JobRef, Queues } from '@adpub/api/lib/deps';
-import { ingestFile } from '@adpub/assets';
+import { ingestFile, tempFileFromBytes } from '@adpub/assets';
 import { mintSessionToken } from '@adpub/auth';
 import { loadServerEnv } from '@adpub/config';
 import { mask } from '@adpub/crypto';
@@ -285,15 +285,21 @@ async function main(): Promise<void> {
         .jpeg({ quality: 80 })
         .toBuffer(),
     );
+    const fixture = await tempFileFromBytes({
+      filename: `adpub-smoke-${stamp}.jpg`,
+      bytes,
+      mime: 'image/jpeg',
+    });
     const ingested = await ingestFile(
       { db, storage },
       {
         clientId: client.id,
-        file: { filename: `adpub-smoke-${stamp}.jpg`, bytes, mime: 'image/jpeg' },
+        file: fixture.file,
         source: 'upload',
         actor: { id: admin.id, email: admin.email },
       },
     );
+    await fixture.cleanup();
     check(
       'criativo aprovado na validação de mídia',
       ingested.asset.validation.status === 'ok',

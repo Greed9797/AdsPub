@@ -1,6 +1,6 @@
 import { VIDEO_POLL_INTERVAL_MS, VIDEO_READY_TIMEOUT_MS } from '@adpub/config';
 import { getAssetUpload, saveAssetUpload, type AssetRow } from '@adpub/db';
-import { getVideoStatus, uploadImage, uploadVideo } from '@adpub/meta-client/write';
+import { getVideoStatus, uploadImage, uploadVideoFromSource } from '@adpub/meta-client/write';
 import { makeImageThumbnail } from '@adpub/media';
 import type { MetaClient } from '@adpub/meta-client';
 import type { WorkerContext } from '../context.js';
@@ -60,10 +60,11 @@ export async function ensureVideoReady(
   let thumbnailHash = cached?.thumbnailHash ?? undefined;
 
   if (!videoId) {
-    const bytes = await ctx.storage.get(input.asset.storageKey);
-    videoId = await uploadVideo(client, input.adAccountId, {
+    // Lê por faixa: o vídeo fica no storage; só o pedaço atual passa pela memória.
+    videoId = await uploadVideoFromSource(client, input.adAccountId, {
       filename: input.asset.filename,
-      bytes,
+      sizeBytes: Number(input.asset.sizeBytes),
+      readRange: (start, end) => ctx.storage.getRange(input.asset.storageKey, start, end),
     });
     await saveAssetUpload(ctx.db, {
       assetId: input.asset.id,

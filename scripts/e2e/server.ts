@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 import { AiClient } from '@adpub/ai';
-import { ingestFile } from '@adpub/assets';
+import { ingestFile, tempFileFromBytes } from '@adpub/assets';
 import { mintSessionToken } from '@adpub/auth';
 import { loadServerEnv } from '@adpub/config';
 import {
@@ -301,15 +301,21 @@ const jpeg = await sharp({
   .jpeg({ quality: 80 })
   .toBuffer();
 
+const fixture = await tempFileFromBytes({
+  filename: ASSET_FILENAME,
+  bytes: new Uint8Array(jpeg),
+  mime: 'image/jpeg',
+});
 const ingested = await ingestFile(
   { db, storage },
   {
     clientId: client.id,
-    file: { filename: ASSET_FILENAME, bytes: new Uint8Array(jpeg), mime: 'image/jpeg' },
+    file: fixture.file,
     source: 'upload',
     actor: { id: admin.id, email: admin.email },
   },
 );
+await fixture.cleanup();
 if (ingested.asset.validation.status !== 'ok') {
   throw new Error(`Criativo do seed reprovado: ${JSON.stringify(ingested.asset.validation)}`);
 }

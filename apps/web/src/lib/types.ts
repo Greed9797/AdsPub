@@ -64,8 +64,11 @@ export interface Asset {
   duration_ms: number | null;
   size_bytes: number;
   source: 'upload' | 'drive';
-  validation: { status: 'ok' | 'rejected'; errors: ValidationIssue[]; warnings: ValidationIssue[] };
+  /** Frases prontas da validação de mídia (T-002-1): já vêm com o próximo passo. */
+  validation: { status: 'ok' | 'rejected'; errors: string[]; warnings: string[] };
   thumbnail_url: string | null;
+  /** Link assinado do arquivo original (o player de vídeo usa este). */
+  url: string | null;
   created_at: string;
 }
 

@@ -96,4 +96,33 @@ describe('validateMedia — vídeo', () => {
     const result = validateMedia(video({ sizeBytes: 600 * 1024 * 1024 }));
     expect(result.errors.join(' ')).toMatch(/maior que o limite/);
   });
+
+  it('rejeita codec fora do H.264 (a Meta não transcodifica HEVC)', () => {
+    const result = validateMedia(video({ videoCodec: 'hevc' }));
+    expect(result.status).toBe('rejected');
+    expect(result.errors.join(' ')).toMatch(/HEVC não é aceito pela Meta/);
+  });
+
+  it('aceita H.264 com áudio AAC sem avisar', () => {
+    const result = validateMedia(video({ videoCodec: 'h264', audioCodec: 'aac', frameRate: 30 }));
+    expect(result.status).toBe('ok');
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it('rejeita vídeo acima de 60 fps', () => {
+    const result = validateMedia(video({ videoCodec: 'h264', frameRate: 120 }));
+    expect(result.errors.join(' ')).toMatch(/até 60 fps/);
+  });
+
+  it('avisa sobre áudio fora do AAC sem rejeitar', () => {
+    const result = validateMedia(video({ videoCodec: 'h264', audioCodec: 'mp3' }));
+    expect(result.status).toBe('ok');
+    expect(result.warnings.join(' ')).toMatch(/prefere AAC/);
+  });
+
+  it('não opina quando o probe não trouxe codec', () => {
+    const result = validateMedia(video());
+    expect(result.status).toBe('ok');
+    expect(result.errors).toHaveLength(0);
+  });
 });

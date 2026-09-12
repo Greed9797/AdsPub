@@ -6,8 +6,30 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não publicado]
 
+### Adicionado (criativos: vídeo de ponta a ponta)
+
+- Upload de vídeo que recusa antes de gastar verba: a ingestão sonda duração, dimensões, fps e
+  codec com ffprobe e rejeita HEVC/H.265, AV1 e VP9 — e qualquer coisa acima de 60 fps — com o
+  motivo e o próximo passo ("reexporte em MP4 H.264 + AAC"); áudio fora do AAC vira aviso. Antes,
+  quem descobria era a Meta, na publicação, depois de a verba subir.
+- `/criativos` toca o vídeo no próprio card (player nativo, controles e link assinado do arquivo
+  original devolvido pela API) e a miniatura sai de um frame do arquivo — com queda para o primeiro
+  frame quando o segundo pedido passa do fim do vídeo.
+- Ingestão sem carregar o arquivo inteiro na memória: upload direto e importação do Drive escrevem
+  em arquivo temporário (`IncomingFile.path`), o hash é em streaming (`sha256File`), o envio ao
+  storage é multipart (`Storage.putFile`) e o upload retomável à Meta lê o vídeo por faixa
+  (`Storage.getRange` + `uploadVideoFromSource`). Um vídeo de 500 MB sobe como uma imagem de 2 MB.
+- Limites de tamanho em dois pontos: a API interrompe o upload acima de `MAX_UPLOAD_BYTES`
+  (`MEDIA_SPECS.video.maxSizeBytes`) enquanto o corpo chega, e o worker corta o download do Drive
+  no mesmo teto, sem esperar o arquivo terminar.
+
 ### Corrigido
 
+- `/criativos`: os motivos da validação de mídia apareciam em branco nos cards — o tipo da web
+  esperava `{message, fix}` e a API devolve frases prontas. Agora o card e o resultado do upload
+  mostram os erros e também os avisos, que não apareciam em lugar nenhum.
+- `@adpub/media`: miniatura de vídeo cai no primeiro frame quando o segundo pedido passa do fim do
+  arquivo, em vez de virar "sem thumbnail".
 - Imagem do MinIO: o Docker Hub aposentou `minio/minio` e `minio/mc` (`pull access denied`), então o
   compose local, o de produção, o `backup.sh` e os workflows passam a puxar do registro oficial no
   Quay — pinados por release (`RELEASE.2025-09-07T16-13-09Z` no servidor,

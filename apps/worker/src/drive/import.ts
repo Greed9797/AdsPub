@@ -1,6 +1,11 @@
 import { IngestError, ingestFile } from '@adpub/assets';
 import { audit } from '@adpub/db';
 import { google } from 'googleapis';
+import { createWriteStream } from 'node:fs';
+import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import type { WorkerContext } from '../context.js';
 
 export interface DriveImportJobData {
@@ -84,32 +89,41 @@ export async function runDriveImport(
         }
 
         try {
+          // Baixa em streaming para um temporário: vídeo do Drive não passa pela memória.
           const download = await drive.files.get(
             { fileId: file.id, alt: 'media', supportsAllDrives: true },
-            { responseType: 'arraybuffer' },
+            { responseType: 'stream' },
           );
-          const bytes = new Uint8Array(download.data as ArrayBuffer);
-          const ingested = await ingestFile(
-            { db: ctx.db, storage: ctx.storage },
-            {
-              clientId: data.clientId,
-              file: {
-                filename: file.name,
-                bytes,
-                ...(file.mimeType ? { mime: file.mimeType } : {}),
+          const dir = await mkdtemp(join(tmpdir(), 'adpub-drive-'));
+          const path = join(dir, 'download');
+          try {
+            await pipeline(download.data as NodeJS.ReadableStream, createWriteStream(path));
+            const { size } = await stat(path);
+            const ingested = await ingestFile(
+              { db: ctx.db, storage: ctx.storage },
+              {
+                clientId: data.clientId,
+                file: {
+                  filename: file.name,
+                  path,
+                  sizeBytes: size,
+                  ...(file.mimeType ? { mime: file.mimeType } : {}),
+                },
+                source: 'drive',
+                driveFileId: file.id,
+                actor: { id: data.actorId },
               },
-              source: 'drive',
-              driveFileId: file.id,
-              actor: { id: data.actorId },
-            },
-          );
-          if (ingested.reused) result.reused += 1;
-          else result.imported += 1;
-          if (ingested.asset.validation.status === 'rejected') {
-            result.rejected.push({
-              filename: file.name,
-              reason: ingested.asset.validation.errors[0] ?? 'reprovado na validação de mídia',
-            });
+            );
+            if (ingested.reused) result.reused += 1;
+            else result.imported += 1;
+            if (ingested.asset.validation.status === 'rejected') {
+              result.rejected.push({
+                filename: file.name,
+                reason: ingested.asset.validation.errors[0] ?? 'reprovado na validação de mídia',
+              });
+            }
+          } finally {
+            await rm(dir, { recursive: true, force: true });
           }
         } catch (error) {
           result.rejected.push({

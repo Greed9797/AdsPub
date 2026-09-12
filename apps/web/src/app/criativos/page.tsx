@@ -37,7 +37,16 @@ function AssetCard({ asset }: { asset: Asset }) {
   return (
     <article className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
       <div className="h-40 overflow-hidden bg-[var(--color-surface-2)]">
-        {asset.thumbnail_url ? (
+        {asset.kind === 'video' && asset.url ? (
+          <video
+            className="h-full w-full object-cover"
+            src={asset.url}
+            poster={asset.thumbnail_url ?? undefined}
+            controls
+            preload="metadata"
+            playsInline
+          />
+        ) : asset.thumbnail_url ? (
           <img
             src={asset.thumbnail_url}
             alt={asset.filename}
@@ -76,18 +85,26 @@ function AssetCard({ asset }: { asset: Asset }) {
         {asset.validation.status === 'rejected' ? (
           <div>
             <p className="text-xs text-[var(--color-danger)]">Validação rejeitada:</p>
-            <ul className="mt-1 space-y-1 text-xs text-[var(--color-muted)]">
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-[var(--color-danger)]">
               {asset.validation.errors.map((error, index) => (
-                <li key={`${asset.id}-validation-${index}`}>
-                  <p className="text-[var(--color-danger)]">{error.message}</p>
-                  {error.fix ? <p>Como corrigir: {error.fix}</p> : null}
-                </li>
+                <li key={`${asset.id}-validation-${index}`}>{error}</li>
               ))}
             </ul>
           </div>
         ) : (
           <AnalysisButton assetId={asset.id} />
         )}
+
+        {asset.validation.warnings.length > 0 ? (
+          <div>
+            <p className="text-xs text-[var(--color-warn)]">Avisos (não impedem o anúncio):</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-[var(--color-warn)]">
+              {asset.validation.warnings.map((warning, index) => (
+                <li key={`${asset.id}-warning-${index}`}>{warning}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
     </article>
   );

@@ -6,6 +6,8 @@ import {
   randomBytes,
   timingSafeEqual,
 } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
 import { loadServerEnv } from '@adpub/config';
 
 const ALGO = 'aes-256-gcm';
@@ -129,6 +131,13 @@ function redactUnknown(value: unknown, depth: number): unknown {
 
 export function sha256Hex(input: Buffer | string): string {
   return createHash('sha256').update(input).digest('hex');
+}
+
+/** SHA-256 de um arquivo em disco, lido em pedaços (vídeo não cabe na memória). */
+export async function sha256File(path: string): Promise<string> {
+  const hash = createHash('sha256');
+  await pipeline(createReadStream(path), hash);
+  return hash.digest('hex');
 }
 
 /** Hash estável (chaves ordenadas) para cache de IA e idempotência. */

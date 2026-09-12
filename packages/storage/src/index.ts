@@ -5,7 +5,9 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { createReadStream } from 'node:fs';
 import { loadServerEnv } from '@adpub/config';
 
 export interface StorageOptions {
@@ -52,12 +54,47 @@ export class Storage {
     return key;
   }
 
+  /**
+   * Sobe um arquivo em disco **sem** carregá-lo na memória: o SDK lê em partes
+   * (padrão 5 MB) e faz upload multipart. É o caminho de vídeo (até 500 MB).
+   */
+  async putFile(key: string, filePath: string, contentType: string): Promise<string> {
+    const upload = new Upload({
+      client: this.client,
+      params: {
+        Bucket: this.options.bucket,
+        Key: key,
+        Body: createReadStream(filePath),
+        ContentType: contentType,
+      },
+    });
+    await upload.done();
+    return key;
+  }
+
   async get(key: string): Promise<Uint8Array> {
     const response = await this.client.send(
       new GetObjectCommand({ Bucket: this.options.bucket, Key: key }),
     );
     const bytes = await response.Body?.transformToByteArray();
     if (!bytes) throw new Error(`Objeto ${key} vazio ou inexistente.`);
+    return bytes;
+  }
+
+  /**
+   * Lê um pedaço do objeto (inclusive nas duas pontas). O upload de vídeo na
+   * Meta é em partes de alguns MB, então o worker nunca carrega o arquivo todo.
+   */
+  async getRange(key: string, start: number, end: number): Promise<Uint8Array> {
+    const response = await this.client.send(
+      new GetObjectCommand({
+        Bucket: this.options.bucket,
+        Key: key,
+        Range: `bytes=${start}-${end}`,
+      }),
+    );
+    const bytes = await response.Body?.transformToByteArray();
+    if (!bytes) throw new Error(`Objeto ${key} sem bytes no intervalo ${start}-${end}.`);
     return bytes;
   }
 

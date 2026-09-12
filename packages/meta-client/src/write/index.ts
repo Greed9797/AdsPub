@@ -100,21 +100,32 @@ export async function getVideoStatus(client: MetaClient, videoId: string): Promi
   return client.get<VideoStatus>(videoId, { fields: 'status' });
 }
 
-/** Upload retomável completo (R8). */
-export async function uploadVideo(
+/**
+ * Origem do vídeo para o upload retomável. O worker lê por faixa direto do
+ * storage (S3/MinIO) — o arquivo inteiro nunca fica na memória.
+ */
+export interface VideoSource {
+  filename: string;
+  sizeBytes: number;
+  /** Lê o intervalo [start, end], **inclusive nas duas pontas**. */
+  readRange: (start: number, end: number) => Promise<Uint8Array>;
+}
+
+/** Upload retomável completo (R8). Meta exige partes múltiplas de 256 KB. */
+export async function uploadVideoFromSource(
   client: MetaClient,
   adAccountId: string,
-  file: { filename: string; bytes: Uint8Array },
+  source: VideoSource,
   options: { chunkSizeBytes?: number } = {},
 ): Promise<string> {
-  const start = await startVideoUpload(client, adAccountId, file.bytes.byteLength);
+  const start = await startVideoUpload(client, adAccountId, source.sizeBytes);
   const chunkSize = options.chunkSizeBytes ?? 4 * 1024 * 1024;
   let startOffset = Number(start.start_offset);
   let endOffset = Number(start.end_offset);
 
   while (startOffset < endOffset) {
-    const sliceEnd = Math.min(endOffset, startOffset + chunkSize, file.bytes.byteLength);
-    const chunk = file.bytes.subarray(startOffset, sliceEnd);
+    const sliceEnd = Math.min(endOffset, startOffset + chunkSize);
+    const chunk = await source.readRange(startOffset, sliceEnd - 1);
     const transfer = await transferVideoChunk(client, adAccountId, {
       uploadSessionId: start.upload_session_id,
       startOffset: String(startOffset),
@@ -128,7 +139,8 @@ export async function uploadVideo(
 
   await finishVideoUpload(client, adAccountId, {
     uploadSessionId: start.upload_session_id,
-    title: file.filename,
+    // A Meta recusa título com 255 caracteres ou mais.
+    title: source.filename.slice(0, 250),
   });
   return start.video_id;
 }

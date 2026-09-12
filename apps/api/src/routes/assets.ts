@@ -1,5 +1,11 @@
 import type { FastifyInstance } from 'fastify';
+import { createWriteStream } from 'node:fs';
+import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { z } from 'zod';
+import { MAX_UPLOAD_BYTES } from '@adpub/config';
 import { currentUser } from '../plugins/auth.js';
 import { assetDto } from '../lib/dto.js';
 import { badRequest } from '../lib/problem.js';
@@ -27,7 +33,7 @@ export function assetRoutes(app: FastifyInstance, deps: ApiDeps): void {
       ...(query.kind ? { kind: query.kind } : {}),
       ...(query.status ? { status: query.status } : {}),
     });
-    return rows.map((row) => assetDto(row.asset, row.thumbnailUrl));
+    return rows.map((row) => assetDto(row.asset, row.thumbnailUrl, row.url));
   });
 
   app.post('/assets', async (request, reply) => {
@@ -36,23 +42,38 @@ export function assetRoutes(app: FastifyInstance, deps: ApiDeps): void {
 
     let clientId: string | undefined;
     const files: IncomingFile[] = [];
-
-    for await (const part of request.parts()) {
-      if (part.type === 'file') {
-        files.push({
-          filename: part.filename,
-          bytes: new Uint8Array(await part.toBuffer()),
-          ...(part.mimetype ? { mime: part.mimetype } : {}),
-        });
-      } else if (part.fieldname === 'client_id') {
-        clientId = String(part.value);
+    // Cada parte vai para um arquivo temporário: vídeo de 500 MB não pode
+    // atravessar a ingestão na memória (probe, hash e upload são em streaming).
+    const dir = await mkdtemp(join(tmpdir(), 'adpub-upload-'));
+    try {
+      for await (const part of request.parts()) {
+        if (part.type === 'file') {
+          const path = join(dir, `part-${files.length}`);
+          await pipeline(part.file, createWriteStream(path));
+          if (part.file.truncated) {
+            throw badRequest(
+              `Arquivo ${part.filename} passou do limite de ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB.`,
+            );
+          }
+          const { size } = await stat(path);
+          files.push({
+            filename: part.filename,
+            path,
+            sizeBytes: size,
+            ...(part.mimetype ? { mime: part.mimetype } : {}),
+          });
+        } else if (part.fieldname === 'client_id') {
+          clientId = String(part.value);
+        }
       }
-    }
 
-    if (!clientId) throw badRequest('client_id é obrigatório.');
-    const parsedClientId = z.string().uuid().parse(clientId);
-    const created = await uploadAssets(deps, user, { clientId: parsedClientId, files });
-    return reply.status(201).send(created.map(({ asset }) => assetDto(asset)));
+      if (!clientId) throw badRequest('client_id é obrigatório.');
+      const parsedClientId = z.string().uuid().parse(clientId);
+      const created = await uploadAssets(deps, user, { clientId: parsedClientId, files });
+      return reply.status(201).send(created.map(({ asset }) => assetDto(asset)));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   app.post('/assets/import-drive', async (request, reply) => {

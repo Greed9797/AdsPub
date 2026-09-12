@@ -26,6 +26,10 @@ export const MEDIA_SPECS = {
     minDurationMs: 1_000,
     maxDurationMs: 90_000,
     mimes: ['video/mp4', 'video/quicktime'],
+    /** A Meta só transcodifica H.264; H.265/HEVC/AV1/VP9 são recusados. */
+    videoCodecs: ['h264'],
+    maxFrameRate: 60,
+    preferredAudioCodec: 'aac',
   },
 } as const;
 

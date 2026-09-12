@@ -50,6 +50,7 @@ export function UploadForm({ clientId }: UploadFormProps) {
             multiple
             required
             disabled={saving}
+            accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime"
             className={inputClass}
           />
         </Field>
@@ -86,12 +87,20 @@ export function UploadForm({ clientId }: UploadFormProps) {
                 {asset.validation.status === 'rejected' ? (
                   <div className="mt-2 space-y-2">
                     <p className="text-xs text-[var(--color-muted)]">Validação:</p>
-                    <ul className="list-disc space-y-1 pl-5 text-xs">
+                    <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--color-danger)]">
                       {asset.validation.errors.map((error, index) => (
-                        <li key={`${asset.id}-error-${index}`}>
-                          <p className="text-[var(--color-danger)]">{error.message}</p>
-                          {error.fix ? <p className="text-[var(--color-muted)]">Solução: {error.fix}</p> : null}
-                        </li>
+                        <li key={`${asset.id}-error-${index}`}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {asset.validation.warnings.length > 0 ? (
+                  <div className="mt-2 space-y-2">
+                    <p className="text-xs text-[var(--color-muted)]">Avisos:</p>
+                    <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--color-warn)]">
+                      {asset.validation.warnings.map((warning, index) => (
+                        <li key={`${asset.id}-warning-${index}`}>{warning}</li>
                       ))}
                     </ul>
                   </div>

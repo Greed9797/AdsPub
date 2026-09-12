@@ -1,4 +1,7 @@
-import { sha256Hex } from '@adpub/crypto';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { sha256File } from '@adpub/crypto';
 import {
   audit,
   getClient,
@@ -7,14 +10,20 @@ import {
   type AssetRow,
   type Database,
 } from '@adpub/db';
-import { kindForMime, makeThumbnail, mimeForFilename, probe } from '@adpub/media';
+import { kindForMime, makeThumbnailFile, mimeForFilename, probeFile } from '@adpub/media';
 import { validateMedia } from '@adpub/rules';
 import type { AssetKind } from '@adpub/shared';
 import { assetKey, thumbnailKey, type Storage } from '@adpub/storage';
 
+/**
+ * Arquivo já materializado em disco: quem recebe o upload (API ou importação
+ * do Drive) grava num temporário e passa o caminho — vídeo não passa pela
+ * memória. O chamador apaga o arquivo depois.
+ */
 export interface IncomingFile {
   filename: string;
-  bytes: Uint8Array;
+  path: string;
+  sizeBytes: number;
   mime?: string;
 }
 
@@ -46,6 +55,29 @@ export class IngestError extends Error {
   }
 }
 
+/**
+ * Grava os bytes num temporário e devolve o `IncomingFile` (fixtures, scripts
+ * e smokes). Quem chama apaga o temporário com o `cleanup`.
+ */
+export async function tempFileFromBytes(file: {
+  filename: string;
+  bytes: Uint8Array;
+  mime?: string;
+}): Promise<{ file: IncomingFile; cleanup: () => Promise<void> }> {
+  const dir = await mkdtemp(join(tmpdir(), 'adpub-file-'));
+  const path = join(dir, file.filename.replace(/[^\w.-]/g, '_') || 'file');
+  await writeFile(path, file.bytes);
+  return {
+    file: {
+      filename: file.filename,
+      path,
+      sizeBytes: file.bytes.byteLength,
+      ...(file.mime ? { mime: file.mime } : {}),
+    },
+    cleanup: () => rm(dir, { recursive: true, force: true }),
+  };
+}
+
 export interface IngestDeps {
   db: Database;
   storage: Storage;
@@ -65,7 +97,7 @@ export async function ingestFile(
     throw new IngestError(`Cliente ${input.clientId} não encontrado.`, 'client_not_found');
   }
 
-  const mime = input.file.mime ?? mimeForFilename(input.file.filename);
+  const mime = pickMime(input.file.mime, input.file.filename);
   const kind: AssetKind | null = kindForMime(mime);
   if (!kind) {
     throw new IngestError(
@@ -74,7 +106,7 @@ export async function ingestFile(
     );
   }
 
-  const sha256 = sha256Hex(Buffer.from(input.file.bytes));
+  const sha256 = await sha256File(input.file.path);
   const probed = await probeSafely(input.file, mime, kind);
   const validation = validateMedia({
     kind,
@@ -82,16 +114,21 @@ export async function ingestFile(
     width: probed.width,
     height: probed.height,
     durationMs: probed.durationMs,
-    sizeBytes: input.file.bytes.byteLength,
+    sizeBytes: input.file.sizeBytes,
     filename: input.file.filename,
+    ...(probed.videoCodec ? { videoCodec: probed.videoCodec } : {}),
+    ...(probed.audioCodec ? { audioCodec: probed.audioCodec } : {}),
+    ...(probed.frameRate !== undefined ? { frameRate: probed.frameRate } : {}),
   });
 
   const storageKey = assetKey(input.clientId, sha256, input.file.filename);
-  await deps.storage.put(storageKey, input.file.bytes, mime);
+  await deps.storage.putFile(storageKey, input.file.path, mime);
 
   let thumbKey: string | null = null;
   if (validation.status === 'ok') {
-    const thumb = await makeThumbnail(input.file.bytes, kind, input.file.filename);
+    // Frame do meio do vídeo curto, do primeiro segundo quando há folga.
+    const atSeconds = probed.durationMs ? Math.min(1, probed.durationMs / 2000) : undefined;
+    const thumb = await makeThumbnailFile(input.file.path, kind, atSeconds);
     if (thumb) {
       thumbKey = thumbnailKey(input.clientId, sha256);
       await deps.storage.put(thumbKey, thumb, 'image/jpeg');
@@ -109,7 +146,7 @@ export async function ingestFile(
     height: probed.height,
     aspectRatio: validation.aspect_ratio,
     durationMs: probed.durationMs,
-    sizeBytes: input.file.bytes.byteLength,
+    sizeBytes: input.file.sizeBytes,
     source: input.source,
     driveFileId: input.driveFileId ?? null,
     validation: {
@@ -140,15 +177,27 @@ export async function ingestFile(
 
 async function probeSafely(file: IncomingFile, mime: string, kind: AssetKind) {
   try {
-    return await probe(file.bytes, file.filename, mime);
+    return await probeFile(file.path, file.filename, mime);
   } catch {
     return { kind, width: 0, height: 0, durationMs: null, mime };
   }
 }
 
+/**
+ * Cliente que manda `application/octet-stream` (curl, scripts, alguns uploads
+ * de app) ainda traz a extensão no nome: ela decide o tipo, e o probe confere
+ * o conteúdo de verdade em seguida.
+ */
+function pickMime(mime: string | undefined, filename: string): string {
+  if (mime && mime !== 'application/octet-stream') return mime;
+  return mimeForFilename(filename);
+}
+
 export interface AssetWithThumb {
   asset: AssetRow;
   thumbnailUrl?: string;
+  /** Link assinado do arquivo original (o player de vídeo usa este). */
+  url?: string;
 }
 
 export async function listClientAssets(
@@ -158,12 +207,23 @@ export async function listClientAssets(
   const rows = await listAssets(deps.db, filter);
   return Promise.all(
     rows.map(async (asset) => {
-      if (!asset.thumbnailKey) return { asset };
-      try {
-        return { asset, thumbnailUrl: await deps.storage.presignGet(asset.thumbnailKey) };
-      } catch {
-        return { asset };
-      }
+      const [thumbnailUrl, url] = await Promise.all([
+        asset.thumbnailKey ? presign(deps.storage, asset.thumbnailKey) : undefined,
+        asset.storageKey ? presign(deps.storage, asset.storageKey) : undefined,
+      ]);
+      return {
+        asset,
+        ...(thumbnailUrl ? { thumbnailUrl } : {}),
+        ...(url ? { url } : {}),
+      };
     }),
   );
+}
+
+async function presign(storage: Storage, key: string): Promise<string | undefined> {
+  try {
+    return await storage.presignGet(key);
+  } catch {
+    return undefined;
+  }
 }

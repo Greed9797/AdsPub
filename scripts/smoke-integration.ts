@@ -9,7 +9,7 @@
  * ATENÇÃO: apaga os dados do banco apontado por DATABASE_URL.
  */
 import { AiClient } from '@adpub/ai';
-import { ingestFile } from '@adpub/assets';
+import { ingestFile, tempFileFromBytes } from '@adpub/assets';
 import { QUEUES, RETRY, loadServerEnv } from '@adpub/config';
 import { mintSessionToken } from '@adpub/auth';
 import {
@@ -340,26 +340,34 @@ async function main(): Promise<void> {
     .jpeg({ quality: 80 })
     .toBuffer();
 
+  const fixture = await tempFileFromBytes({
+    filename: 'inverno-01.jpg',
+    bytes: new Uint8Array(png),
+    mime: 'image/jpeg',
+  });
   const ingested = await ingestFile(
     { db, storage },
     {
       clientId: client.id,
-      file: { filename: 'inverno-01.jpg', bytes: new Uint8Array(png), mime: 'image/jpeg' },
+      file: fixture.file,
       source: 'upload',
       actor: { id: admin.id, email: admin.email },
     },
   );
+  await fixture.cleanup();
   check('criativo aprovado na validação de mídia', ingested.asset.validation.status === 'ok', ingested.asset.validation);
   check('proporção 1:1 detectada', ingested.asset.aspectRatio === '1:1', ingested.asset.aspectRatio);
 
+  const copy = await tempFileFromBytes({
+    filename: 'inverno-01-copia.jpg',
+    bytes: new Uint8Array(png),
+    mime: 'image/jpeg',
+  });
   const dedupe = await ingestFile(
     { db, storage },
-    {
-      clientId: client.id,
-      file: { filename: 'inverno-01-copia.jpg', bytes: new Uint8Array(png), mime: 'image/jpeg' },
-      source: 'upload',
-    },
+    { clientId: client.id, file: copy.file, source: 'upload' },
   );
+  await copy.cleanup();
   check('dedupe por sha256 reaproveita o criativo', dedupe.reused && dedupe.asset.id === ingested.asset.id, {
     reused: dedupe.reused,
   });

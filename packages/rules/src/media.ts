@@ -9,6 +9,10 @@ export interface MediaInput {
   durationMs?: number | null;
   sizeBytes: number;
   filename?: string;
+  /** Lidos do ffprobe na ingestão (só vídeo). */
+  videoCodec?: string;
+  audioCodec?: string;
+  frameRate?: number;
 }
 
 export interface MediaValidation {
@@ -47,6 +51,11 @@ export function detectAspectRatio(width: number, height: number): AspectRatio {
 
 function mb(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+}
+
+/** "h264" → "H.264"; o resto vira maiúscula mesmo (hevc → HEVC). */
+function codecLabel(codec: string): string {
+  return codec === 'h264' ? 'H.264' : codec.toUpperCase();
 }
 
 /** FR-004: valida mídia contra a tabela de specs e explica como corrigir. */
@@ -92,6 +101,28 @@ export function validateMedia(input: MediaInput): MediaValidation {
     } else if (duration > videoSpec.maxDurationMs) {
       errors.push(
         `Vídeo longo demais (${(duration / 1000).toFixed(0)} s). O limite configurado é ${videoSpec.maxDurationMs / 1000} s.`,
+      );
+    }
+
+    // A Meta recusa codec fora do H.264 (H.265/HEVC/AV1/VP9) — melhor barrar aqui,
+    // com o motivo, do que descobrir na publicação depois de gastar verba.
+    const videoCodec = input.videoCodec?.toLowerCase();
+    if (videoCodec && !(videoSpec.videoCodecs as readonly string[]).includes(videoCodec)) {
+      errors.push(
+        `Codec de vídeo ${codecLabel(videoCodec)} não é aceito pela Meta (use ${videoSpec.videoCodecs.map(codecLabel).join('/')}). Reexporte em MP4 H.264 + AAC.`,
+      );
+    }
+
+    if (input.frameRate !== undefined && input.frameRate > videoSpec.maxFrameRate) {
+      errors.push(
+        `Vídeo a ${input.frameRate} fps; a Meta aceita até ${videoSpec.maxFrameRate} fps. Reexporte a 30 fps.`,
+      );
+    }
+
+    const audioCodec = input.audioCodec?.toLowerCase();
+    if (audioCodec && audioCodec !== videoSpec.preferredAudioCodec) {
+      warnings.push(
+        `Áudio em ${audioCodec.toUpperCase()}; a Meta prefere ${videoSpec.preferredAudioCodec.toUpperCase()} 128 kbps stereo.`,
       );
     }
   }

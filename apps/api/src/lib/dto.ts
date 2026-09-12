@@ -56,7 +56,7 @@ export function clientDto(row: ClientRow) {
   };
 }
 
-export function assetDto(row: AssetRow, thumbnailUrl?: string) {
+export function assetDto(row: AssetRow, thumbnailUrl?: string, url?: string) {
   return {
     id: row.id,
     client_id: row.clientId,
@@ -72,6 +72,7 @@ export function assetDto(row: AssetRow, thumbnailUrl?: string) {
     source: row.source,
     validation: row.validation,
     thumbnail_url: thumbnailUrl ?? null,
+    url: url ?? null,
     created_at: row.createdAt.toISOString(),
   };
 }

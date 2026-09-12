@@ -10,7 +10,7 @@ exige evidência (comando, ambiente, conta, data). Campo só-listado-no-SDK é
 | Ler `/me`, contas, páginas, IGs, pixels da BM | validada | `devices` CI + smoke `sync` conta `act_1030000000001` (Graph falsa), 2026-09-10 |
 | Ler campanhas/conjuntos ativos | validada | smoke `sync` + fases SC-004 (Graph falsa), 2026-09-10 |
 | Criar campanha/conjunto/anúncio `PAUSED` imagem única | validada | smoke US5 + `write.test.ts` corpos `PAUSED` (Graph falsa), 2026-09-10 |
-| Criar anúncio `PAUSED` vídeo único | validada | smoke (upload start→transfer→finish + polling) + `write.test.ts` (Graph falsa), 2026-09-10 |
+| Criar anúncio `PAUSED` vídeo único | validada | smoke (upload start→transfer→finish + polling) em conta sandbox + `write.test.ts` fatia o upload retomável por faixa (Graph falsa), 2026-09-10 |
 | Criar anúncio `PAUSED` carrossel 2–10 cartões | validada | `write.test.ts` + `buildCreativePayload` R9 (Graph falsa), 2026-09-10 |
 | Ler status de revisão em batch (≤50) | validada | smoke `status-poll` + `ads_status_batch.json` (Graph falsa), 2026-09-10 |
 | Arquivar anúncio/campanha | validada | `smoke-sandbox.ts` + `archiveAd` (Graph falsa), 2026-09-10 |

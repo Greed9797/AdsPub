@@ -18,10 +18,11 @@
   "dependencies": {
     "@adpub/config": "workspace:*",
     "@aws-sdk/client-s3": "^3.1127.0",
+    "@aws-sdk/lib-storage": "^3.1131.0",
     "@aws-sdk/s3-request-presigner": "^3.1127.0"
   },
   "devDependencies": {
-    "typescript": "^5.9.3",
-    "@types/node": "^26.5.0"
+    "@types/node": "^26.5.0",
+    "typescript": "^5.9.3"
   }
 }
