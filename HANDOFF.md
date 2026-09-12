@@ -68,6 +68,9 @@ open http://localhost:3000/
 - Banco local tem **seed demo** (BM Demo, Demo Store, act_demo, 5 lotes). Apagar antes de teste
   sério: `DELETE FROM batches; DELETE FROM ad_accounts; DELETE FROM clients; DELETE FROM meta_connections;`
 - Stack de produção na máquina de dev: `docs/deploy.md` §9.
+- Fumaça de integração (Graph API falsa, sem tocar a Meta): crie um banco descartável, aponte
+  `DATABASE_URL` para ele e rode `ADPUB_ALLOW_TRUNCATE=1 pnpm smoke:integration` — o script apaga o
+  banco indicado. Foi assim que a quebra de contrato da análise em job apareceu.
 - Provas do diagnóstico de IA, contra o banco local (invoker falso, nenhuma chamada paga, nunca em
   produção): `DATABASE_URL=postgres://adpub:adpub@localhost:55432/adpub pnpm prova:a1` (contexto
   visual no plano), `pnpm prova:a5` (cache sem download) e `pnpm prova:a10` (indisponibilidade não
