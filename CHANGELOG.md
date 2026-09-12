@@ -6,6 +6,61 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não publicado]
 
+### Corrigido (IA: contexto, evidência, custo e velocidade)
+
+Correções do diagnóstico em `docs/analise-arquitetura-ia.md` — cada item abaixo é um achado com
+prova executável (tabela em §10 do mesmo documento).
+
+- **Contexto de marca chegava quebrado**: a rota de análise mandava `brand_context` e o serviço lia
+  `brandContext`, então o que a marca dizia sobre si mesma nunca entrava no prompt — e o aviso de
+  "sem contexto de marca" não aparecia. Agora o campo é aceito de verdade e a ausência é declarada.
+- **Claims aprovados e exemplos de voz não chegavam na geração de copy**: o renderizador montava só
+  parte do contexto. Os dois entraram, com teste que falha se sumirem de novo.
+- **Observação sem evidência era aceita**: o contrato prometia referência obrigatória e o analisador
+  aceitava lista vazia. Agora observação sem referência é rejeitada na validação, antes de gravar.
+- **Evidência apontava para lugar nenhum**: referências de tempo fora da duração do vídeo eram
+  aceitas. Passam por checagem contra a grade de amostragem antes de virar observação.
+- **MIME do frame era `image/jpeg` fixo**, mesmo em PNG: o provedor recebia um tipo errado e o
+  frame carregava resíduo de outros vídeos. Agora o tipo acompanha o arquivo e o frame é normalizado.
+- **Snapshot de relatório era cortado no meio do JSON** quando passava de 12.000 caracteres, e a IA
+  recebia JSON inválido. Agora o corte seleciona o que entra e **declara o que ficou de fora**.
+- **Cache de IA não distinguia modelo nem escopo**: uma análise publicada com cache do modelo A era
+  servida ao modelo B, que reportava o modelo novo sem ter gerado nada. A identidade agora inclui
+  modelo, escopo (o que foi analisado), versão de prompt e revisão vigente — mudança relevante
+  invalida, e a proveniência registrada é a do trabalho que de fato gerou o resultado.
+- **Regenerar era implícito**: agora é contrato explícito, com dedupe de pedidos simultâneos (dois
+  cliques não viram duas cobranças) e a nova análise marcada como revisão da anterior.
+- **Contabilidade de IA cobria só parte das chamadas**: classificação de política, análise de
+  conteúdo, relatórios e insights não entravam no custo. Todas as finalidades passaram a gravar
+  tentativa, modelo, cliente, latência e custo — inclusive quando a resposta falha na validação,
+  que é exatamente quando o dinheiro já foi gasto. Planos, cópias e conteúdos de lote também ganham
+  a tentativa ligada ao item, não só o total.
+- **Cache do provedor não era contabilizado**: tokens de leitura e gravação de cache entravam pelo
+  preço de entrada comum. Agora system e ferramenta são marcados para cache de prefixo e as duas
+  categorias têm multiplicador próprio no preço e no total operacional.
+- **Feedback do plano não voltava para o sistema**: aceite, edição e reprovação ficavam só na tela.
+  Agora o resultado do lote tem estado explícito, o custo por geração aceita é consultável e os
+  aprendizados confirmados entram no contexto das próximas gerações.
+- **Análise de conteúdo rodava dentro da requisição da API**: baixar o original, decodificar quadro a
+  quadro e chamar o provedor aconteciam no caminho do clique, segurando memória da API (teto de
+  512 MB) e sem estado visível. Virou job no worker com fila própria (`adpub.analysis`), linha
+  `analysis_jobs` no banco (o estado não morre com o reinício), `GET /analysis-jobs/:id` com fila e
+  execução separadas e a tela de criativos acompanhando — pedir de novo durante a execução não
+  duplica trabalho nem cobrança.
+- **Análise já em cache baixava o arquivo e acordava o ffmpeg antes de checar**: a checagem virou
+  primeira coisa do job, com a linha de cache buscada por identidade. Limites de mídia viraram
+  função pura compartilhada, então API e worker recusam o mesmo arquivo com a mesma frase — e o
+  worker recusa **antes** do download.
+- **Indisponibilidade do classificador passava como aprovação**: em cliente configurado para
+  bloquear, bastava o provedor cair para o item sair como "validado só por regras". Agora o modo
+  `block` bloqueia o item para revisão humana; `warn` continua avisando.
+- **Classificação de política serializava o lote inteiro**: um lote grande significava uma chamada
+  atrás da outra, com o total do trabalho crescendo junto com o lote. A concorrência é limitada e
+  configurável, sem saturar o provedor.
+- **Teto de saída era o mesmo (8.192) para toda finalidade** e resposta cortada no limite virava
+  erro genérico de schema. Agora o teto é por finalidade e truncamento falha dizendo que foi
+  truncamento — o limite baixo aparece como limite, não como "formato inesperado".
+
 ### Adicionado (criativos: vídeo de ponta a ponta)
 
 - Upload de vídeo que recusa antes de gastar verba: a ingestão sonda duração, dimensões, fps e

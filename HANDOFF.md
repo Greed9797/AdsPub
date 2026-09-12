@@ -1,6 +1,7 @@
 # HANDOFF — AdPub
 
-Data: 2026-09-11. Branch `main` limpa até `334b510` (vídeo de ponta a ponta incluído). Produção
+Data: 2026-09-12. Branch `main` limpa até `20b46bb` (correções do diagnóstico de IA incluídas, além
+do vídeo). Produção
 **no ar** em `https://adpub.179-198-104-210.sslip.io` (host compartilhado, atrás do Caddy do `mcrm`);
 falta só preencher as chaves externas do `.env.prod` (§3, item 1) — o host ainda roda a imagem
 anterior, sem o MCP e sem o vídeo.
@@ -29,6 +30,15 @@ anterior, sem o MCP e sem o vídeo.
   aviso. O card de `/criativos` toca o vídeo pelo link assinado e mostra erros e avisos (antes
   apareciam em branco). Conferido no stack local: H.264 1080×1920 passa e toca, HEVC, 0,4 s e
   áudio MP3 se comportam como acima, e a faixa (`Range: bytes=0-1023`) do MinIO devolve 206.
+- **Correções do diagnóstico de IA** (`docs/analise-arquitetura-ia.md`, frentes 1–6): contexto de marca
+  e claims que chegavam quebrados ao prompt, evidência obrigatória validada contra a grade de
+  amostragem, snapshot de relatório que **declara** o que ficou fora em vez de cortar JSON no meio,
+  identidade de cache com modelo/escopo/revisão e regeneração explícita com dedupe, contabilidade de
+  IA por tentativa em todas as finalidades (inclusive falhas de validação), cache de prefixo do
+  provedor precificado como categoria própria, ciclo de feedback do plano alimentando as próximas
+  gerações, análise de mídia movida para job no worker com fila própria e tela de acompanhamento,
+  cache conferido antes de baixar/decodificar, política com concorrência limitada e teto de saída
+  por finalidade com truncamento explícito. Gate por gate em `docs/analise-arquitetura-ia.md` §10.
 - **Rede/rotas**: `adpub-web` e `adpub-minio` entram em `mcrm_internal`; o bloco de rotas está
   anexado ao `/opt/mcrm/Caddyfile` (backup em `Caddyfile.bak.adpub.*`) e foi validado + recarregado.
 - **Alertas no Telegram** (`TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`, os dois juntos ou nenhum) e
@@ -58,6 +68,10 @@ open http://localhost:3000/
 - Banco local tem **seed demo** (BM Demo, Demo Store, act_demo, 5 lotes). Apagar antes de teste
   sério: `DELETE FROM batches; DELETE FROM ad_accounts; DELETE FROM clients; DELETE FROM meta_connections;`
 - Stack de produção na máquina de dev: `docs/deploy.md` §9.
+- Provas do diagnóstico de IA, contra o banco local (invoker falso, nenhuma chamada paga, nunca em
+  produção): `DATABASE_URL=postgres://adpub:adpub@localhost:55432/adpub pnpm prova:a1` (contexto
+  visual no plano), `pnpm prova:a5` (cache sem download) e `pnpm prova:a10` (indisponibilidade não
+  vira aprovação).
 
 ## 3. O que falta (infra/humano)
 
@@ -68,6 +82,10 @@ open http://localhost:3000/
    `ANTHROPIC_API_KEY` e `AUTH_ALLOWED_DOMAIN` (hoje `w3bsite.com.br` — **conferir**: é o domínio
    Google dos usuários). Depois: `docker compose -f docker-compose.prod.yml --env-file .env.prod up
    -d web api worker`. O primeiro login Google do domínio nasce admin.
+1b. **Três migrações novas no host** (`0013` insights, `0014` `ai_usage`, `0015` `content_analyses` +
+   `analysis_jobs`) entram no `migrate` do próximo deploy. Antes de subir release, a Constituição V
+   pede `pnpm smoke:sandbox` de novo na conta de teste (o caminho de upload de vídeo mudou desde a
+   última fumaça).
 2. **Subir o MCP no host** (mesma tacada do item 1, mas o Caddy muda): sincronizar o código
    (`HOST=w3vps ./infra/deploy-host.sh` ou `git pull` em `/opt/adpub/app`), rodar `migrate` (cria as
    tabelas `oauth_*`), `up -d mcp api web worker` e **substituir** o bloco do AdPub no
@@ -118,6 +136,16 @@ open http://localhost:3000/
   3 × 10 MB — subir algo sem limite atrapalha `mcrm`/`creativeos`, que dividem a máquina.
 - **Rollback**: a imagem volta por sha (`IMAGE_TAG`), o schema não; migração destrutiva exige restore
   do dump (`docs/restore.md`).
+- **Fila de análise**: o worker roda duas filas — publicação e `adpub.analysis` (concorrência 1). Se
+  o worker ficar parado, jobs ficam `queued` em `analysis_jobs` e a tela mostra "na fila"; a
+  reentrega é idempotente, então subir o worker resolve. Não aumentar a concorrência da publicação
+  para acelerar IA (limite é da Meta, e o estado é financeiro).
+- **Roteamento de modelo não é automático de propósito**: o diagnóstico condiciona a troca a um
+  baseline medido (custo por geração aceita, com qualidade não pior). O caminho está em
+  `docs/avaliacao-geracoes.md` (rode o eval com `--model`, compare os dois arquivos) — não ligar
+  escalada antes disso.
+- **`scripts/prova-*.ts` escrevem no banco de desenvolvimento** (lote, análise e `policy_mode`):
+  apontam para o `DATABASE_URL` local por decisão — nunca rode contra produção.
 - **`pnpm --filter … deploy` local poda devDeps do repositório** — esse comando só dentro do
   Dockerfile. Se um build do web falhar com módulo não encontrado: `rm -rf apps/web/.next` e
   `pnpm install`.
@@ -132,4 +160,7 @@ open http://localhost:3000/
 3. Revisar `docs/erros-meta.md` e `docs/spike-meta.md` antes do App Review.
 4. Criativos de vídeo no piloto: mandar 2–3 no formato real do cliente (9:16, H.264) para exercitar
    o limite de 500 MB e a miniatura com arquivo de verdade.
-5. Se criar slug/status novo: atualizar mapa PT + spec e2e correspondente.
+5. Baseline de custo/qualidade antes de mexer em modelo: rodar o eval com o modelo de geração atual e
+   com o econômico (`docs/avaliacao-geracoes.md`), com revisor humano às cegas, e só então decidir
+   roteamento. A query de custo por geração aceita já está no mesmo documento.
+6. Se criar slug/status novo: atualizar mapa PT + spec e2e correspondente.

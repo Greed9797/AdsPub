@@ -325,3 +325,31 @@ Experimentos locais, sem alteração de fonte e sem chamadas ao provedor:
 Provas estáticas adicionais: incompatibilidade `brand_context`/`brandContext`, leitura integral antes do cache, análise síncrona na API, transcrição indisponível, N+1 e agregação de custos parcial.
 
 Não foram executados novos benchmarks de modelo, carga, banco ou testes completos do projeto. Nenhuma economia financeira, compatibilidade de modelo atual ou melhora de conversão foi declarada como medida.
+
+## 10. Estado dos gates depois da primeira implementação
+
+O que já tem prova executável no repositório, depois das frentes 1 a 6 (sem a
+decisão de modelo, que continua condicionada a baseline):
+
+| Gate (§8) | Onde está a prova |
+|---|---|
+| Contexto/modelo/revisão relevantes invalidam o cache | `packages/ai/test/cache.test.ts` (identidade) + `apps/worker/test/analysis-run.test.ts` |
+| Análise em cache não lê o original nem inicia ffmpeg | `pnpm prova:a5` (storage falso que explode se chamado) |
+| Contexto acima do orçamento seleciona e declara omissão | `packages/ai/test/context-budget.test.ts` |
+| Uso pago continua registrado quando a validação falha | `apps/api/test/ai-usage.test.ts` / `packages/ai/test/tracked-invoker.test.ts` |
+| Observação com evidência ausente é rejeitada | `packages/creative-intel/test/findings.test.ts` |
+| Falha de IA preserva publicação (idempotência e PAUSED) | `apps/worker/test/analysis-run.test.ts` + `e2e/jornada-9-analise.spec.ts` |
+| Indisponibilidade do classificador não vira "validado por regras" em modo `block` | `pnpm prova:a10` |
+| Análise sai da requisição da API | `e2e/jornada-9-analise.spec.ts` (job + tela) |
+| Análise visual e aprendizados entram no plano | `pnpm prova:a1` + `apps/api/test/batch-plan.test.ts` |
+| Resposta truncada no limite é falha explícita | `packages/ai/test/invoker.test.ts` |
+
+Métricas que continuam **sem** número medido — dependem de rodar com chave real
+e conjunto reservado, e nenhuma foi declarada como medida nesta análise:
+p50/p95 por etapa, taxa de aceite sem edição, custo por geração aceita (a query
+está em `docs/avaliacao-geracoes.md`), hit rate de cache, ganho do endpoint
+interno de storage e RSS sob concorrência.
+
+Provas locais: `pnpm prova:a1`, `pnpm prova:a5` e `pnpm prova:a10` rodam contra
+o banco de desenvolvimento (`DATABASE_URL` do compose local), escrevem nele e
+usam invoker falso — nenhuma chamada paga, nunca em produção.
