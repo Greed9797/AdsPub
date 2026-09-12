@@ -24,7 +24,7 @@ rm -f "$dest/postgres-$stamp.dump" # caso um dump cru de execução antiga exist
 docker run --rm --network adpub_internal \
   --entrypoint /bin/sh \
   -e MINIO_ROOT_USER -e MINIO_ROOT_PASSWORD -e S3_BUCKET \
-  -v "$dest:/backup" minio/mc:latest \
+  -v "$dest:/backup" quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z \
   -c 'mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null &&
       mc mirror --overwrite "local/$S3_BUCKET" /backup/minio'
 

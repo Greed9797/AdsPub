@@ -66,7 +66,8 @@ services:
 
   minio:
     <<: *app
-    image: minio/minio:latest
+    # O Docker Hub aposentou `minio/minio`; o registro oficial agora é o Quay.
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: adpub-minio
     command: ['server', '/data', '--console-address', ':9001']
     environment:
@@ -89,7 +90,7 @@ services:
   # MinIO nasce vazio, então o bucket é criado uma vez, de forma idempotente.
   minio-init:
     <<: *app
-    image: minio/mc:latest
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: adpub-minio-init
     restart: 'no'
     networks: [internal]

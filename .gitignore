@@ -12,3 +12,6 @@ playwright-report/
 test-results/
 e2e/.artifacts/
 tmp/
+# O `next dev` (16) grava estes dois no diretório do app a cada start.
+apps/web/AGENTS.md
+apps/web/CLAUDE.md
