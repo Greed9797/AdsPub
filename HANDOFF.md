@@ -68,9 +68,19 @@ open http://localhost:3000/
 - Banco local tem **seed demo** (BM Demo, Demo Store, act_demo, 5 lotes). Apagar antes de teste
   sério: `DELETE FROM batches; DELETE FROM ad_accounts; DELETE FROM clients; DELETE FROM meta_connections;`
 - Stack de produção na máquina de dev: `docs/deploy.md` §9.
-- Fumaça de integração (Graph API falsa, sem tocar a Meta): crie um banco descartável, aponte
-  `DATABASE_URL` para ele e rode `ADPUB_ALLOW_TRUNCATE=1 pnpm smoke:integration` — o script apaga o
-  banco indicado. Foi assim que a quebra de contrato da análise em job apareceu.
+- Fumaça de integração (Graph API falsa, sem tocar a Meta). O script **apaga** o banco apontado por
+  `DATABASE_URL` (o opt-in `ADPUB_ALLOW_TRUNCATE=1` já vem no npm script; a trava também exige
+  loopback ou sufixo `_test`/`_e2e`). Receita verificada em 2026-09-12, commit `4d7c6fb`, sha do
+  script `4edbbc63…`:
+
+  ```bash
+  docker exec adpub-postgres-1 psql -U adpub -d postgres -c "create database adpub_smoke"  # uma vez
+  set -a; . tmp/dev-logs/dev.env; set +a
+  export DATABASE_URL="postgres://adpub:adpub@localhost:55432/adpub_smoke" REDIS_URL="redis://localhost:56379/4"
+  pnpm db:migrate && pnpm smoke:integration   # 139 checagens ok, SMOKE OK
+  ```
+
+  Foi assim que a quebra de contrato da análise em job apareceu.
 - Provas do diagnóstico de IA, contra o banco local (invoker falso, nenhuma chamada paga, nunca em
   produção): `DATABASE_URL=postgres://adpub:adpub@localhost:55432/adpub pnpm prova:a1` (contexto
   visual no plano), `pnpm prova:a5` (cache sem download) e `pnpm prova:a10` (indisponibilidade não

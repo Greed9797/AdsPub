@@ -65,7 +65,8 @@ prova executável (tabela em §10 do mesmo documento).
   script esperando o contrato antigo (201 com a análise no corpo), e o T-006 falhava em cascata. O
   stub de fila agora roda o worker inline, como o de publicação, e a fumaça confere o contrato novo —
   inclusive que o pedido repetido reaproveita **sem** nova chamada ao provedor. Rodada contra banco
-  novo: 139 checagens ok, nenhuma chamada real à Meta.
+  novo (`adpub_smoke` em `localhost:55432`, commit `4d7c6fb`): 139 checagens ok, nenhuma chamada real
+  à Meta. A receita está no `HANDOFF.md` §2.
 
 ### Adicionado (criativos: vídeo de ponta a ponta)
 
