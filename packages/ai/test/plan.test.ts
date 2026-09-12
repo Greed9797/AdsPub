@@ -86,6 +86,29 @@ const validPlan = () => ({
 const invoker = (input: unknown): AiInvoker =>
   vi.fn(async () => ({ input, inputTokens: 1200, outputTokens: 800 }));
 
+/** Cache em memória com contrato do AiCache (identidade + proveniência). */
+function memoryCache() {
+  const store = new Map<string, { output: Record<string, unknown>; model: string }>();
+  const key = (purpose: string, version: string, model: string, hash: string) =>
+    `${purpose}|${version}|${model}|${hash}`;
+  return {
+    find: async (input: { purpose: string; promptVersion: string; model: string; inputHash: string }) =>
+      store.get(key(input.purpose, input.promptVersion, input.model, input.inputHash)),
+    save: async (input: {
+      purpose: string;
+      promptVersion: string;
+      model: string;
+      inputHash: string;
+      output: Record<string, unknown>;
+    }) => {
+      store.set(key(input.purpose, input.promptVersion, input.model, input.inputHash), {
+        output: input.output,
+        model: input.model,
+      });
+    },
+  };
+}
+
 describe('normalizePlan', () => {
   it('aceita plano válido', () => {
     const { plan, dropped } = normalizePlan(validPlan(), ctx());
@@ -198,27 +221,96 @@ describe('AiClient.generatePlan', () => {
     expect(String(request.system)).toContain('submit_batch_plan');
   });
 
-  it('usa o cache quando o hash de entrada repete', async () => {
+  it('usa o cache quando a identidade da entrada repete, preservando o modelo', async () => {
     const invoke = invoker(validPlan());
-    const store = new Map<string, Record<string, unknown>>();
-    const cache = {
-      find: async (purpose: string, version: string, hash: string) => {
-        const found = store.get(`${purpose}|${version}|${hash}`);
-        return found ? { output: found } : undefined;
-      },
-      save: async (input: { purpose: string; promptVersion: string; inputHash: string; output: Record<string, unknown> }) => {
-        store.set(`${input.purpose}|${input.promptVersion}|${input.inputHash}`, input.output);
-      },
-    };
     const client = new AiClient({
       invoke,
       models: { generation: 'claude-sonnet-4-6', classify: 'claude-haiku-4-6' },
-      cache,
+      cache: memoryCache(),
     });
     await client.generatePlan(ctx());
     const second = await client.generatePlan(ctx());
     expect(second.meta.cached).toBe(true);
+    expect(second.meta.source).toBe('cache');
+    expect(second.meta.model).toBe('claude-sonnet-4-6');
     expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('modelo diferente não reutiliza saída de outro modelo', async () => {
+    const shared = memoryCache();
+    const first = new AiClient({
+      invoke: invoker(validPlan()),
+      models: { generation: 'claude-sonnet-4-6', classify: 'claude-haiku-4-6' },
+      cache: shared,
+    });
+    await first.generatePlan(ctx());
+
+    const outroInvoke = invoker(validPlan());
+    const outro = new AiClient({
+      invoke: outroInvoke,
+      models: { generation: 'outro-modelo', classify: 'claude-haiku-4-6' },
+      cache: shared,
+    });
+    const result = await outro.generatePlan(ctx());
+    expect(outroInvoke).toHaveBeenCalledTimes(1);
+    expect(result.meta.model).toBe('outro-modelo');
+    expect(result.meta.cached).toBe(false);
+  });
+
+  it('regenerar ignora o cache em vez de devolver o plano antigo', async () => {
+    const invoke = invoker(validPlan());
+    const client = new AiClient({
+      invoke,
+      models: { generation: 'claude-sonnet-4-6', classify: 'claude-haiku-4-6' },
+      cache: memoryCache(),
+    });
+    await client.generatePlan(ctx());
+    const second = await client.generatePlan(ctx(), { bypassCache: true });
+    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(second.meta.cached).toBe(false);
+    expect(second.meta.source).toBe('provider');
+  });
+
+  it('escopo diferente é outro pedido', async () => {
+    const shared = memoryCache();
+    const first = new AiClient({
+      invoke: invoker(validPlan()),
+      models: { generation: 'g', classify: 'c' },
+      cache: shared,
+    });
+    await first.generatePlan(ctx(), { scope: 'cliente-a' });
+
+    const outroInvoke = invoker(validPlan());
+    const outro = new AiClient({
+      invoke: outroInvoke,
+      models: { generation: 'g', classify: 'c' },
+      cache: shared,
+    });
+    await outro.generatePlan(ctx(), { scope: 'cliente-b' });
+    expect(outroInvoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('duas chamadas iguais em voo viram uma só no provedor', async () => {
+    let resolve!: (value: unknown) => void;
+    const pending = new Promise((r) => {
+      resolve = r;
+    });
+    const invoke = vi.fn(async () => {
+      await pending;
+      return { input: validPlan(), inputTokens: 10, outputTokens: 5 };
+    });
+    const client = new AiClient({
+      invoke: invoke as unknown as AiInvoker,
+      models: { generation: 'g', classify: 'c' },
+    });
+    const first = client.generatePlan(ctx());
+    const second = client.generatePlan(ctx());
+    resolve(undefined);
+    const [a, b] = await Promise.all([first, second]);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(a.plan.items).toHaveLength(1);
+    expect(b.plan.items).toHaveLength(1);
+    expect([a.meta.source, b.meta.source].sort()).toEqual(['inflight', 'provider']);
   });
 
   it('propaga erro de schema quando a IA responde errado', async () => {

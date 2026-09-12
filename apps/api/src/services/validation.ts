@@ -73,9 +73,11 @@ export async function validateBatch(
     let validation: ItemValidation = validateItem(filled, validateCtx);
 
     if (deps.env.usePolicyAi && deps.ai) {
-      validation = await withAiPolicy(deps, validation, filled, ctx.client.policyMode, [
-        ...(ctx.client.voiceProfile.forbidden_terms ?? []),
-      ]);
+      validation = await withAiPolicy(deps, validation, filled, {
+        policyMode: ctx.client.policyMode,
+        forbiddenTerms: ctx.client.voiceProfile.forbidden_terms ?? [],
+        clientId: ctx.client.id,
+      });
     }
 
     const status = statusFromValidation(validation);
@@ -142,16 +144,19 @@ async function withAiPolicy(
   deps: ApiDeps,
   validation: ItemValidation,
   draft: ReturnType<typeof adDraftInputSchema.parse>,
-  policyMode: 'warn' | 'block',
-  forbiddenTerms: string[],
+  context: { policyMode: 'warn' | 'block'; forbiddenTerms: string[]; clientId: string },
 ): Promise<ItemValidation> {
+  const { policyMode, forbiddenTerms, clientId } = context;
   const text = [draft.copy.primary_text, draft.copy.headline, draft.copy.description]
     .filter(Boolean)
     .join('\n');
   if (!text.trim() || !deps.ai) return validation;
 
   try {
-    const { issues } = await deps.ai.classifyPolicy(text, { forbiddenTerms });
+    const { issues } = await deps.ai.classifyPolicy(text, {
+      forbiddenTerms,
+      scope: clientId,
+    });
     const extraErrors = [...validation.errors];
     const extraWarnings = [...validation.warnings];
     for (const issue of issues) {

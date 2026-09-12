@@ -18,11 +18,12 @@ export interface GenerationInput {
   latencyMs: number;
 }
 
-/** R12: cache por sha256(prompt_version + input). */
+/** R12: cache por sha256(prompt_version + modelo + input dentro do escopo). */
 export async function findCachedGeneration(
   db: Database,
   purpose: AiPurpose,
   promptVersion: string,
+  model: string,
   inputHash: string,
 ): Promise<AiGenerationRow | undefined> {
   const [row] = await db
@@ -32,6 +33,7 @@ export async function findCachedGeneration(
       and(
         eq(aiGenerations.purpose, purpose),
         eq(aiGenerations.promptVersion, promptVersion),
+        eq(aiGenerations.model, model),
         eq(aiGenerations.inputHash, inputHash),
       ),
     );

@@ -33,9 +33,15 @@ import { assetsForDrafts, loadBatchContext, validateContextFrom } from './batch-
 
 export function aiCacheFor(deps: ApiDeps, batchId: string | null): AiCache {
   return {
-    async find(purpose, promptVersion, inputHash) {
-      const row = await findCachedGeneration(deps.db, purpose, promptVersion, inputHash);
-      return row ? { output: row.output } : undefined;
+    async find(input) {
+      const row = await findCachedGeneration(
+        deps.db,
+        input.purpose,
+        input.promptVersion,
+        input.model,
+        input.inputHash,
+      );
+      return row ? { output: row.output, model: row.model } : undefined;
     },
     async save(input) {
       await saveGeneration(deps.db, { ...input, batchId });
@@ -134,7 +140,12 @@ export async function generatePlan(
     adsets: ctx.adsets,
   };
 
-  const { plan, meta } = await deps.ai.generatePlan(planContext);
+  const { plan, meta } = await deps.ai.generatePlan(planContext, {
+    scope: batch.clientId,
+    // Recriar o plano é pedir outra alternativa: sem isto o cache devolvia o
+    // plano antigo e o botão de regenerar não fazia nada.
+    bypassCache: input.regenerate,
+  });
   assertPlanRefs(plan);
 
   const drafts = await buildPlanDrafts(deps, { batch, plan, assets });
