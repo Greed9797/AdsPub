@@ -51,6 +51,7 @@ import { Storage } from '@adpub/storage';
 import { buildApp } from '@adpub/api/app';
 import type { ApiDeps, JobRef, Queues } from '@adpub/api/lib/deps';
 import { AccountAuthError, runPublish } from '@adpub/worker/publish/pipeline';
+import { runAnalysis } from '@adpub/worker/analysis/run';
 import { runInsightsSync } from '@adpub/worker/insights/sync';
 import type { MetaFactory } from '@adpub/worker/meta';
 import { runStatusPoll } from '@adpub/worker/poll/status';
@@ -192,8 +193,10 @@ async function main(): Promise<void> {
       await runSync(workerCtx, metaFactory, alert, { connectionId });
       return { job_id: `sync-${connectionId}`, queue: 'adpub.sync' };
     },
-    async enqueueAnalysis() {
-      throw new Error('Análise de mídia não faz parte da fumaça de integração.');
+    async enqueueAnalysis(jobId) {
+      // Como no publish: o stub roda o worker inline (o BullMQ só enfileira).
+      await runAnalysis(workerCtx, deps.ai, { jobId });
+      return { job_id: `analysis-${jobId}`, queue: 'adpub.analysis' };
     },
     async enqueueImportDrive() {
       return { job_id: 'drive-1', queue: 'adpub.drive-import' };
@@ -1615,8 +1618,10 @@ async function main(): Promise<void> {
 
   phase('T-006 — análise de conteúdo versionada, sem performance junto');
   const planInvoker = fakeAiInvoker(ingested.asset.id);
+  let providerCalls = 0;
   deps.ai = new AiClient({
     invoke: (async (request: { toolName: string }) => {
+      providerCalls += 1;
       if (request.toolName === 'submit_content_analysis') {
         return {
           input: {
@@ -1659,29 +1664,74 @@ async function main(): Promise<void> {
     }) as never,
     models: { generation: 'claude-sonnet-4-6', classify: 'claude-haiku-4-6' },
   });
-  const analisada = (await app
+  // A9: a rota só confirma o recebimento; o worker roda o job (inline no stub
+  // de fila, como o publish) e o cliente acompanha em `/analysis-jobs/:id`.
+  const recebida = (await app
     .inject({
       method: 'POST',
       url: `/api/v1/assets/${ingested.asset.id}/analyses`,
       headers: auth,
       payload: { brand_context: 'Loja Teste' },
     })
-    .then((r) => ({ status: r.statusCode, body: r.json() as { id: string; coverage: { transcript: string }; cost_usd: string } })));
-  check('análise criada (201)', analisada.status === 201, analisada.status);
-  check('transcrição indisponível visível', analisada.body.coverage?.transcript === 'unavailable', analisada.body.coverage);
-  const repetida = await app.inject({
-    method: 'POST',
-    url: `/api/v1/assets/${ingested.asset.id}/analyses`,
-    headers: auth,
-    payload: {},
-  });
-  check('mesma entrada reutiliza (200)', repetida.statusCode === 200, repetida.statusCode);
+    .then((r) => ({ status: r.statusCode, body: r.json() as { job_id: string; status: string } })));
+  check(
+    'análise aceita como job (202)',
+    recebida.status === 202 && ['queued', 'running', 'done'].includes(recebida.body.status),
+    recebida,
+  );
+  const analisada = (await app
+    .inject({ method: 'GET', url: `/api/v1/analysis-jobs/${recebida.body.job_id}`, headers: auth })
+    .then(
+      (r) =>
+        r.json() as {
+          status: string;
+          analysis: { id: string; revision: number; coverage: { transcript: string } } | null;
+          queue_wait_ms: number | null;
+        },
+    ));
+  check(
+    'achados disponíveis no job (done)',
+    analisada.status === 'done' && analisada.analysis?.coverage?.transcript === 'unavailable',
+    analisada,
+  );
+  const chamadasAntesDoCache = providerCalls;
+  const repetida = (await app
+    .inject({
+      method: 'POST',
+      url: `/api/v1/assets/${ingested.asset.id}/analyses`,
+      headers: auth,
+      payload: { brand_context: 'Loja Teste' },
+    })
+    .then((r) => ({ status: r.statusCode, body: r.json() as { job_id: string } })));
+  const reusada = (await app
+    .inject({ method: 'GET', url: `/api/v1/analysis-jobs/${repetida.body.job_id}`, headers: auth })
+    .then((r) => r.json() as { analysis: { id: string } | null }));
+  check(
+    'mesma entrada reutiliza sem pagar de novo',
+    repetida.status === 202 &&
+      reusada.analysis?.id === analisada.analysis?.id &&
+      providerCalls === chamadasAntesDoCache,
+    { antes: chamadasAntesDoCache, depois: providerCalls },
+  );
   const corrigida = (await app
     .inject({
       method: 'PATCH',
-      url: `/api/v1/analyses/${analisada.body.id}`,
+      url: `/api/v1/analyses/${analisada.analysis?.id}`,
       headers: auth,
-      payload: { findings: { observations: [], limitations: ['corrigido pelo gestor'] } },
+      // Correção de gestor que **refina** o achado: zerar as observações
+      // apagaria a única mídia do relatório de T-007 logo abaixo.
+      payload: {
+        findings: {
+          observations: [
+            {
+              tipo: 'abertura',
+              texto: 'Produto em close antes da oferta (revisado pelo gestor)',
+              evidence_refs: [{ kind: 'frame', t: 0, detail: 'close do produto' }],
+            },
+          ],
+          limitations: ['corrigido pelo gestor'],
+        },
+      },
     })
     .then((r) => r.json())) as { revision: number; id: string };
   check('correção vira revisão 2', corrigida.revision === 2, corrigida);
@@ -1699,7 +1749,7 @@ async function main(): Promise<void> {
       payload: { ad_account_id: stressAccount, from: '2026-09-01', to: '2026-09-02' },
     })
     .then((r) => ({ status: r.statusCode, body: r.json() as { id: string; input_snapshot: { totals: { spend: number } } } })));
-  check('relatório gerado e validado (201)', relatorio.status === 201, relatorio.status);
+  check('relatório gerado e validado (201)', relatorio.status === 201, relatorio);
   check('snapshot congela os valores usados', relatorio.body.input_snapshot?.totals?.spend === 310.5, relatorio.body.input_snapshot?.totals);
   const detalhe = (await app
     .inject({ method: 'GET', url: `/api/v1/analysis-reports/${relatorio.body.id}`, headers: auth })
