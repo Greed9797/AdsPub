@@ -85,10 +85,14 @@ open http://localhost:3000/
    `ANTHROPIC_API_KEY` e `AUTH_ALLOWED_DOMAIN` (hoje `w3bsite.com.br` — **conferir**: é o domínio
    Google dos usuários). Depois: `docker compose -f docker-compose.prod.yml --env-file .env.prod up
    -d web api worker`. O primeiro login Google do domínio nasce admin.
-1b. **Três migrações novas no host** (`0013` insights, `0014` `ai_usage`, `0015` `content_analyses` +
-   `analysis_jobs`) entram no `migrate` do próximo deploy. Antes de subir release, a Constituição V
-   pede `pnpm smoke:sandbox` de novo na conta de teste (o caminho de upload de vídeo mudou desde a
-   última fumaça).
+1b. **Antes do próximo deploy**: três migrações novas no host (`0013` insights, `0014` `ai_usage`,
+   `0015` `content_analyses` + `analysis_jobs`) entram no `migrate`. A fumaça de **integração**
+   (`pnpm smoke:integration`, Graph API falsa) foi rodada em 2026-09-12 contra banco novo: 139
+   checagens ok, 0 falhas — ela pegou a quebra de contrato que a A9 causou e o script foi corrigido
+   junto. A fumaça de **sandbox** (`pnpm smoke:sandbox`, conta de teste real) **não** foi rodada:
+   exige `SMOKE_META_TOKEN`/`SMOKE_BUSINESS_ID`/`SMOKE_AD_ACCOUNT_ID` do System User, que vivem nos
+   secrets do CI e não estão nesta máquina — é o último gate antes de subir release (Constituição V),
+   e o caminho de upload de vídeo mudou desde a última fumaça.
 2. **Subir o MCP no host** (mesma tacada do item 1, mas o Caddy muda): sincronizar o código
    (`HOST=w3vps ./infra/deploy-host.sh` ou `git pull` em `/opt/adpub/app`), rodar `migrate` (cria as
    tabelas `oauth_*`), `up -d mcp api web worker` e **substituir** o bloco do AdPub no

@@ -61,6 +61,12 @@ prova executável (tabela em §10 do mesmo documento).
   erro genérico de schema. Agora o teto é por finalidade e truncamento falha dizendo que foi
   truncamento — o limite baixo aparece como limite, não como "formato inesperado".
 
+- **Fumaça de integração quebrada pela análise em job**: a mudança da rota de análise deixou o
+  script esperando o contrato antigo (201 com a análise no corpo), e o T-006 falhava em cascata. O
+  stub de fila agora roda o worker inline, como o de publicação, e a fumaça confere o contrato novo —
+  inclusive que o pedido repetido reaproveita **sem** nova chamada ao provedor. Rodada contra banco
+  novo: 139 checagens ok, nenhuma chamada real à Meta.
+
 ### Adicionado (criativos: vídeo de ponta a ponta)
 
 - Upload de vídeo que recusa antes de gastar verba: a ingestão sonda duração, dimensões, fps e
