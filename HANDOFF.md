@@ -1,8 +1,9 @@
 # HANDOFF — AdPub
 
-Data: 2026-09-11. Branch `main` limpa até `476b0f5` (servidor MCP incluído). Produção **no ar** em
-`https://adpub.179-198-104-210.sslip.io` (host compartilhado, atrás do Caddy do `mcrm`); falta só
-preencher as chaves externas do `.env.prod` (§3, item 1).
+Data: 2026-09-11. Branch `main` limpa até `334b510` (vídeo de ponta a ponta incluído). Produção
+**no ar** em `https://adpub.179-198-104-210.sslip.io` (host compartilhado, atrás do Caddy do `mcrm`);
+falta só preencher as chaves externas do `.env.prod` (§3, item 1) — o host ainda roda a imagem
+anterior, sem o MCP e sem o vídeo.
 
 ## 1. Estado atual
 
@@ -20,6 +21,14 @@ preencher as chaves externas do `.env.prod` (§3, item 1).
   gerados no próprio host) e imagens `adpub/adpub-{api,worker,web}:<sha>` construídas no host por
   `infra/deploy-host.sh` — o repositório ainda não tem remote no GitHub, então o workflow `Deploy`
   (GHCR) fica pronto para quando tiver.
+- **Vídeo de ponta a ponta** (entra no próximo deploy, junto com o MCP): a ingestão nunca carrega o
+  arquivo inteiro — upload da API e importação do Drive passam por temporário, hash e storage em
+  streaming, e o upload retomável à Meta lê o vídeo por faixa. A validação sonda duração, dimensões,
+  fps e codec com ffprobe e recusa HEVC/H.265, AV1, VP9 e acima de 60 fps **antes** de a verba
+  subir, com o motivo e o próximo passo ("reexporte em MP4 H.264 + AAC"); áudio fora do AAC vira
+  aviso. O card de `/criativos` toca o vídeo pelo link assinado e mostra erros e avisos (antes
+  apareciam em branco). Conferido no stack local: H.264 1080×1920 passa e toca, HEVC, 0,4 s e
+  áudio MP3 se comportam como acima, e a faixa (`Range: bytes=0-1023`) do MinIO devolve 206.
 - **Rede/rotas**: `adpub-web` e `adpub-minio` entram em `mcrm_internal`; o bloco de rotas está
   anexado ao `/opt/mcrm/Caddyfile` (backup em `Caddyfile.bak.adpub.*`) e foi validado + recarregado.
 - **Alertas no Telegram** (`TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`, os dois juntos ou nenhum) e
@@ -101,6 +110,10 @@ open http://localhost:3000/
 - **MCP**: o cliente fala com a API sob `/api/v1` (o prefixo é montado em `apps/mcp/src/api.ts`, com
   teste) — caminho novo de ferramenta não deve incluir o prefixo; as ferramentas de escrita só
   existem com o escopo `adpub:write` e a checagem vem antes da chamada à API.
+- **Vídeo**: o caminho de upload para a Meta mudou para leitura por faixa (e o protocolo ficou
+  coberto pelo teste das fronteiras de 4 MB), mas a Constituição V não perdoa: antes do próximo
+  deploy, `pnpm smoke:sandbox` de novo na conta de teste. A validação local recusa o que o browser
+  toca e a Meta não aceita (HEVC), então "toca aqui" não é sinal de que publica.
 - **Host compartilhado**: cada serviço tem teto de memória (soma ~4,8 GB) e log `json-file` de
   3 × 10 MB — subir algo sem limite atrapalha `mcrm`/`creativeos`, que dividem a máquina.
 - **Rollback**: a imagem volta por sha (`IMAGE_TAG`), o schema não; migração destrutiva exige restore
@@ -113,7 +126,10 @@ open http://localhost:3000/
 
 ## 5. Próximos passos sugeridos
 
-1. Provisionar o VPS e rodar o primeiro deploy (caminho crítico de piloto e App Review).
+1. Fechar as chaves externas do `.env.prod` e subir MCP + vídeo no host (§3, itens 1 e 2) — é o
+   caminho crítico do piloto e do App Review; o deploy do vídeo exige `pnpm smoke:sandbox` antes.
 2. Piloto T098 com 2 gestores.
 3. Revisar `docs/erros-meta.md` e `docs/spike-meta.md` antes do App Review.
-4. Se criar slug/status novo: atualizar mapa PT + spec e2e correspondente.
+4. Criativos de vídeo no piloto: mandar 2–3 no formato real do cliente (9:16, H.264) para exercitar
+   o limite de 500 MB e a miniatura com arquivo de verdade.
+5. Se criar slug/status novo: atualizar mapa PT + spec e2e correspondente.
