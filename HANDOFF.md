@@ -84,6 +84,8 @@ open http://localhost:3000/
 - **Botão primário com texto ink** (não branco): decisão AA 5.91:1 sobre o laranja.
 - **`next lint` quebrado**: lint válido é `pnpm run lint` (raiz).
 - **Playwright browsers**: `pnpm exec playwright install chromium --only-shell` se o cache sumir.
+- **e2e**: portas padrão 4310 (API) e 3310 (web) — nesta máquina a 4310 é do `agent-cli` do
+  `openbot3`, então rode com `E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e`.
 - **Warning Astryx "theme build"**: tema usa runtime injection; pré-compilar quando performance importar.
 - **Mapa PT em `ui.tsx`** (`STATUS_PT/CTA_PT/FORMAT_PT/GOAL_PT`): slug novo na API precisa de rótulo aqui.
 - **`tmp/` é ignorado pelo git**: `dev-up.sh` e `dev-logs/dev.env` vivem só nesta máquina.

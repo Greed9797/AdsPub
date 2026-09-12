@@ -8,8 +8,9 @@
  * feita: a Graph API é substituída pelo fake em `scripts/lib/fake-graph.ts`.
  */
 
-export const API_PORT = 4310;
-export const WEB_PORT = 3310;
+/** Portas do harness; troque por env se outro stack da máquina já as usa. */
+export const API_PORT = Number(process.env['E2E_API_PORT'] ?? 4310);
+export const WEB_PORT = Number(process.env['E2E_WEB_PORT'] ?? 3310);
 
 export const API_URL = `http://127.0.0.1:${API_PORT}`;
 export const WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
