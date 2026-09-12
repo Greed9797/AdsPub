@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { assets, contentAnalyses } from '../schema.js';
 import type { ContentAnalysisLike } from '../schema.js';
 import type { Database } from '../client.js';
@@ -42,6 +42,21 @@ export async function listAnalyses(db: Database, assetId: string): Promise<Conte
     .where(eq(contentAnalyses.assetId, assetId))
     .orderBy(desc(contentAnalyses.revision))
     .limit(20);
+}
+
+/**
+ * A1: análises atuais dos criativos selecionados, numa consulta só, para o
+ * planejamento nascer sabendo o que já foi observado na peça.
+ */
+export async function listCurrentAnalysesForAssets(
+  db: Database,
+  assetIds: readonly string[],
+): Promise<ContentAnalysisRow[]> {
+  if (assetIds.length === 0) return [];
+  return db
+    .select()
+    .from(contentAnalyses)
+    .where(and(inArray(contentAnalyses.assetId, [...assetIds]), isNull(contentAnalyses.supersededBy)));
 }
 
 /**

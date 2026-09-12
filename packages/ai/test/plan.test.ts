@@ -199,6 +199,57 @@ describe('renderPlanContext', () => {
   it('avisa quando o briefing está vazio', () => {
     expect(renderPlanContext(ctx({ briefing: '   ' }))).toContain('briefing vazio');
   });
+
+  it('entrega o que foi observado no criativo, com origem e limites', () => {
+    const rendered = renderPlanContext(
+      ctx({
+        assets: [
+          {
+            id: IMG,
+            filename: 'a.jpg',
+            kind: 'image',
+            aspect_ratio: '4:5',
+            insight: {
+              observations: ['casaco verde sobre fundo claro', 'preço riscado no canto'],
+              limitations: ['sem áudio analisado'],
+              revision: 2,
+              analyzed_at: '2026-09-01',
+              transcript: 'unavailable',
+            },
+          },
+        ],
+      }),
+    );
+    expect(rendered).toContain('casaco verde sobre fundo claro');
+    expect(rendered).toContain('corrigida por pessoa');
+    expect(rendered).toContain('2026-09-01');
+    expect(rendered).toContain('limite da análise: sem áudio analisado');
+  });
+
+  it('sem análise, diz que não viu a peça em vez de deixar supor', () => {
+    const rendered = renderPlanContext(ctx());
+    expect(rendered).toContain('sem análise visual deste criativo');
+    expect(rendered).not.toContain('observado na peça');
+  });
+
+  it('aprendizado entra com nível de evidência e nunca como verdade', () => {
+    const rendered = renderPlanContext(
+      ctx({
+        learnings: [
+          {
+            hypothesis: 'vídeo curto converte melhor no frio',
+            evidence_level: 'controlled_test',
+            limitations: ['amostra de 7 dias'],
+            outcome: 'CPA caiu 12%',
+          },
+        ],
+      }),
+    );
+    expect(rendered).toContain('[controlled_test] vídeo curto converte melhor no frio');
+    expect(rendered).toContain('hipótese é direção, nunca prova');
+    expect(rendered).toContain('CPA caiu 12%');
+    expect(rendered).toContain('amostra de 7 dias');
+  });
 });
 
 describe('AiClient.generatePlan', () => {

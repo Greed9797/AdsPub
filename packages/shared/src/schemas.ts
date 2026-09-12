@@ -198,6 +198,14 @@ export const voiceProfileSchema = z.object({
 });
 export type VoiceProfile = z.infer<typeof voiceProfileSchema>;
 
+/**
+ * Perfil de voz vindo de banco/seed antigo: completa com os padrões do schema
+ * em vez de entregar `undefined` para quem renderiza prompt ou valida.
+ */
+export function normalizeVoiceProfile(value: unknown): VoiceProfile {
+  return voiceProfileSchema.parse(value ?? {});
+}
+
 export const clientInputSchema = z.object({
   name: z.string().min(1),
   voice_profile: voiceProfileSchema.default({

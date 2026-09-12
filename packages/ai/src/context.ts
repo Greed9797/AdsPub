@@ -6,6 +6,29 @@ export interface AiAssetRef {
   kind: 'image' | 'video';
   aspect_ratio: string;
   duration_ms?: number | null;
+  /**
+   * A1: o que já foi observado nesta peça, com origem. Sem análise, o campo
+   * fica ausente e o contexto diz isso em vez de deixar a IA supor a imagem.
+   */
+  insight?: AiAssetInsight | null;
+}
+
+export interface AiAssetInsight {
+  /** Fatos observados na peça (evidência validada na análise). */
+  observations: string[];
+  limitations: string[];
+  /** > 1 = análise corrigida por pessoa. */
+  revision: number;
+  analyzed_at: string;
+  transcript: 'ready' | 'unavailable';
+}
+
+/** Aprendizado do cliente; o nível de evidência nunca é omitido. */
+export interface AiLearningRef {
+  hypothesis: string;
+  evidence_level: string;
+  limitations: string[];
+  outcome?: string | null;
 }
 
 export interface AiObjectRef {
@@ -18,6 +41,8 @@ export interface AiObjectRef {
 export interface PlanContext {
   briefing: string;
   copiesPerCreative: number;
+  /** A12: hipóteses registradas do cliente, sempre com o nível de evidência. */
+  learnings?: AiLearningRef[];
   account: {
     id: string;
     name: string;
@@ -50,6 +75,30 @@ export interface CopyContext {
   briefing?: string;
   /** Fatos observados no criativo (análise visual revisada), nunca inferidos aqui. */
   observations?: string[];
+}
+
+const MAX_INSIGHT_OBSERVATIONS = 8;
+
+/**
+ * A1: análise visual entra como fato observado com origem — ou como ausência
+ * explícita. Sem isto a IA escrevia sobre uma peça que nunca viu.
+ */
+function renderInsight(insight: AiAssetInsight | null): string[] {
+  if (!insight || insight.observations.length === 0) {
+    return ['  - sem análise visual deste criativo: não descreva a imagem/vídeo; use só o briefing.'];
+  }
+  const revisao = insight.revision > 1 ? `revisão ${insight.revision}, corrigida por pessoa` : `revisão ${insight.revision}`;
+  const lines = [`  - observado na peça (${revisao}, ${insight.analyzed_at}; transcrição: ${insight.transcript}):`];
+  for (const observation of insight.observations.slice(0, MAX_INSIGHT_OBSERVATIONS)) {
+    lines.push(`    - ${observation}`);
+  }
+  if (insight.observations.length > MAX_INSIGHT_OBSERVATIONS) {
+    lines.push(`    - (+${insight.observations.length - MAX_INSIGHT_OBSERVATIONS} observações omitidas)`);
+  }
+  for (const limitation of insight.limitations.slice(0, 5)) {
+    lines.push(`    - limite da análise: ${limitation}`);
+  }
+  return lines;
 }
 
 export function renderPlanContext(ctx: PlanContext): string {
@@ -87,6 +136,7 @@ export function renderPlanContext(ctx: PlanContext): string {
     lines.push(
       `- ${asset.id} — ${asset.filename} (${asset.kind}, ${asset.aspect_ratio}${duration})`,
     );
+    lines.push(...renderInsight(asset.insight ?? null));
   }
 
   lines.push('', '## Campanhas existentes');
@@ -99,6 +149,21 @@ export function renderPlanContext(ctx: PlanContext): string {
   if (ctx.adsets.length === 0) lines.push('- (nenhum)');
   for (const adset of ctx.adsets.slice(0, 50)) {
     lines.push(`- ${adset.id} — ${adset.name} (campanha ${adset.campaign_id ?? '?'})`);
+  }
+
+  if (ctx.learnings && ctx.learnings.length > 0) {
+    lines.push('', '## Aprendizados registrados deste cliente');
+    lines.push(
+      'Estado de evidência manda: hipótese é direção, nunca prova. Não escreva como fato o que não estiver em "claims permitidos".',
+    );
+    for (const learning of ctx.learnings.slice(0, 5)) {
+      const parts = [`- [${learning.evidence_level}] ${learning.hypothesis}`];
+      if (learning.outcome) parts.push(`  resultado registrado: ${learning.outcome}`);
+      if (learning.limitations.length > 0) {
+        parts.push(`  limitações: ${learning.limitations.join('; ')}`);
+      }
+      lines.push(...parts);
+    }
   }
 
   lines.push('', '## Parâmetros');

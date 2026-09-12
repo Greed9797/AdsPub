@@ -4,7 +4,9 @@ import {
   batchWithItems,
   getBatch,
   insertDrafts,
+  listCurrentAnalysesForAssets,
   listDraftsOfBatch,
+  listLearnings,
   linkBatchPlanGeneration,
   refreshBatchStatus,
   saveGeneration,
@@ -27,7 +29,7 @@ import {
   type PlanItem,
   type SessionUser,
 } from '@adpub/shared';
-import type { AiCache, PlanContext } from '@adpub/ai';
+import type { AiAssetInsight, AiCache, AiLearningRef, PlanContext } from '@adpub/ai';
 import { notFound, unprocessable, type ProblemError } from '../lib/problem.js';
 import type { ApiDeps } from '../lib/deps.js';
 import { assetsForDrafts, loadBatchContext, validateContextFrom } from './batch-context.js';
@@ -87,6 +89,76 @@ async function swapPlan(
 }
 
 /** FR-006: briefing + criativos + conta → BatchPlan → itens persistidos. */
+
+/** Linha de análise no formato que o contexto do plano consome. */
+export interface AnalysisRowLike {
+  assetId: string;
+  revision: number;
+  createdAt: Date;
+  findings: { observations: Array<{ texto: string }>; limitations?: string[] };
+  coverage: { transcript: string };
+}
+
+/** Linha de aprendizado no formato que o contexto do plano consome. */
+export interface LearningRowLike {
+  hypothesis: string;
+  evidenceLevel: string;
+  limitations: string[];
+  outcome: string | null;
+}
+
+/** Força da evidência: o contexto prefere teste controlado a hipótese solta. */
+const EVIDENCE_RANK: Record<string, number> = {
+  controlled_test: 3,
+  consistent_observation: 2,
+  hypothesis: 1,
+};
+
+/**
+ * A1: transforma análises em observações citáveis por criativo. Observação
+ * sem texto não vira "sem análise": a ausência é dita no contexto, não
+ * preenchida com suposição. Quando há mais de uma análise não substituída,
+ * vence a de maior revisão.
+ */
+export function insightsByAsset(rows: readonly AnalysisRowLike[]): Map<string, AiAssetInsight> {
+  const map = new Map<string, AiAssetInsight>();
+  const chosen = new Map<string, AnalysisRowLike>();
+  for (const row of rows) {
+    const current = chosen.get(row.assetId);
+    if (!current || row.revision > current.revision) chosen.set(row.assetId, row);
+  }
+  for (const [assetId, row] of chosen) {
+    const observations = row.findings.observations
+      .map((observation) => observation.texto.trim())
+      .filter((text) => text.length > 0);
+    if (observations.length === 0) continue;
+    map.set(assetId, {
+      observations,
+      limitations: row.findings.limitations ?? [],
+      revision: row.revision,
+      analyzed_at: row.createdAt.toISOString().slice(0, 10),
+      transcript: row.coverage.transcript === 'ready' ? 'ready' : 'unavailable',
+    });
+  }
+  return map;
+}
+
+/**
+ * A12: aprendizados do cliente entram por força de evidência, nunca como
+ * verdade — o nível vai junto no texto e o prompt diz como tratá-lo.
+ */
+export function learningRefs(rows: readonly LearningRowLike[]): AiLearningRef[] {
+  return [...rows]
+    .sort((a, b) => (EVIDENCE_RANK[b.evidenceLevel] ?? 0) - (EVIDENCE_RANK[a.evidenceLevel] ?? 0))
+    .slice(0, 10)
+    .map((row) => ({
+      hypothesis: row.hypothesis,
+      evidence_level: row.evidenceLevel,
+      limitations: row.limitations,
+      outcome: row.outcome,
+    }));
+}
+
 export async function generatePlan(
   deps: ApiDeps,
   actor: SessionUser,
@@ -110,6 +182,17 @@ export async function generatePlan(
   if (assets.length === 0) {
     throw unprocessable('Selecione ao menos um criativo válido para gerar o plano.');
   }
+  // A1/A12: o plano nasce sabendo o que já foi observado na peça e o que o
+  // cliente já registrou como aprendizado — sem isso a copy combinava com o
+  // briefing e não com o criativo.
+  const [analyses, clientLearnings] = await Promise.all([
+    listCurrentAnalysesForAssets(
+      deps.db,
+      assets.map((asset) => asset.id),
+    ),
+    listLearnings(deps.db, batch.clientId),
+  ]);
+  const insights = insightsByAsset(analyses);
 
   const planContext: PlanContext = {
     briefing: batch.briefing ?? '',
@@ -136,7 +219,9 @@ export async function generatePlan(
       kind: asset.kind,
       aspect_ratio: asset.aspectRatio,
       duration_ms: asset.durationMs,
+      insight: insights.get(asset.id) ?? null,
     })),
+    learnings: learningRefs(clientLearnings),
     campaigns: ctx.campaigns,
     adsets: ctx.adsets,
   };

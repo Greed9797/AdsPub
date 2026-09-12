@@ -1,8 +1,17 @@
 import { eq } from 'drizzle-orm';
-import type { ClientInput } from '@adpub/shared';
+import { normalizeVoiceProfile, type ClientInput } from '@adpub/shared';
 import { clients } from '../schema.js';
 import type { ClientRow } from '../schema.js';
 import type { Database } from '../client.js';
+
+/**
+ * Perfil de voz lido do banco passa pelo schema: linha gravada por script
+ * antigo ou seed incompleto não pode derrubar a geração com campo ausente —
+ * o schema tem os padrões e é ele que manda.
+ */
+function withVoiceProfile(row: ClientRow): ClientRow {
+  return { ...row, voiceProfile: normalizeVoiceProfile(row.voiceProfile) };
+}
 
 export async function createClient(db: Database, input: ClientInput): Promise<ClientRow> {
   const [row] = await db
@@ -18,16 +27,17 @@ export async function createClient(db: Database, input: ClientInput): Promise<Cl
     })
     .returning();
   if (!row) throw new Error('Falha ao criar cliente.');
-  return row;
+  return withVoiceProfile(row);
 }
 
 export async function listClients(db: Database): Promise<ClientRow[]> {
-  return db.select().from(clients).orderBy(clients.name);
+  const rows = await db.select().from(clients).orderBy(clients.name);
+  return rows.map(withVoiceProfile);
 }
 
 export async function getClient(db: Database, id: string): Promise<ClientRow | undefined> {
   const [row] = await db.select().from(clients).where(eq(clients.id, id));
-  return row;
+  return row ? withVoiceProfile(row) : undefined;
 }
 
 export async function updateClient(
@@ -46,5 +56,5 @@ export async function updateClient(
     set.advantageCreativeOptout = patch.advantage_creative_optout;
 
   const [row] = await db.update(clients).set(set).where(eq(clients.id, id)).returning();
-  return row;
+  return row ? withVoiceProfile(row) : undefined;
 }
