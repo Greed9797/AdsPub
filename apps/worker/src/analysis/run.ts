@@ -149,7 +149,7 @@ export async function runAnalysis(
   const job = await getAnalysisJob(ctx.db, input.jobId);
   if (!job) return;
   if (job.status === 'done' || job.status === 'running') return;
-  if (!ai) throw new Error('ANTHROPIC_API_KEY ausente: análise de mídia indisponível.');
+  if (!ai) throw new Error('Backend de análise indisponível: IA de análise não configurada.');
 
   await markAnalysisJobStarted(ctx.db, job.id);
   try {

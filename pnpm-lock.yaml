@@ -241,9 +241,6 @@ importers:
       '@astryxdesign/core':
         specifier: ^0.6.0
         version: 0.6.0(@stylexjs/stylex@0.19.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@astryxdesign/theme-gothic':
-        specifier: ^0.6.0
-        version: 0.6.0(@astryxdesign/core@0.6.0(@stylexjs/stylex@0.19.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)
       '@stylexjs/stylex':
         specifier: ^0.19.0
         version: 0.19.0
@@ -689,12 +686,6 @@ packages:
       '@stylexjs/stylex': ^0.19.0
       react: '>=19.0.0'
       react-dom: '>=19.0.0'
-
-  '@astryxdesign/theme-gothic@0.6.0':
-    resolution: {integrity: sha512-UVoMN7C9tXdcmRSKC8/ZaQ6VZrSg0ghOHqL8FPZgNj1XHZBp/6zGcyL79n00uwhQE6b1EVSF+hN/MuuqL2Jf/g==}
-    peerDependencies:
-      '@astryxdesign/core': 0.6.0
-      react: '>=19'
 
   '@aws-sdk/checksums@3.1000.29':
     resolution: {integrity: sha512-Dtu0gr4dnATZAPwEYbpCsG+MpLM7OAliy2gTepEFQwl1vZ6DL3QMH2FveMa3HLvPsOdhJsPRB3KtxVhph9T75A==}
@@ -4360,11 +4351,6 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@1.45.0:
-    resolution: {integrity: sha512-yH1ubCAduho9UR7oJhRXIQXogksRILBiTuZC4/bQIGeB9JOkxMlSuEHyyZpo1Z3S0yWJO2KTSUZbjiNvVxeOUw==}
-    peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
   luxon@3.7.2:
     resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
     engines: {node: '>=12'}
@@ -5363,12 +5349,6 @@ snapshots:
       intl-messageformat: 11.2.14
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
-
-  '@astryxdesign/theme-gothic@0.6.0(@astryxdesign/core@0.6.0(@stylexjs/stylex@0.19.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)':
-    dependencies:
-      '@astryxdesign/core': 0.6.0(@stylexjs/stylex@0.19.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      lucide-react: 1.45.0(react@19.2.8)
-      react: 19.2.8
 
   '@aws-sdk/checksums@3.1000.29':
     dependencies:
@@ -9203,10 +9183,6 @@ snapshots:
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
-
-  lucide-react@1.45.0(react@19.2.8):
-    dependencies:
-      react: 19.2.8
 
   luxon@3.7.2: {}
 

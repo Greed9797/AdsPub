@@ -51,6 +51,7 @@ export function trackedInvoker(
       const cacheTokens = {
         readTokens: result.cacheReadTokens ?? 0,
         creationTokens: result.cacheCreationTokens ?? 0,
+        reasoningTokens: result.reasoningTokens ?? 0,
       };
       await write({
         purpose: request.purpose ?? 'unknown',

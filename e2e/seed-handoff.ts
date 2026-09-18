@@ -27,6 +27,12 @@ export interface SeedData {
     pixelId: string;
     dailyAdCap: number;
   };
+  /**
+   * Segunda conta da mesma BM. Jornadas que publicam fora do fluxo principal
+   * (conferência pendente) usam esta conta: o teto diário é por conta e a
+   * jornada 5 checa o saldo da conta principal.
+   */
+  reviewAccount: { id: string; name: string };
   asset: { id: string; filename: string };
   landing: string;
 }

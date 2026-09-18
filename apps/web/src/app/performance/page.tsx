@@ -25,14 +25,28 @@ interface Performance {
     cpa: { value: number | null; reason?: string };
     roas: { value: number | null; reason?: string };
   };
-  rows: Array<{ id: string; name: string; spend: number; results: number; days: number; cpa: number | null }>;
+  rows: Array<{
+    id: string;
+    name: string;
+    spend: number;
+    results: number;
+    days: number;
+    cpa: number | null;
+  }>;
   cohort: { comparable: boolean; limitations: string[] };
   verdict: { sufficiency: string; winnerId: string | null; reason: string };
-  sources: { filter: string; snapshots: string[]; observed_at_max: string | null; observations: number };
+  sources: {
+    filter: string;
+    snapshots: string[];
+    observed_at_max: string | null;
+    observations: number;
+  };
 }
 
 const money = (value: number | null): string =>
-  value === null ? '—' : value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  value === null
+    ? '—'
+    : value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** T-005-3: dashboard determinístico — origem e definição sempre visíveis. */
 export default async function PerformancePage({
@@ -61,91 +75,105 @@ export default async function PerformancePage({
 
   return (
     <div className="space-y-6">
-      <PageHead title="Performance" description="Números auditáveis antes da IA." />
-      <Card>
-        <form
-          method="get"
-          action="/performance"
-          aria-label="Filtrar performance"
-          className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto]"
-        >
-          <Field label="Conta">
-            <select name="ad_account_id" defaultValue={params.ad_account_id ?? ''} className={inputClass}>
-              <option value="">Selecione</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="De">
-            <input type="date" name="from" defaultValue={params.from ?? ''} className={inputClass} />
-          </Field>
-          <Field label="Até">
-            <input type="date" name="to" defaultValue={params.to ?? ''} className={inputClass} />
-          </Field>
-          <Field label="Fonte">
-            <select name="source" defaultValue={params.source ?? ''} className={inputClass}>
-              <option value="">Todas</option>
-              <option value="file">Arquivo</option>
-              <option value="api">API</option>
-            </select>
-          </Field>
-          <div>
-            <Button variant="primary" label="Consultar" type="submit" />
-          </div>
-        </form>
-      </Card>
+      <PageHead
+        title="Performance"
+        description="Compare gasto e resultados por anúncio, com período e origem dos dados sempre visíveis."
+      />
+      <form method="get" action="/performance" aria-label="Filtrar performance" className="toolbar">
+        <Field label="Conta" className="w-full sm:w-64">
+          <select
+            name="ad_account_id"
+            defaultValue={params.ad_account_id ?? ''}
+            className={inputClass}
+          >
+            <option value="">Selecione</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="De">
+          <input type="date" name="from" defaultValue={params.from ?? ''} className={inputClass} />
+        </Field>
+        <Field label="Até">
+          <input type="date" name="to" defaultValue={params.to ?? ''} className={inputClass} />
+        </Field>
+        <Field label="Fonte">
+          <select name="source" defaultValue={params.source ?? ''} className={inputClass}>
+            <option value="">Todas</option>
+            <option value="file">Arquivo</option>
+            <option value="api">API</option>
+          </select>
+        </Field>
+        <div>
+          <Button variant="secondary" label="Consultar" type="submit" />
+        </div>
+      </form>
 
       {!data ? (
         <Card>
-          <Empty title="Nenhum recorte selecionado" hint="Selecione uma conta para ver os números." />
+          <Empty
+            title="Nenhum recorte selecionado"
+            hint="Selecione uma conta para ver os números."
+          />
         </Card>
       ) : (
         <>
-          <Card title="Totais" action={<Badge tone="info">{data.metric_version}</Badge>} variant="stat">
+          <Card
+            title="Totais"
+            action={<Badge tone="info">{data.metric_version}</Badge>}
+            variant="stat"
+          >
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
               <div>
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">Gasto</dt>
-                <dd className="mt-1 font-cond text-4xl font-semibold tabular-nums">{money(data.totals.spend)}</dd>
+                <dt className="text-xs font-medium text-[var(--color-muted)]">Gasto</dt>
+                <dd className="metric-value">{money(data.totals.spend)}</dd>
               </div>
               <div>
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
-                  Impressões
+                <dt className="text-xs font-medium text-[var(--color-muted)]">Impressões</dt>
+                <dd className="metric-value">{data.totals.impressions.toLocaleString('pt-BR')}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-[var(--color-muted)]">
+                  Custo por resultado
                 </dt>
-                <dd className="mt-1 font-cond text-4xl font-semibold tabular-nums">
-                  {data.totals.impressions.toLocaleString('pt-BR')}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">CPA</dt>
-                <dd className="mt-1 font-cond text-4xl font-semibold tabular-nums">
+                <dd className="metric-value">
                   {data.totals.cpa.value === null ? '—' : money(data.totals.cpa.value)}
                 </dd>
                 {data.totals.cpa.value === null ? (
-                  <dd className="mt-0.5 text-xs text-[var(--color-muted)]">indisponível ({data.totals.cpa.reason})</dd>
+                  <dd className="mt-0.5 text-xs text-[var(--color-muted)]">
+                    indisponível ({data.totals.cpa.reason})
+                  </dd>
                 ) : null}
               </div>
               <div>
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">ROAS</dt>
-                <dd className="mt-1 font-cond text-4xl font-semibold tabular-nums">
+                <dt className="text-xs font-medium text-[var(--color-muted)]">
+                  Retorno sobre gasto (ROAS)
+                </dt>
+                <dd className="metric-value">
                   {data.totals.roas.value === null ? '—' : money(data.totals.roas.value)}
                 </dd>
                 {data.totals.roas.value === null ? (
-                  <dd className="mt-0.5 text-xs text-[var(--color-muted)]">indisponível ({data.totals.roas.reason})</dd>
+                  <dd className="mt-0.5 text-xs text-[var(--color-muted)]">
+                    indisponível ({data.totals.roas.reason})
+                  </dd>
                 ) : null}
               </div>
             </dl>
             <p className="mt-4 border-t border-[var(--color-border)] pt-3 text-xs text-[var(--color-muted)]">
               Fonte: {data.sources.filter} · {data.sources.observations} observações ·{' '}
-              {data.sources.snapshots.length} snapshot(s) · atualizado em {data.sources.observed_at_max ?? '—'} ·
-              definições {data.metric_version}
+              {data.sources.snapshots.length} snapshot(s) · atualizado em{' '}
+              {data.sources.observed_at_max ?? '—'} · definições {data.metric_version}
             </p>
           </Card>
 
           {data.rows.length > 0 ? (
-            <Card title="Gasto por anúncio" action={<Badge tone="info">top {Math.min(8, data.rows.length)}</Badge>}>
+            <Card
+              title="Gasto por anúncio"
+              action={<Badge tone="info">top {Math.min(8, data.rows.length)}</Badge>}
+            >
               <ul className="space-y-3">
                 {[...data.rows]
                   .sort((a, b) => b.spend - a.spend)
@@ -156,7 +184,9 @@ export default async function PerformancePage({
                       <li key={row.id}>
                         <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
                           <span className="min-w-0 truncate font-medium">{row.name || row.id}</span>
-                          <span className="shrink-0 tabular-nums text-[var(--color-muted)]">{money(row.spend)}</span>
+                          <span className="shrink-0 tabular-nums text-[var(--color-muted)]">
+                            {money(row.spend)}
+                          </span>
                         </div>
                         <div className="h-2 overflow-hidden rounded-full bg-[var(--color-surface-2)]">
                           <div
@@ -184,18 +214,29 @@ export default async function PerformancePage({
             </Card>
           ) : null}
 
-          <Card title={`Ranking · ${data.rows.length}`} action={<Badge tone="info">{data.verdict.sufficiency}</Badge>}>
+          <Card
+            title={`Ranking · ${data.rows.length}`}
+            action={<Badge tone="info">{data.verdict.sufficiency}</Badge>}
+          >
             {data.rows.length === 0 ? (
-              <Empty title="Sem observações no recorte" hint="Ajuste o período ou a fonte e consulte de novo." />
+              <Empty
+                title="Sem observações no recorte"
+                hint="Ajuste o período ou a fonte e consulte de novo."
+              />
             ) : (
               <Table head={['Anúncio', 'Gasto', 'Resultados', 'Dias', 'CPA', '']}>
                 {data.rows.map((row) => (
-                  <TableRow key={row.id} className="border-b border-[var(--color-border)] last:border-0">
-                    <TableCell className="max-w-64 truncate font-medium">{row.name || row.id}</TableCell>
-                    <TableCell className="whitespace-nowrap tabular-nums">{money(row.spend)}</TableCell>
-                    <TableCell className="tabular-nums">{row.results}</TableCell>
-                    <TableCell className="tabular-nums">{row.days}</TableCell>
-                    <TableCell className="whitespace-nowrap tabular-nums">
+                  <TableRow
+                    key={row.id}
+                    className="border-b border-[var(--color-border)] last:border-0"
+                  >
+                    <TableCell className="max-w-64 truncate font-medium">
+                      {row.name || row.id}
+                    </TableCell>
+                    <TableCell className="numeric">{money(row.spend)}</TableCell>
+                    <TableCell className="numeric">{row.results}</TableCell>
+                    <TableCell className="numeric">{row.days}</TableCell>
+                    <TableCell className="numeric">
                       {row.cpa === null ? '—' : money(row.cpa)}
                     </TableCell>
                     <TableCell className="text-right">

@@ -70,6 +70,12 @@ export interface GenerationOptions {
 export interface AiClientOptions {
   invoke: AiInvoker;
   models: { generation: string; classify: string };
+  /**
+   * Backend dedicado de análise de mídia. Só o worker o fornece (Muse via
+   * OpenCode); a API nunca passa `content`, então planos/textos/política e
+   * relatórios continuam no provedor atual.
+   */
+  content?: { invoke: AiInvoker; model: string };
   cache?: AiCache;
   timeoutMs?: number;
   now?: () => number;
@@ -87,9 +93,9 @@ export class AiClient {
   private readonly inFlight = new Map<string, Promise<unknown>>();
 
   constructor(private readonly options: AiClientOptions) {}
-
-  /** T-006-2: invoker + modelo barato para análise de conteúdo (fora do cache plano/copy). */
+  /** T-006-2: invoker + modelo para análise de conteúdo (fora do cache plano/copy). */
   contentBackend(): { invoke: AiInvoker; model: string } {
+    if (this.options.content) return this.options.content;
     return { invoke: this.options.invoke, model: this.options.models.classify };
   }
 
@@ -144,7 +150,11 @@ export class AiClient {
         inputHash,
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
-        costUsd: costUsd(model, result.inputTokens, result.outputTokens),
+        costUsd: costUsd(model, result.inputTokens, result.outputTokens, {
+          readTokens: result.cacheReadTokens,
+          creationTokens: result.cacheCreationTokens,
+          reasoningTokens: result.reasoningTokens,
+        }),
         latencyMs,
         cached: false,
         source: 'provider',
@@ -216,7 +226,11 @@ export class AiClient {
         inputHash,
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
-        costUsd: costUsd(model, result.inputTokens, result.outputTokens),
+        costUsd: costUsd(model, result.inputTokens, result.outputTokens, {
+          readTokens: result.cacheReadTokens,
+          creationTokens: result.cacheCreationTokens,
+          reasoningTokens: result.reasoningTokens,
+        }),
         latencyMs,
         cached: false,
         source: 'provider',
@@ -299,7 +313,11 @@ export class AiClient {
         inputHash,
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
-        costUsd: costUsd(model, result.inputTokens, result.outputTokens),
+        costUsd: costUsd(model, result.inputTokens, result.outputTokens, {
+          readTokens: result.cacheReadTokens,
+          creationTokens: result.cacheCreationTokens,
+          reasoningTokens: result.reasoningTokens,
+        }),
         latencyMs,
         cached: false,
         source: 'provider',

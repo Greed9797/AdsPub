@@ -116,11 +116,15 @@ export async function swapBatchPlan(db: Database, input: PlanSwap): Promise<Plan
 
     const status =
       items.length > 0 ? deriveBatchStatus(items.map((item) => item.status)) : 'blocked';
+    // Plano novo, itens novos: a aprovação da revisão anterior morre aqui —
+    // publicar exige validar de novo.
     await tx
       .update(batches)
       .set({
         plan: input.plan,
         status,
+        approvalFingerprint: null,
+        validatedAt: null,
         updatedAt: new Date(),
         version: sql`${batches.version} + 1`,
       })
@@ -187,8 +191,13 @@ export async function patchDraft(
   return row;
 }
 
+/**
+ * Remover item da revisão: `failed` sai (desistir dele é decisão válida),
+ * `queued` não — o worker já o tem em mão e apagar a linha deixaria o anúncio
+ * criado sem dono.
+ */
 export async function deleteDraft(db: Database, id: string): Promise<boolean> {
-  const removable: AdDraftStatus[] = ['draft', 'blocked', 'ready', 'queued'];
+  const removable: AdDraftStatus[] = ['draft', 'blocked', 'ready', 'failed'];
   const rows = await db
     .delete(adDrafts)
     .where(and(eq(adDrafts.id, id), inArray(adDrafts.status, removable)))

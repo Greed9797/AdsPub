@@ -4,10 +4,9 @@ import {
   QUEUES,
   RETRY,
   STATUS_POLL,
-  SYNC_EVERY_MS,
   VIDEO_POLL_INTERVAL_MS,
 } from '@adpub/config';
-import { listConnections, purgeOldMetaCalls } from '@adpub/db';
+import { purgeOldMetaCalls, purgeResolvedMetaWrites } from '@adpub/db';
 import { initTelemetry } from '@adpub/telemetry';
 import { Queue, Worker, type Job } from 'bullmq';
 import { createAlerter, telegramFromEnv } from './alerts.js';
@@ -22,6 +21,7 @@ import { createPublishProcessor } from './publish/handler.js';
 import { VideoNotReadyError } from './publish/media.js';
 import { RefPendingError } from './publish/refs.js';
 import { runSync, type SyncJobData } from './sync/connection.js';
+import { reconcileSyncSchedulers } from './sync/schedule.js';
 import { runInsightsSync, type InsightsSyncData } from './insights/sync.js';
 
 const ctx = createContext();
@@ -81,6 +81,10 @@ const statusWorker = new Worker(
   async () => {
     const result = await runStatusPoll(ctx, meta);
     await purgeOldMetaCalls(ctx.db, 30);
+    await purgeResolvedMetaWrites(ctx.db, 30);
+    // Mesmo tique que já roda de 10 em 10 minutos mantém o agendamento de sync
+    // em dia: conexão nova entra no ciclo sem reiniciar o worker.
+    await reconcileSyncSchedulers(ctx.db, syncQueue);
     return result;
   },
   { connection, concurrency: 1 },
@@ -132,17 +136,9 @@ async function scheduleRepeatables(): Promise<void> {
     { every: STATUS_POLL.everyMs },
     { name: 'poll' },
   );
-  const connections = await listConnections(ctx.db);
-  for (const item of connections) {
-    if (item.status === 'revoked') continue;
-    await syncQueue.upsertJobScheduler(
-      `sync:${item.id}`,
-      { every: SYNC_EVERY_MS },
-      { name: 'sync', data: { connectionId: item.id } },
-    );
-  }
+  const connections = await reconcileSyncSchedulers(ctx.db, syncQueue);
   ctx.log.info(
-    { connections: connections.length, publishConcurrency, tier: ctx.env.META_TIER },
+    { connections, publishConcurrency, tier: ctx.env.META_TIER },
     'worker pronto',
   );
 }

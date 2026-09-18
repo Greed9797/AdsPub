@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { adAccountDefaultsSchema } from '@adpub/shared';
 import { api, ApiError } from '@/lib/api';
-import { requireSession } from '@/lib/session';
+import { requireRole } from '@/lib/session';
 import type { Connection } from '@/lib/types';
 
 type ActionError = { erro: string };
@@ -61,7 +61,7 @@ export async function salvarDefaults(
   accountId: string,
   payload: AccountDefaultsInput,
 ): Promise<ActionResult> {
-  await requireSession();
+  await requireRole(['admin', 'coordinator']);
 
   try {
     const id = accountIdSchema.parse(accountId);
@@ -104,7 +104,7 @@ export async function salvarDefaults(
 }
 
 export async function criarConexao(payload: ConnectionInput): Promise<ActionResult> {
-  await requireSession();
+  await requireRole(['admin']);
 
   try {
     const body = connectionInputSchema.parse(payload);
@@ -122,7 +122,7 @@ export async function criarConexao(payload: ConnectionInput): Promise<ActionResu
 }
 
 export async function testarConexao(connectionId: string): Promise<TestConnectionResult> {
-  await requireSession();
+  await requireRole(['admin']);
 
   try {
     const id = idSchema.parse(connectionId);
@@ -136,7 +136,7 @@ export async function testarConexao(connectionId: string): Promise<TestConnectio
 }
 
 export async function sincronizarConexao(connectionId: string): Promise<SyncConnectionResult> {
-  await requireSession();
+  await requireRole(['admin']);
 
   try {
     const id = idSchema.parse(connectionId);
@@ -153,7 +153,7 @@ export async function sincronizarConexao(connectionId: string): Promise<SyncConn
 
 /** T-001-3: troca o token (a API testa antes de salvar) e reativa a conexão. */
 export async function girarToken(connectionId: string, token: string): Promise<TestConnectionResult> {
-  await requireSession();
+  await requireRole(['admin']);
 
   try {
     const id = idSchema.parse(connectionId);

@@ -13,6 +13,7 @@ export interface JobRef {
 export interface Queues {
   enqueueSync(connectionId: string): Promise<JobRef>;
   enqueueImportDrive(input: {
+    jobId: string;
     clientId: string;
     folderUrl: string;
     recursive: boolean;
@@ -21,6 +22,12 @@ export interface Queues {
   enqueuePublish(
     items: Array<{ draftId: string; adAccountId: string; batchId: string }>,
   ): Promise<JobRef[]>;
+  /**
+   * R3/R4: existe job vivo para este item? Sem isso a retomada manual não
+   * sabe distinguir "já está na fila" de "job perdido" e o item em voo fica
+   * parado para sempre ou ganha um despacho duplicado.
+   */
+  publishJobAlive(draftId: string): Promise<boolean>;
   /** A9: enfileira a análise de mídia de um job persistido. */
   enqueueAnalysis(jobId: string): Promise<JobRef>;
   enqueueInsights(input: {
@@ -45,12 +52,23 @@ export interface ApiEnv {
   featureInsights: boolean;
 }
 
+/**
+ * Throttle das tentativas de senha (por e-mail + IP). Erro de infra aqui é
+ * fail-closed: a rota responde 429 em vez de liberar sem limite.
+ */
+export interface LoginThrottle {
+  failures(key: string): Promise<number>;
+  registerFailure(key: string, windowSeconds: number): Promise<number>;
+  clear(key: string): Promise<void>;
+}
+
 export interface ApiDeps {
   db: Database;
   storage: Storage;
   queues: Queues;
   ai?: AiClient;
   env: ApiEnv;
+  loginThrottle?: LoginThrottle;
   /** Cliente Graph API de leitura para uma conexão (a escrita é só do worker). */
   metaClientFor(connectionId: string): Promise<MetaClient>;
   /** Cliente Graph API para um token cru (usado no teste de conexão). */

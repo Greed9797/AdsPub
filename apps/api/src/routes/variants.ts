@@ -10,13 +10,13 @@ import {
 import { adFormatSchema, variantManifestSchema } from '@adpub/shared';
 import { currentUser, requireRole } from '../plugins/auth.js';
 import { notFound, unprocessable } from '../lib/problem.js';
-import { assertAccountAccess } from '../lib/scope.js';
+import { assertAccountAccess, assertClientAccess } from '../lib/scope.js';
 import type { ApiDeps } from '../lib/deps.js';
 
 /** T-002-3: biblioteca de variantes + vínculo manual para histórico. */
 export function variantRoutes(app: FastifyInstance, deps: ApiDeps): void {
   app.get('/variants', async (request) => {
-    currentUser(request);
+    const user = currentUser(request);
     const query = z
       .object({
         client_id: z.string().uuid(),
@@ -24,6 +24,7 @@ export function variantRoutes(app: FastifyInstance, deps: ApiDeps): void {
         q: z.string().max(200).optional(),
       })
       .parse(request.query);
+    await assertClientAccess(deps, user, query.client_id);
     const rows = await listVariants(deps.db, {
       clientId: query.client_id,
       ...(query.format ? { format: query.format } : {}),

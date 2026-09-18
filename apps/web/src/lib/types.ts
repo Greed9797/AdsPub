@@ -127,7 +127,8 @@ export type AdDraftStatus =
   | 'in_review'
   | 'approved'
   | 'disapproved'
-  | 'failed';
+  | 'failed'
+  | 'needs_reconciliation';
 
 export interface AdDraft {
   id: string;
@@ -186,7 +187,28 @@ export interface Batch {
   pending: string[];
   plan_notes: string;
   items: AdDraft[];
+  /** Só o detalhe do lote devolve as refs compartilhadas e a aprovação. */
+  refs?: BatchRef[];
+  /**
+   * `approved` é a validação ainda válida para o conteúdo atual: qualquer
+   * edição derruba a aprovação e a publicação exige revalidar.
+   */
+  approval?: { approved: boolean; validated_at: string | null };
   created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Campanha/conjunto compartilhado pelos itens do lote. `needs_reconciliation`
+ * é o create que pode ter acontecido na Meta sem resposta: ninguém recria até
+ * alguém conferir.
+ */
+export interface BatchRef {
+  ref_key: string;
+  kind: 'campaign' | 'adset';
+  state: 'pending' | 'created' | 'failed' | 'needs_reconciliation';
+  meta_id: string | null;
+  last_error: string | null;
   updated_at: string;
 }
 

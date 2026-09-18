@@ -3,8 +3,8 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { mintSessionToken } from '@adpub/auth';
-import { createDb, truncateAllTables, upsertUserFromLogin, type Database } from '@adpub/db';
+import { hashPassword, mintSessionToken } from '@adpub/auth';
+import { createDb, createUser, truncateAllTables, type Database } from '@adpub/db';
 import { mcpConfig } from '../src/config.js';
 import { buildMcpApp } from '../src/app.js';
 import { pkceChallenge } from '../src/oauth/hash.js';
@@ -144,10 +144,11 @@ beforeAll(async () => {
   const created = createDb(process.env['DATABASE_URL'], { max: 4, onNotice: () => {} });
   db = created.db;
   await truncateAllTables(db, process.env['DATABASE_URL']);
-  admin = await upsertUserFromLogin(db, {
+  admin = await createUser(db, {
     email: 'admin@empresa.com.br',
     name: 'Admin Teste',
-    googleSub: 'google-sub-admin',
+    role: 'admin',
+    passwordHash: hashPassword('mcp-teste-senha-0123456789'),
   });
 
   app = await buildMcpApp({

@@ -35,8 +35,6 @@ export const serverEnvSchema = z
 
     AUTH_SECRET: nonEmpty,
     AUTH_ALLOWED_DOMAIN: nonEmpty,
-    GOOGLE_CLIENT_ID: nonEmpty,
-    GOOGLE_CLIENT_SECRET: nonEmpty,
     /** JSON da conta de serviço do Drive, em base64 ou texto puro. */
     GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
 
@@ -44,6 +42,16 @@ export const serverEnvSchema = z
     AI_MODEL_GENERATION: nonEmpty.default('claude-sonnet-4-6'),
     AI_MODEL_CLASSIFY: nonEmpty.default('claude-haiku-4-6'),
     AI_PLAN_TIMEOUT_MS: z.coerce.number().int().positive().default(40_000),
+    /**
+     * Backend de análise de mídia. `anthropic` preserva o comportamento
+     * existente; `opencode` usa a CLI OpenCode Go (modelo Muse) só na análise.
+     * Planos/textos/política/relatórios continuam no provedor atual.
+     */
+    AI_ANALYSIS_PROVIDER: z.enum(['anthropic', 'opencode']).default('anthropic'),
+    /** Binário da CLI OpenCode (caminho absoluto, verificado no worker). */
+    OPENCODE_BIN: nonEmpty.default('/usr/local/bin/opencode'),
+    /** Modelo de análise via OpenCode Go (etapa 3 qualificada). */
+    OPENCODE_ANALYSIS_MODEL: nonEmpty.default('opencode-go/muse-spark-1.3-contributor'),
 
     /** T-009-3: flags matam inteligência, nunca o publish. */
     FEATURE_AI_ANALYSIS: z.enum(['1', '0']).default('1'),
@@ -82,8 +90,6 @@ export const webEnvSchema = z.object({
   WEB_URL: nonEmpty.default('http://localhost:3000'),
   AUTH_SECRET: nonEmpty,
   AUTH_ALLOWED_DOMAIN: nonEmpty,
-  GOOGLE_CLIENT_ID: nonEmpty,
-  GOOGLE_CLIENT_SECRET: nonEmpty,
 });
 
 export type WebEnv = z.infer<typeof webEnvSchema>;

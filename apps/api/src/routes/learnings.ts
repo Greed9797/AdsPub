@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { currentUser, requireRole } from '../plugins/auth.js';
 import type { ApiDeps } from '../lib/deps.js';
 import { requireFeature } from '../lib/features.js';
+import { assertClientAccess } from '../lib/scope.js';
 import {
   learningBriefing,
   learningTestDraft,
@@ -31,6 +32,7 @@ export function learningRoutes(app: FastifyInstance, deps: ApiDeps): void {
       })
       .strict()
       .parse(request.body);
+    await assertClientAccess(deps, user, body.client_id);
     const row = await saveLearning(deps, { id: user.id, email: user.email }, {
       clientId: body.client_id,
       adAccountId: body.ad_account_id ?? null,
@@ -47,8 +49,9 @@ export function learningRoutes(app: FastifyInstance, deps: ApiDeps): void {
   });
 
   app.get('/learnings', async (request) => {
-    currentUser(request);
+    const user = currentUser(request);
     const query = z.object({ client_id: z.string().uuid() }).parse(request.query);
+    await assertClientAccess(deps, user, query.client_id);
     const rows = await listClientLearnings(deps, query.client_id);
     return rows.map((r) => ({
       id: r.id,

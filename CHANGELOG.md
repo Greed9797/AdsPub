@@ -6,6 +6,47 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Não publicado]
 
+### Corrigido (realinhamento: o que o app promete é o que ele faz)
+
+Cada item abaixo era uma promessa do produto que o código não cumpria. Prova executada em
+`pnpm smoke:integration` (fases citadas) e `pnpm test:e2e` (jornadas 10 a 13).
+
+- **Entrada sem papel nem sessão**: rotas e ações de servidor aceitavam chamada sem conferir papel.
+  Agora toda entrada exige sessão e papel — fase "US6 — sessão e RBAC" do smoke cobre as recusas.
+- **Plano aceito quebrado**: estrutura do plano era validada em pedaços diferentes por rota. Passa a
+  ter uma validação só (`assertPlanStructure`), com ownership conferido no mesmo lugar.
+- **Revisão, edição e aprovação discordavam**: editar depois de aprovar mantinha a aprovação antiga.
+  A impressão digital da aprovação agora acompanha o conteúdo revisado.
+- **Reprocessar item com job encerrado não fazia nada**: o `jobId` estável fazia o BullMQ ignorar o
+  `add`. Despacho passa por `dispatch()`, que limpa o registro encerrado antes de reenfileirar, e o
+  id do publish perdeu o `:` que o BullMQ recusa.
+- **Create sem resposta podia duplicar objeto**: item e ref compartilhada param em
+  `needs_reconciliation` com decisão humana auditada (`0017_ref_reconciliation.sql`).
+- **Escrita perdida por morte de processo era indistinguível de "nunca enviada"**: `meta_writes`
+  registra a escrita antes do POST; linha sem `resolved_at` bloqueia recriação de anúncio, criativo,
+  campanha e conjunto até a decisão humana (`0019_gray_master_mold.sql`). Fase T-000-2 do smoke.
+- **Duplicar lote entregava cópia sem revisão**: a duplicação volta como plano revisável, não como
+  lote pronto para publicar. Falha no meio da gravação apaga a cópia vazia (compensação com
+  `deleteBatch`, itens em cascata) — duplicação recusada não deixa lote órfão.
+- **Job do Drive morto em `running` e pasta importada duas vezes**: a guarda
+  (`done`/`running` não roda de novo) lia e escrevia em dois passos — duas
+  entregas concorrentes importavam juntas, e job `running` órfão travava a
+  pasta para sempre atrás do índice parcial. A execução passa por transição
+  atômica (`claimDriveImportJob`, com retomada de órfão após 30 min sem
+  batida), o índice único parcial (`0020_drive_open_dedupe.sql`) barra segunda
+  linha aberta da mesma pasta e a fila usa id estável por job (`drive-<jobId>`).
+  POST da pasta órfã devolve o job para `queued` (`requeueDriveImportJob`) e
+  reenfileira — o worker reivindica e executa de verdade, em vez de renovar a
+  batida e voltar sem importar.
+- **Importação do Drive era invisível**: virou trabalho observável em `drive_import_jobs`
+  (`0018_married_dreaming_celestial.sql`), com tela e jornada e2e (`e2e/jornada-13-drive.spec.ts`).
+- **Ciclo de sync da BM parava sozinho**: falha de rede marcava `needs_attention`, e o próprio sync
+  passava a pular a conexão — queda de rede virava parada permanente. Agora a conexão segue `active`
+  com o motivo em `last_error`, o retry e o ciclo de 6h voltam sozinhos, testar/trocar token libera a
+  pausa das contas, sync manual de conexão sem autorização responde 409 (e 404 se não existe) em vez
+  de prometer 202, e o agendador por conexão é reconciliado a cada 10 min — conexão nova entra no
+  ciclo sem reiniciar o worker e conexão apagada não deixa agendador órfão. Fase T-001-3 do smoke.
+
 ### Corrigido (IA: contexto, evidência, custo e velocidade)
 
 Correções do diagnóstico em `docs/analise-arquitetura-ia.md` — cada item abaixo é um achado com

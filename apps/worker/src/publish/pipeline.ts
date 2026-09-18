@@ -10,6 +10,7 @@ import {
   getOrCreateVariant,
   openBinding,
   refreshBatchStatus,
+  draftWriteKey,
   saveMetaIds,
   releaseDraft,
   claimDraft,
@@ -37,7 +38,13 @@ import type { WorkerContext } from '../context.js';
 import type { MetaFactory } from '../meta.js';
 import { VideoNotReadyError, ensureImageHash, ensureVideoReady } from './media.js';
 import { randomUUID } from 'node:crypto';
-import { RefPendingError, ensureAdset, ensureCampaign } from './refs.js';
+import {
+  RefPendingError,
+  RefReconciliationRequiredError,
+  ensureAdset,
+  ensureCampaign,
+} from './refs.js';
+import { LostWriteError, assertNoLostWrite, withMetaWrite } from './write-log.js';
 
 export interface PublishJobData {
   draftId: string;
@@ -146,7 +153,7 @@ export async function runPublish(
   const claim = await claimDraft(ctx.db, data.draftId, owner);
   if (!claim.ok) throw new DraftBusyError(data.draftId, claim.until);
   try {
-    return await publishLocked(ctx, meta, alert, data, attempt);
+    return await publishLocked(ctx, meta, alert, data, attempt, owner);
   } finally {
     await releaseDraft(ctx.db, data.draftId, owner);
   }
@@ -158,6 +165,7 @@ async function publishLocked(
   alert: Alerter,
   data: PublishJobData,
   attempt: number,
+  owner: string,
 ): Promise<{ status: AdDraftRow['status']; adId?: string }> {
   const draft = await getDraft(ctx.db, data.draftId);
   if (!draft) throw new Error(`Item ${data.draftId} não existe mais.`);
@@ -217,6 +225,7 @@ async function publishLocked(
         clientRow: client,
         assets,
         metaIds,
+        owner,
       });
 
       await saveMetaIds(ctx.db, draft.id, metaIds);
@@ -295,6 +304,8 @@ interface StepInput {
   clientRow: Awaited<ReturnType<typeof getClient>>;
   assets: AssetRow[];
   metaIds: MetaIds;
+  /** Dono da execução: também assume a posse das refs compartilhadas. */
+  owner: string;
 }
 
 async function executeStep(
@@ -344,6 +355,7 @@ async function executeStep(
         batchId: batch.id,
         adAccountId: account.id,
         ref: draft.campaignRef,
+        owner: input.owner,
         ...(spec ? { spec } : {}),
       });
       return { ...metaIds, campaign_id: campaignId };
@@ -359,6 +371,7 @@ async function executeStep(
         ref: draft.adsetRef,
         campaignId: metaIds.campaign_id,
         pixelId: account.defaultPixelId,
+        owner: input.owner,
         ...(spec ? { spec } : {}),
       });
       return { ...metaIds, adset_id: adsetId };
@@ -366,15 +379,27 @@ async function executeStep(
 
     case 'create_creative': {
       if (metaIds.creative_id) return metaIds;
-      const creativeId = await createAdCreative(graph, account.id, {
-        name: draft.name,
-        pageId: draft.pageId,
-        igUserId: draft.igUserId,
-        format: draft.format,
-        copy: draft.copy,
-        media: mediaFor(draft, assets, metaIds),
-        advantageCreativeOptout: input.clientRow?.advantageCreativeOptout ?? true,
-      });
+      await assertNoLostWrite(ctx, draftWriteKey(draft.id, input.step));
+      const creativeId = await withMetaWrite(
+        ctx,
+        {
+          writeKey: draftWriteKey(draft.id, input.step),
+          method: 'POST',
+          endpoint: `${account.id}/adcreatives`,
+          adAccountId: account.id,
+          adDraftId: draft.id,
+        },
+        () =>
+          createAdCreative(graph, account.id, {
+            name: draft.name,
+            pageId: draft.pageId,
+            igUserId: draft.igUserId,
+            format: draft.format,
+            copy: draft.copy,
+            media: mediaFor(draft, assets, metaIds),
+            advantageCreativeOptout: input.clientRow?.advantageCreativeOptout ?? true,
+          }),
+      );
       return { ...metaIds, creative_id: creativeId };
     }
 
@@ -383,11 +408,23 @@ async function executeStep(
       if (!metaIds.adset_id || !metaIds.creative_id) {
         throw new Error('Anúncio sem conjunto ou criativo resolvido.');
       }
-      const adId = await createAd(graph, account.id, {
-        name: draft.name,
-        adsetId: metaIds.adset_id,
-        creativeId: metaIds.creative_id,
-      });
+      await assertNoLostWrite(ctx, draftWriteKey(draft.id, input.step));
+      const adId = await withMetaWrite(
+        ctx,
+        {
+          writeKey: draftWriteKey(draft.id, input.step),
+          method: 'POST',
+          endpoint: `${account.id}/ads`,
+          adAccountId: account.id,
+          adDraftId: draft.id,
+        },
+        () =>
+          createAd(graph, account.id, {
+            name: draft.name,
+            adsetId: metaIds.adset_id as string,
+            creativeId: metaIds.creative_id as string,
+          }),
+      );
       return { ...metaIds, ad_id: adId };
     }
 
@@ -477,9 +514,49 @@ async function handleFailure(
     await meta.handleAuthFailure(input.connectionId, error.translated.title);
   }
 
+  // Ref compartilhada congelada: reprocessar este item não resolve nada até a
+  // campanha/conjunto ser reconciliada, então o item para com a ação certa.
+  if (error instanceof RefReconciliationRequiredError) {
+    const draftError = {
+      message: error.message,
+      translated: 'Campanha ou conjunto compartilhado do lote precisa de reconciliação.',
+      action: `Confira ${error.refKey} na Meta e resolva a referência do lote.`,
+      step,
+    };
+    await upsertPublishJob(ctx.db, {
+      adDraftId: draft.id,
+      queue: 'adpub.publish',
+      step,
+      state: 'failed',
+      attempts: attempt,
+      lastError: { ...draftError, transient: false },
+    });
+    await transitionDraft(ctx.db, draft.id, 'failed', {
+      step,
+      error: draftError,
+      attempts: attempt,
+    });
+    await refreshBatchStatus(ctx.db, input.batchId);
+    await dedupAlert(ctx.db, alert, {
+      rule: 'reconciliation',
+      adAccountId: input.accountId,
+      entity: `${input.batchId}:${error.refKey}`,
+      title: 'Reconciliação necessária',
+      detail: `Ref ${error.refKey} do lote ${input.batchId} parou em ${step}: ${error.message}`,
+      severity: 'warning',
+      context: { batchId: input.batchId, refKey: error.refKey, step },
+    });
+    throw error;
+  }
+
   // T-000-2 (AC-000-03): resposta perdida após possível create → para tudo e
   // espera humano. Retry cego aqui criaria o segundo objeto na Meta.
-  if (CREATE_STEPS.has(step) && isAmbiguousError(error)) {
+  // `LostWriteError`: escrita registrada numa execução que morreu antes de ver
+  // o desfecho — mesmo risco, mesma saída.
+  if (
+    CREATE_STEPS.has(step) &&
+    (isAmbiguousError(error) || error instanceof LostWriteError)
+  ) {
     const detail = error instanceof Error ? error.message : String(error);
     await upsertPublishJob(ctx.db, {
       adDraftId: draft.id,

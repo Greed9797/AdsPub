@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { clientInputSchema } from '@adpub/shared';
 import { api, ApiError } from '@/lib/api';
-import { requireSession } from '@/lib/session';
+import { requireRole } from '@/lib/session';
 
 type ActionError = { erro: string };
 export type ActionResult = ActionError | { ok: true };
@@ -31,7 +31,7 @@ function errorFromException(error: unknown, fallback: string): ActionError {
 }
 
 export async function criarCliente(payload: CreateClientInput): Promise<ActionResult> {
-  await requireSession();
+  await requireRole(['admin', 'coordinator']);
 
   try {
     const body = clientInputSchema.parse(payload);
@@ -49,7 +49,7 @@ export async function atualizarCliente(
   clientId: string,
   payload: UpdateClientInput,
 ): Promise<ActionResult> {
-  await requireSession();
+  await requireRole(['admin', 'coordinator']);
 
   try {
     const id = z.string().uuid('Identificador de cliente inválido.').parse(clientId);

@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { listAccountsOfConnection } from '@adpub/db';
+import { getConnectionRow, listAccountsOfConnection } from '@adpub/db';
 import { requireRole } from '../plugins/auth.js';
 import { connectionDto, accountDto } from '../lib/dto.js';
+import { conflict, notFound } from '../lib/problem.js';
 import type { ApiDeps } from '../lib/deps.js';
 import {
   createAndTestConnection,
@@ -54,6 +55,17 @@ export function connectionRoutes(app: FastifyInstance, deps: ApiDeps): void {
   app.post('/connections/:id/sync', async (request, reply) => {
     requireRole(request, ['admin']);
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    // Sem estes dois guardas a rota respondia 202 para qualquer UUID: o job ou
+    // morria em "não existe mais" nas 6 tentativas, ou era pulado pelo worker
+    // (conexão sem autorização) — nos dois casos a tela prometia sincronização
+    // que nunca ia acontecer.
+    const connection = await getConnectionRow(deps.db, id);
+    if (!connection) throw notFound(`Conexão ${id} não encontrada.`);
+    if (connection.status !== 'active') {
+      throw conflict(
+        'Conexão sem autorização válida: teste ou troque o token antes de sincronizar.',
+      );
+    }
     const job = await deps.queues.enqueueSync(id);
     return reply.status(202).send(job);
   });

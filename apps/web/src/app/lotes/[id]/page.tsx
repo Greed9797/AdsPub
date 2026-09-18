@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
-import { Badge, Card, Empty, statusLabel } from '@/components/ui';
+import { Badge, Card, Empty, PageHead, statusLabel } from '@/components/ui';
+import { ButtonLink } from '@/components/button-link';
 import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
 import type { AdAccount, AdsetRef, Asset, Batch, CampaignRef } from '@/lib/types';
@@ -9,11 +10,14 @@ import { ProgressStream } from './progress-stream';
 import { BatchItemsTable } from './batch-items-table';
 import { ManualBuilder } from './manual-builder';
 import { PublishPanel } from './publish-panel';
+import { ReconciliationPanel } from './reconciliation-panel';
 import {
   duplicarLote,
   publicarLote,
   removerItem,
   reprocessarItem,
+  resolverItem,
+  resolverRef,
   salvarItem,
   salvarPlanoManual,
   validarLote,
@@ -33,7 +37,8 @@ export default async function LotePage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ erro?: string | string[] }>;
 }) {
-  await requireSession();
+  const user = await requireSession();
+  const canEdit = user.role !== 'viewer';
 
   const [{ id }, query] = await Promise.all([params, searchParams]);
 
@@ -44,100 +49,139 @@ export default async function LotePage({
   const errorMessage = Array.isArray(query.erro) ? query.erro[0] : query.erro;
 
   const batch = await api<Batch>(`/batches/${id}`);
-  const [account, clientAccounts] = await Promise.all([
+  const [account, clientAccounts, assets] = await Promise.all([
     api<AdAccount>(`/ad-accounts/${batch.ad_account_id}`),
     api<AdAccount[]>(`/ad-accounts?client_id=${encodeURIComponent(batch.client_id)}`),
+    api<Asset[]>(`/assets?client_id=${encodeURIComponent(batch.client_id)}&status=ok`),
   ]);
 
   // Modo manual: o construtor precisa dos criativos aprovados e do cache de campanhas/conjuntos.
-  let assets: Asset[] = [];
   let campaigns: CampaignRef[] = [];
   let adsets: AdsetRef[] = [];
 
   if (batch.mode === 'manual') {
-    [assets, campaigns, adsets] = await Promise.all([
-      api<Asset[]>(`/assets?client_id=${encodeURIComponent(batch.client_id)}&status=ok`),
+    [campaigns, adsets] = await Promise.all([
       api<CampaignRef[]>(`/ad-accounts/${encodeURIComponent(batch.ad_account_id)}/campaigns`),
       api<AdsetRef[]>(`/ad-accounts/${encodeURIComponent(batch.ad_account_id)}/adsets`),
     ]);
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      <PageHead
+        title={batch.name}
+        description={`${account.name} · ${batch.mode === 'ai' ? 'Planejamento com IA' : 'Criação manual'}`}
+        action={
+          <>
+            <Badge tone={statusTone(batch.status)}>{statusLabel(batch.status)}</Badge>
+            <ButtonLink variant="secondary" label="Voltar aos lotes" href="/" />
+          </>
+        }
+      />
       {errorMessage ? (
-        <p className="rounded-lg border border-[var(--color-danger)] p-3 text-sm text-[var(--color-danger)]">
+        <p role="alert" className="notice notice-error">
           {errorMessage}
         </p>
       ) : null}
-
-      <Card title={batch.name}>
-        <div className="grid gap-2 text-sm md:grid-cols-2">
-          <p>
-            Conta: <span className="text-[var(--color-muted)]">{account.name}</span>
-          </p>
-          <p>
-            Status: <Badge tone={statusTone(batch.status)}>{statusLabel(batch.status)}</Badge>
-          </p>
-          <p>
-            Atualizado em:{' '}
-            <span className="text-[var(--color-muted)]">{new Date(batch.updated_at).toLocaleString('pt-BR')}</span>
-          </p>
-          <p>
-            Itens: <span className="text-[var(--color-muted)]">{batch.items.length}</span>
-          </p>
-          <p className="md:col-span-2">
-            Pendências:{' '}
-            {batch.pending.length > 0 ? (
-              <span className="text-[var(--color-warn)]">{batch.pending.join(', ')}</span>
-            ) : (
-              <span className="text-[var(--color-muted)]">Sem pendências</span>
-            )}
-          </p>
-          <p className="md:col-span-2">
-            Observações do plano:{' '}
-            <span className="text-[var(--color-muted)]">{batch.plan_notes || 'Sem observações'}</span>
-          </p>
-        </div>
-      </Card>
-
-      {batch.mode === 'manual' ? (
-        <ManualBuilder
-          batchId={batch.id}
-          assets={assets}
-          campaigns={campaigns}
-          adsets={adsets}
-          defaultPageId={account.default_page_id}
-          defaultIgUserId={account.default_ig_user_id}
-          hasItems={batch.items.length > 0}
-          salvarPlanoManualAction={salvarPlanoManual}
-        />
+      {batch.pending.length > 0 ? (
+        <p role="status" className="notice notice-warning">
+          Pendências do plano: {batch.pending.join(', ')}
+        </p>
       ) : null}
 
-      <ProgressStream items={batch.items.map((item) => ({ id: item.id, status: item.status }))} />
-
-      <PublishPanel
-        batchId={batch.id}
-        items={batch.items}
-        accounts={clientAccounts}
-        currentAccountId={batch.ad_account_id}
-        validarLoteAction={validarLote}
-        publicarLoteAction={publicarLote}
-        duplicarLoteAction={duplicarLote}
-      />
-
-      {batch.items.length === 0 ? (
-        <Card title="Itens">
-          <Empty title="Lote sem itens" hint="Monte os anúncios no construtor abaixo e valide antes de publicar." />
-        </Card>
-      ) : (
-        <BatchItemsTable
-          batchId={batch.id}
-          items={batch.items}
-          salvarItemAction={salvarItem}
-          removerItemAction={removerItem}
-          reprocessarItemAction={reprocessarItem}
-        />
-      )}
+      <div className="review-layout">
+        <div className="review-main">
+          <Card>
+            <details>
+              <summary className="text-sm font-semibold">Detalhes e orientações do lote</summary>
+              <dl className="summary-list mt-4 sm:grid-cols-2">
+                <div>
+                  <dt>Conta de anúncios</dt>
+                  <dd>{account.name}</dd>
+                </div>
+                <div>
+                  <dt>Última atualização</dt>
+                  <dd>{new Date(batch.updated_at).toLocaleString('pt-BR')}</dd>
+                </div>
+                <div>
+                  <dt>Pendências</dt>
+                  <dd className={batch.pending.length ? 'text-[var(--color-warn)]' : ''}>
+                    {batch.pending.join(', ') || 'Sem pendências'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Observações do plano</dt>
+                  <dd>{batch.plan_notes || 'Sem observações'}</dd>
+                </div>
+              </dl>
+            </details>
+          </Card>
+          <ProgressStream
+            items={batch.items.map((item) => ({ id: item.id, status: item.status }))}
+          />
+          {canEdit ? (
+            <ReconciliationPanel
+              batchId={batch.id}
+              items={batch.items}
+              refs={batch.refs ?? []}
+              resolverItemAction={resolverItem}
+              resolverRefAction={resolverRef}
+            />
+          ) : null}
+          {batch.items.length === 0 ? (
+            <Card title="Anúncios do lote">
+              <Empty
+                title="Lote sem itens"
+                hint={
+                  batch.mode === 'manual'
+                    ? 'Use o construtor abaixo para escolher o destino, selecionar mídias e montar os anúncios.'
+                    : 'O plano ainda não tem anúncios. Confira as pendências nos detalhes do lote.'
+                }
+              />
+            </Card>
+          ) : (
+            <BatchItemsTable
+              batchId={batch.id}
+              items={batch.items}
+              assets={assets}
+              canEdit={canEdit}
+              salvarItemAction={salvarItem}
+              removerItemAction={removerItem}
+              reprocessarItemAction={reprocessarItem}
+            />
+          )}
+          {batch.mode === 'manual' && canEdit ? (
+            <details open={batch.items.length === 0} className="min-w-0">
+              <summary className="mb-3 text-sm font-semibold">
+                {batch.items.length ? 'Reabrir construtor manual' : 'Montar anúncios'}
+              </summary>
+              <ManualBuilder
+                batchId={batch.id}
+                assets={assets}
+                campaigns={campaigns}
+                adsets={adsets}
+                defaultPageId={account.default_page_id}
+                defaultIgUserId={account.default_ig_user_id}
+                hasItems={batch.items.length > 0}
+                salvarPlanoManualAction={salvarPlanoManual}
+              />
+            </details>
+          ) : null}
+        </div>
+        <aside className="editor-aside" aria-label="Publicação do lote">
+          <PublishPanel
+            batchId={batch.id}
+            items={batch.items}
+            accounts={clientAccounts}
+            currentAccountId={batch.ad_account_id}
+            approval={batch.approval ?? { approved: false, validated_at: null }}
+            canEdit={canEdit}
+            validarLoteAction={validarLote}
+            publicarLoteAction={publicarLote}
+            duplicarLoteAction={duplicarLote}
+          />
+        </aside>
+      </div>
     </div>
   );
 }

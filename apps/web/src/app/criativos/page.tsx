@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import { Badge, Card, Empty, Field, formatLabel, inputClass, PageHead, plural } from '@/components/ui';
+import {
+  Badge,
+  Card,
+  Empty,
+  Field,
+  formatLabel,
+  inputClass,
+  PageHead,
+  plural,
+} from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { Asset, Client, Variant } from '@/lib/types';
@@ -7,6 +16,7 @@ import { DriveImportForm } from './drive-import-form';
 import { UploadForm } from './upload-form';
 import { AnalysisButton } from './analysis-button';
 import { Button } from '@astryxdesign/core/Button';
+import { ButtonLink } from '@/components/button-link';
 
 type SearchParams = {
   client_id?: string | string[];
@@ -33,10 +43,10 @@ function AssetKindBadge({ kind }: { kind: 'image' | 'video' }) {
   return <Badge tone="info">{kind === 'image' ? 'Imagem' : 'Vídeo'}</Badge>;
 }
 
-function AssetCard({ asset }: { asset: Asset }) {
+function AssetCard({ asset, canEdit }: { asset: Asset; canEdit: boolean }) {
   return (
-    <article className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
-      <div className="h-40 overflow-hidden bg-[var(--color-surface-2)]">
+    <article className="media-card">
+      <div className="aspect-video overflow-hidden bg-[var(--color-surface-2)]">
         {asset.kind === 'video' && asset.url ? (
           <video
             className="h-full w-full object-cover"
@@ -54,13 +64,15 @@ function AssetCard({ asset }: { asset: Asset }) {
             loading="lazy"
           />
         ) : (
-          <div className="grid h-full w-full place-items-center text-sm text-[var(--color-muted)]">Sem thumbnail</div>
+          <div className="grid h-full w-full place-items-center text-sm text-[var(--color-muted)]">
+            Prévia indisponível
+          </div>
         )}
       </div>
 
       <div className="space-y-2 p-3">
         <div className="flex items-start justify-between gap-2">
-          <p className="font-medium">{asset.filename}</p>
+          <p className="media-card-name">{asset.filename}</p>
           <Badge tone={asset.validation.status === 'ok' ? 'ok' : 'danger'}>
             {asset.validation.status === 'ok' ? 'válido' : 'rejeitado'}
           </Badge>
@@ -68,18 +80,23 @@ function AssetCard({ asset }: { asset: Asset }) {
 
         <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-muted)]">
           <AssetKindBadge kind={asset.kind} />
-          <span>{asset.width} × {asset.height}</span>
+          <span>
+            {asset.width} × {asset.height}
+          </span>
           <span>·</span>
           <span>{asset.aspect_ratio}</span>
           {asset.kind === 'video' ? (
             <span>
-              · {asset.duration_ms === null ? 'duração indisponível' : `${(asset.duration_ms / 1000).toFixed(1)}s`}
+              ·{' '}
+              {asset.duration_ms === null
+                ? 'duração indisponível'
+                : `${(asset.duration_ms / 1000).toFixed(1)}s`}
             </span>
           ) : null}
           <span>·</span>
           <span>{sizeInMegabytes(asset.size_bytes)} MB</span>
           <span>·</span>
-          <span>Origem: {asset.source}</span>
+          <span>{asset.source === 'drive' ? 'Google Drive' : 'Upload'}</span>
         </div>
 
         {asset.validation.status === 'rejected' ? (
@@ -91,9 +108,9 @@ function AssetCard({ asset }: { asset: Asset }) {
               ))}
             </ul>
           </div>
-        ) : (
+        ) : canEdit ? (
           <AnalysisButton assetId={asset.id} />
-        )}
+        ) : null}
 
         {asset.validation.warnings.length > 0 ? (
           <div>
@@ -115,7 +132,8 @@ export default async function CriativosPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  await requireSession();
+  const user = await requireSession();
+  const canEdit = user.role !== 'viewer';
 
   const raw = await searchParams;
   const parsed = filtersSchema.safeParse({
@@ -146,20 +164,23 @@ export default async function CriativosPage({
 
   return (
     <div className="space-y-6">
-      <PageHead title="Criativos" description="Envie mídias, importe do Drive e valide variantes." />
+      <PageHead
+        title="Criativos"
+        description="Organize fotos e vídeos, confira a validação e prepare as mídias dos anúncios."
+        action={
+          filters.client_id && canEdit ? (
+            <ButtonLink
+              variant="primary"
+              label="Criar lote"
+              href={`/lotes/novo?client_id=${filters.client_id}`}
+            />
+          ) : undefined
+        }
+      />
 
-      <form
-        method="get"
-        action="/criativos"
-        aria-label="Filtrar criativos"
-        className="flex flex-wrap items-end gap-x-3 gap-y-3 border-b border-[var(--color-border)] pb-5"
-      >
+      <form method="get" action="/criativos" aria-label="Filtrar criativos" className="toolbar">
         <Field label="Cliente" className="w-full sm:w-64">
-          <select
-            name="client_id"
-            defaultValue={filters.client_id ?? ''}
-            className={inputClass}
-          >
+          <select name="client_id" defaultValue={filters.client_id ?? ''} className={inputClass}>
             <option value="">Todos</option>
             {clients.map((client) => (
               <option key={client.id} value={client.id}>
@@ -185,57 +206,76 @@ export default async function CriativosPage({
           </select>
         </Field>
 
-        <Button variant="primary" label="Aplicar filtros" type="submit" />
+        <Button variant="secondary" label="Aplicar filtros" type="submit" />
       </form>
 
       {!filters.client_id ? (
         <Card>
-          <Empty title="Nenhum cliente selecionado" hint="Selecione um cliente para listar os criativos e habilitar os envios." />
+          <Empty
+            title="Nenhum cliente selecionado"
+            hint="Selecione um cliente para listar os criativos e habilitar os envios."
+          />
         </Card>
       ) : null}
 
       {filters.client_id ? (
-        <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-          <div className="space-y-4">
-            <UploadForm clientId={filters.client_id} />
-            <DriveImportForm clientId={filters.client_id} />
+        <div className="media-library">
+          <div className="min-w-0 space-y-6">
+            <section aria-label="Biblioteca de criativos">
+              <h2 className="mb-4 text-sm font-semibold">Criativos ({assets.length})</h2>
+              {assets.length === 0 ? (
+                <Empty
+                  title="Nenhum criativo encontrado"
+                  hint="Ajuste os filtros informados e tente de novo."
+                />
+              ) : (
+                <div className="media-grid">
+                  {assets.map((asset) => (
+                    <AssetCard key={asset.id} asset={asset} canEdit={canEdit} />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section aria-label="Variantes de comunicação">
+              <h2 className="mb-4 text-sm font-semibold">
+                Variantes de comunicação ({variants.length})
+              </h2>
+              {variants.length === 0 ? (
+                <Empty
+                  title="Nenhuma variante validada"
+                  hint="Valide variantes para este cliente para vê-las aqui."
+                />
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {variants.map((variant) => (
+                    <article
+                      key={variant.id}
+                      className="space-y-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium">
+                          {variant.manifest.copy.headline || '(sem título)'}
+                        </p>
+                        <Badge tone="info">{formatLabel(variant.manifest.format)}</Badge>
+                      </div>
+                      <p className="text-xs text-[var(--color-muted)]">
+                        {variant.manifest.copy.primary_text}
+                      </p>
+                      <p className="text-xs text-[var(--color-muted)]">
+                        {plural(variant.manifest.assetIds.length, 'mídia', 'mídias')} ·{' '}
+                        {variant.fingerprint.slice(0, 8)}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
-
-          <Card title={`Criativos (${assets.length})`}>
-            {assets.length === 0 ? (
-              <Empty title="Nenhum criativo encontrado" hint="Ajuste os filtros informados e tente de novo." />
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {assets.map((asset) => (
-                  <AssetCard key={asset.id} asset={asset} />
-                ))}
-              </div>
-            )}
-          </Card>
-
-          <Card title={`Variantes de comunicação (${variants.length})`}>
-            {variants.length === 0 ? (
-              <Empty title="Nenhuma variante validada" hint="Valide variantes para este cliente para vê-las aqui." />
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {variants.map((variant) => (
-                  <article
-                    key={variant.id}
-                    className="space-y-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-medium">{variant.manifest.copy.headline || '(sem título)'}</p>
-                      <Badge tone="info">{formatLabel(variant.manifest.format)}</Badge>
-                    </div>
-                    <p className="text-xs text-[var(--color-muted)]">{variant.manifest.copy.primary_text}</p>
-                    <p className="text-xs text-[var(--color-muted)]">
-                      {plural(variant.manifest.assetIds.length, 'mídia', 'mídias')} · {variant.fingerprint.slice(0, 8)}
-                    </p>
-                  </article>
-                ))}
-              </div>
-            )}
-          </Card>
+          <aside className="space-y-4" aria-label="Adicionar mídias">
+            {canEdit ? <UploadForm clientId={filters.client_id} /> : null}
+            {canEdit ? <DriveImportForm clientId={filters.client_id} /> : null}
+          </aside>
         </div>
       ) : null}
     </div>

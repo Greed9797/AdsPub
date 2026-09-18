@@ -21,6 +21,12 @@ Retomada segura (por checkpoint, sem replay cego):
   morto expira e o job reentra; ambíguo vai p/ `needs_reconciliation`
   (nunca recria). BullMQ com `attempts` limitado; `UnrecoverableError`
   encerra reconciliação/autorização sem gastar tentativa.
+- Escrita registrada antes de sair (`meta_writes`): morte do processo entre o
+  POST e a persistência do ID deixa a linha sem `resolved_at`. Item e ref
+  compartilhada param em `needs_reconciliation` em vez de recriar; a decisão
+  humana (`/items/:id/resolve`, `/refs/:key/resolve`) encerra a escrita e
+  libera a retomada. Pendências: `select * from meta_writes where resolved_at
+  is null`.
 - Insights: `account_sync_state` + snapshots; reextração faz upsert
   canônico, sem duplicar.
 - Sync objetos: full-scan idempotente (upserts).

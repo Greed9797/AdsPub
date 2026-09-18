@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireRole } from '../plugins/auth.js';import { badRequest } from '../lib/problem.js';
+import { requireRole } from '../plugins/auth.js';
+import { badRequest } from '../lib/problem.js';
+import { assertClientAccess } from '../lib/scope.js';
 import type { ApiDeps } from '../lib/deps.js';
 import { requireFeature } from '../lib/features.js';
 import { commitReport, remapReport, uploadReport } from '../services/report-imports.js';
@@ -53,6 +55,7 @@ export function reportImportRoutes(app: FastifyInstance, deps: ApiDeps): void {
         ...(adAccountId ? { ad_account_id: adAccountId } : {}),
         context: contextValue,
       });
+    await assertClientAccess(deps, user, parsed.client_id);
     const preview = await uploadReport(deps, user, {
       clientId: parsed.client_id,
       adAccountId: parsed.ad_account_id ?? null,

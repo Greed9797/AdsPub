@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { SESSION_COOKIE, mintSessionToken, verifySessionToken } from '@adpub/auth';
+import { SESSION_COOKIE, mintSessionToken } from '@adpub/auth';
 import type { Role, SessionUser } from '@adpub/shared';
 import { webEnv } from './env';
 
@@ -25,14 +25,28 @@ export async function sessionToken(): Promise<string | undefined> {
 }
 
 export async function currentSession(): Promise<SessionUser | undefined> {
+  // Bypass só de desenvolvimento já existente. O seed de dev precisa ter o
+  // usuário correspondente ativo, pois a API valida o token no banco.
   if (devBypass()) return { ...DEV_USER };
+  // Valida o cookie no banco via API: fetch direto com bearer e no-store, sem
+  // o helper api() (que chamaria session de novo). 401 = sem sessão.
+  const env = webEnv();
   const token = await sessionToken();
   if (!token) return undefined;
+  let response: Response;
   try {
-    return await verifySessionToken(token, webEnv().authSecret);
+    response = await fetch(`${env.apiUrl}/api/v1/auth/me`, {
+      headers: { authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
   } catch {
-    return undefined;
+    // API fora do ar: erro recuperável, não fingir logout nem admin.
+    throw new Error('API indisponível para validar a sessão. Tente novamente.');
   }
+  if (response.status === 401) return undefined;
+  if (!response.ok) throw new Error(`Falha ao validar sessão (${response.status}).`);
+  const payload = (await response.json()) as SessionUser;
+  return { id: payload.id, email: payload.email, name: payload.name, role: payload.role };
 }
 
 /** Server Components protegidos: sem sessão → login. */

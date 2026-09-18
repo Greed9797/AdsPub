@@ -2,7 +2,14 @@ import { DelayedError, UnrecoverableError, type Job } from 'bullmq';
 import type { Alerter } from '../alerts.js';
 import type { WorkerContext } from '../context.js';
 import type { MetaFactory } from '../meta.js';
-import { DraftBusyError, AccountAuthError, ReconciliationRequiredError, runPublish, type PublishJobData } from './pipeline.js';
+import { RefPendingError, RefReconciliationRequiredError } from './refs.js';
+import {
+  DraftBusyError,
+  AccountAuthError,
+  ReconciliationRequiredError,
+  runPublish,
+  type PublishJobData,
+} from './pipeline.js';
 
 /** Espera até o lease do dono expirar, com piso para contenção normal. */
 export const CONTENTION_MIN_MS = 2_000;
@@ -31,12 +38,20 @@ export function createPublishProcessor(
     try {
       return await runPublish(ctx, meta, alert, job.data, job.attemptsMade + 1);
     } catch (error) {
-      if (error instanceof DraftBusyError && token) {
+      // Esperar outro item criar a ref compartilhada é contenção, não falha:
+      // gastar tentativa aqui mata em `failed` o item que só precisava esperar.
+      if (token && (error instanceof DraftBusyError || error instanceof RefPendingError)) {
         await job.moveToDelayed(Date.now() + contentionDelayMs(error.until), token);
         throw new DelayedError();
       }
-      // T-000-2: reconciliação não é falha transitória — encerra o job sem gastar tentativas.
-      if (error instanceof ReconciliationRequiredError) throw new UnrecoverableError(error.message);
+      // Reconciliação (item ou ref compartilhada) não é falha transitória:
+      // encerra o job sem gastar tentativas — quem desbloqueia é humano.
+      if (
+        error instanceof ReconciliationRequiredError ||
+        error instanceof RefReconciliationRequiredError
+      ) {
+        throw new UnrecoverableError(error.message);
+      }
       // T-001-1: sem autorização não há o que reagendar — humano reconecta.
       if (error instanceof AccountAuthError) throw new UnrecoverableError(error.message);
       throw error;

@@ -220,8 +220,6 @@ services:
     # banco ou credencial de storage).
     environment:
       AUTH_SECRET: ${AUTH_SECRET:?defina AUTH_SECRET no .env.prod}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?defina GOOGLE_CLIENT_ID no .env.prod}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?defina GOOGLE_CLIENT_SECRET no .env.prod}
       AUTH_ALLOWED_DOMAIN: ${AUTH_ALLOWED_DOMAIN:?defina AUTH_ALLOWED_DOMAIN no .env.prod}
       API_URL: http://api:4000
       WEB_URL: https://${APP_DOMAIN:?defina APP_DOMAIN no .env.prod}

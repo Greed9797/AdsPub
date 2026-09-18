@@ -22,7 +22,7 @@
 import { buildApp } from '@adpub/api/app';
 import type { ApiDeps, JobRef, Queues } from '@adpub/api/lib/deps';
 import { ingestFile, tempFileFromBytes } from '@adpub/assets';
-import { mintSessionToken } from '@adpub/auth';
+import { hashPassword, mintSessionToken } from '@adpub/auth';
 import { loadServerEnv } from '@adpub/config';
 import { mask } from '@adpub/crypto';
 import {
@@ -33,7 +33,7 @@ import {
   listDraftsOfBatch,
   truncateAllTables,
   updateAccountDefaults,
-  upsertUserFromLogin,
+  createUser,
 } from '@adpub/db';
 import { MetaClient, getAdsStatus } from '@adpub/meta-client';
 import { archiveAd, archiveCampaign } from '@adpub/meta-client/write';
@@ -174,7 +174,7 @@ async function main(): Promise<void> {
     async enqueueAnalysis() {
       throw new Error('Análise de mídia não faz parte da fumaça em sandbox.');
     },
-    async enqueueImportDrive() {
+    async enqueueImportDrive(_input: { jobId: string }) {
       throw new Error('Importação do Drive não faz parte da fumaça em sandbox.');
     },
     async enqueueInsights() {
@@ -190,6 +190,10 @@ async function main(): Promise<void> {
         refs.push({ job_id: `draft-${item.draftId}`, queue: 'adpub.publish' });
       }
       return refs;
+    },
+    async publishJobAlive() {
+      // Fila inline: quando a chamada volta, o job já rodou.
+      return false;
     },
     async close() {
       /* filas rodam inline */
@@ -244,10 +248,11 @@ async function main(): Promise<void> {
         `Conta ${smoke.adAccountId} não veio no sync — confira as permissões do System User.`,
       );
 
-    const admin = await upsertUserFromLogin(db, {
+    const admin = await createUser(db, {
       email: `smoke@${env.AUTH_ALLOWED_DOMAIN}`,
       name: 'Fumaça Sandbox',
-      googleSub: `smoke-${stamp}`,
+      role: 'admin',
+      passwordHash: hashPassword(`sandbox-senha-${stamp}-0123456789`),
     });
     const auth = {
       authorization: `Bearer ${await mintSessionToken(

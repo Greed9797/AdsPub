@@ -124,6 +124,14 @@ export type PolicyMode = z.infer<typeof policyModeSchema>;
 export const assetSourceSchema = z.enum(['drive', 'upload']);
 export type AssetSource = z.infer<typeof assetSourceSchema>;
 
+/**
+ * Importação do Drive observável: persiste do enqueue ao fim. `queued` na
+ * criação, `running` quando o worker começa, `done`/`failed` no fim. Sem isso
+ * a tela só vê "job id" e nunca sabe se terminou.
+ */
+export const driveImportStatusSchema = z.enum(['queued', 'running', 'done', 'failed']);
+export type DriveImportStatus = z.infer<typeof driveImportStatusSchema>;
+
 export const aiPurposeSchema = z.enum(['plan', 'copy', 'policy']);
 export type AiPurpose = z.infer<typeof aiPurposeSchema>;
 

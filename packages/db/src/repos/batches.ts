@@ -54,6 +54,14 @@ export async function getBatch(db: Database, id: string): Promise<BatchRow | und
   return row;
 }
 
+/**
+ * Apaga o lote vazio deixado por duplicação interrompida: `ad_drafts`
+ * cai em cascata (`batch_id on delete cascade`), então não sobra item órfão.
+ */
+export async function deleteBatch(db: Database, id: string): Promise<void> {
+  await db.delete(batches).where(eq(batches.id, id));
+}
+
 export async function listBatches(
   db: Database,
   filter: { adAccountIds?: readonly string[]; status?: BatchRow['status']; createdBy?: string },

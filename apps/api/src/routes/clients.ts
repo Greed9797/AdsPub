@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { audit, createClient, getClient, listClients, updateClient } from '@adpub/db';
+import { audit, createClient, getClient, listClients, listVisibleAccounts, updateClient } from '@adpub/db';
 import { clientInputSchema } from '@adpub/shared';
 import { currentUser, requireRole } from '../plugins/auth.js';
 import { clientDto } from '../lib/dto.js';
@@ -8,10 +8,19 @@ import { notFound } from '../lib/problem.js';
 import type { ApiDeps } from '../lib/deps.js';
 
 export function clientRoutes(app: FastifyInstance, deps: ApiDeps): void {
+  /**
+   * Etapa 2: a lista é o universo do usuário. admin/coordinator veem todos;
+   * manager/viewer só clientes com ao menos uma conta visível — é o mesmo
+   * escopo que o resto da API cobra (FR-021), não uma ACL nova.
+   */
   app.get('/clients', async (request) => {
-    currentUser(request);
+    const user = currentUser(request);
     const rows = await listClients(deps.db);
-    return rows.map(clientDto);
+    if (user.role === 'admin' || user.role === 'coordinator') return rows.map(clientDto);
+
+    const visible = await listVisibleAccounts(deps.db, { userId: user.id, role: user.role });
+    const mine = new Set(visible.map((account) => account.clientId).filter(Boolean));
+    return rows.filter((row) => mine.has(row.id)).map(clientDto);
   });
 
   app.post('/clients', async (request, reply) => {

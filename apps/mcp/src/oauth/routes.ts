@@ -214,7 +214,10 @@ export function registerOAuthRoutes(app: FastifyInstance, options: OAuthRoutesOp
         csrf,
         userName: user.name,
         userEmail: user.email,
-        writeAllowed: true,
+        userRole: user.role,
+        // Consentimento começa sem escopo write e não oferece write a viewer:
+        // viewer nunca recebe checkbox de alteração.
+        writeAllowed: user.role !== 'viewer',
       }),
     );
   });
@@ -267,7 +270,8 @@ export function registerOAuthRoutes(app: FastifyInstance, options: OAuthRoutesOp
         .send(renderConsentError('Sessão expirada. Entre de novo no AdPub e repita o pedido.'));
     }
 
-    const scopes = body.scope_write === '1' ? [SCOPE_READ, SCOPE_WRITE] : [SCOPE_READ];
+    // Viewer não recebe write mesmo marcando campo manualmente.
+    const scopes = body.scope_write === '1' && user.role !== 'viewer' ? [SCOPE_READ, SCOPE_WRITE] : [SCOPE_READ];
     const code = await issueAuthorizationCode(db, {
       clientId,
       userId: user.id,

@@ -1,0 +1,22 @@
+# Overlay exclusivo do backend de análise Muse via OpenCode Go.
+# Uso (somente no ambiente liberado, junto do compose base):
+#   docker compose -f docker-compose.prod.yml -f docker-compose.opencode.yml --env-file .env.prod up -d
+# O compose base continua executável sozinho (Anthropic em tudo).
+#
+# O bind do auth é sintaxe longa com create_host_path=false: arquivo dedicado
+# ausente no host deve FALHAR, nunca virar diretório vazio.
+
+name: adpub
+
+services:
+  worker:
+    environment:
+      AI_ANALYSIS_PROVIDER: opencode
+      OPENCODE_ANALYSIS_MODEL: opencode-go/muse-spark-1.3-contributor
+    volumes:
+      - type: bind
+        source: /opt/adpub/secrets/opencode-auth.json
+        target: /run/secrets/opencode-auth.json
+        read_only: true
+        bind:
+          create_host_path: false

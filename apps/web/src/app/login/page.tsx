@@ -1,14 +1,10 @@
-import Link from 'next/link';
+import { Icon } from '@/components/icons';
 import { safeNextPath } from '@adpub/auth';
 import { currentSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
-
-const MESSAGES: Record<string, string> = {
-  dominio: 'Esse e-mail não é do domínio corporativo.',
-  inativo: 'Seu usuário está inativo. Fale com um admin.',
-  state: 'Sessão de login expirada. Tente de novo.',
-  falha: 'Não foi possível concluir o login.',
-};
+import { bootstrapDisponivel } from './actions';
+import { BootstrapForm } from './bootstrap-form';
+import { LoginForm } from './login-form';
 
 export default async function LoginPage({
   searchParams,
@@ -19,28 +15,46 @@ export default async function LoginPage({
   const { erro, next } = await searchParams;
   // Só caminho interno volta depois do login (evita redirecionamento aberto).
   const safeNext = safeNextPath(next);
+  const bootstrap = await bootstrapDisponivel();
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-sm rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-8">
-        <h1 className="font-cond text-3xl font-semibold tracking-[0.02em]">
-          AdPub<span className="text-[var(--color-brand)]">.</span>
-        </h1>
-        <p className="mt-1 text-sm text-[var(--color-muted)]">
-          Publicação de anúncios Meta em lote.
-        </p>
-        {erro ? (
-          <p className="mt-4 rounded-lg border border-[var(--color-danger)] bg-[var(--color-danger)]/10 p-3 text-sm">
-            {MESSAGES[erro] ?? MESSAGES.falha}
-          </p>
-        ) : null}
-        <Link
-          href={safeNext ? `/api/auth/login?next=${encodeURIComponent(safeNext)}` : '/api/auth/login'}
-          className="mt-6 flex h-10 items-center justify-center rounded-[10px] bg-[var(--color-brand-solid)] px-4 text-sm font-semibold text-[var(--color-ink-on-brand)] hover:bg-[var(--color-brand-deep)] hover:text-white"
-        >
-          Entrar com Google
-        </Link>
+    <section className="auth-card">
+      <div className="brand-lockup mb-6">
+        <span className="brand-mark">
+          <Icon name="layers" size={20} />
+        </span>
+        <span className="brand-name">AdPub</span>
       </div>
-    </main>
+      {bootstrap ? (
+        <>
+          <h1 className="page-title">Primeiro acesso</h1>
+          <p className="mt-3 mb-6 text-sm text-[var(--color-muted)]">
+            Nenhum usuário com senha ainda. Crie o administrador inicial para começar — esta
+            tela desaparece para sempre depois.
+          </p>
+          {erro ? (
+            <p role="alert" className="notice notice-error mb-4">
+              Não foi possível concluir o login.
+            </p>
+          ) : null}
+          <BootstrapForm />
+        </>
+      ) : (
+        <>
+          <h1 className="page-title">Seu espaço de anúncios</h1>
+          <p className="mt-3 mb-6 text-sm text-[var(--color-muted)]">
+            Crie, revise e publique anúncios Meta em lote. Entre com seu e-mail corporativo
+            para continuar.
+          </p>
+          {erro ? (
+            <p role="alert" className="notice notice-error mb-4">
+              Não foi possível concluir o login.
+            </p>
+          ) : null}
+          <LoginForm next={safeNext} />
+        </>
+      )}
+      <p className="mt-6 text-xs text-[var(--color-muted)]">Acesso restrito à equipe autorizada.</p>
+    </section>
   );
 }

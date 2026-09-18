@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 import { getCipher } from '@adpub/crypto';
 import type { ApiTier, ConnectionStatus } from '@adpub/shared';
 import { adAccounts, metaConnections } from '../schema.js';
@@ -126,6 +126,23 @@ export async function pauseAccountsOfConnection(
     .update(adAccounts)
     .set({ pausedUntil: until, updatedAt: new Date() })
     .where(eq(adAccounts.connectionId, connectionId))
+    .returning({ id: adAccounts.id });
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Fim da pausa imposta por token inválido. Só é chamada quando a conexão volta
+ * de `needs_attention`/`revoked`: a pausa de rate limit tem janela própria por
+ * conta e não deve ser encurtada por um teste de token.
+ */
+export async function resumeAccountsOfConnection(
+  db: Database,
+  connectionId: string,
+): Promise<string[]> {
+  const rows = await db
+    .update(adAccounts)
+    .set({ pausedUntil: null, updatedAt: new Date() })
+    .where(and(eq(adAccounts.connectionId, connectionId), isNotNull(adAccounts.pausedUntil)))
     .returning({ id: adAccounts.id });
   return rows.map((r) => r.id);
 }

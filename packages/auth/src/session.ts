@@ -39,9 +39,6 @@ export async function verifySessionToken(token: string, secret: string): Promise
 
 /** Cookie da sessão do navegador (assinado do mesmo jeito). */
 export const SESSION_COOKIE = 'adpub_session';
-export const OAUTH_STATE_COOKIE = 'adpub_oauth';
-/** Para onde voltar depois do login (ex.: a tela de consentimento do MCP). */
-export const NEXT_COOKIE = 'adpub_next';
 
 /**
  * Caminho interno de retorno pós-login, ou `undefined` quando não é seguro.

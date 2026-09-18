@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { Role } from '@adpub/shared';
-import { adAccounts, userAdAccounts, users } from '../schema.js';
+import { userAdAccounts, users } from '../schema.js';
 import type { UserRow } from '../schema.js';
 import type { Database } from '../client.js';
 
@@ -14,37 +14,78 @@ export async function findUserById(db: Database, id: string): Promise<UserRow | 
   return row;
 }
 
-/** Primeiro usuário do domínio nasce admin; os demais entram como manager. */
-export async function upsertUserFromLogin(
+/**
+ * Serializa o bootstrap na mesma transação: o lock consultivo transacional
+ * (`pg_advisory_xact_lock`) só vale até o fim da transação e na conexão que o
+ * adquiriu — fora de transação ele libera no fim do próprio SELECT e dois
+ * POSTs concorrentes passariam juntos pelo `hasAnyPassword`. Todo o
+ * check+create roda em `tx`, na conexão dona do lock.
+ */
+export async function withBootstrapLock<T>(
   db: Database,
-  input: { email: string; name: string; googleSub: string },
+  fn: (tx: Database) => Promise<T>,
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(424242)`);
+    return fn(tx as unknown as Database);
+  });
+}
+
+/** Papel explícito na criação: admin provisiona; bootstrap cria o primeiro admin. */
+export async function createUser(
+  db: Database,
+  input: { email: string; name: string; role: Role; passwordHash: string },
 ): Promise<UserRow> {
-  const email = input.email.toLowerCase();
-  const existing = await findUserByEmail(db, email);
-  if (existing) {
-    if (existing.googleSub !== input.googleSub || existing.name !== input.name) {
-      const [updated] = await db
-        .update(users)
-        .set({ googleSub: input.googleSub, name: input.name, updatedAt: new Date() })
-        .where(eq(users.id, existing.id))
-        .returning();
-      return updated ?? existing;
-    }
-    return existing;
-  }
-  const [counted] = await db.select({ total: sql<number>`count(*)::int` }).from(users);
-  const isFirstUser = (counted?.total ?? 0) === 0;
   const [row] = await db
     .insert(users)
     .values({
-      email,
+      email: input.email.toLowerCase(),
       name: input.name,
-      googleSub: input.googleSub,
-      role: isFirstUser ? 'admin' : 'manager',
+      role: input.role,
+      passwordHash: input.passwordHash,
     })
     .returning();
   if (!row) throw new Error('Falha ao criar usuário.');
   return row;
+}
+
+export async function setUserPassword(
+  db: Database,
+  id: string,
+  passwordHash: string,
+): Promise<UserRow | undefined> {
+  const [row] = await db
+    .update(users)
+    .set({ passwordHash, updatedAt: new Date() })
+    .where(eq(users.id, id))
+    .returning();
+  return row;
+}
+
+export async function setUserActive(
+  db: Database,
+  id: string,
+  active: boolean,
+): Promise<UserRow | undefined> {
+  const [row] = await db
+    .update(users)
+    .set({ active, updatedAt: new Date() })
+    .where(eq(users.id, id))
+    .returning();
+  return row;
+}
+
+/**
+ * Há ao menos um usuário com senha definida? `false` = banco sem credencial:
+ * o bootstrap do primeiro admin continua disponível; `true` o desliga.
+ */
+export async function hasAnyPassword(db: Database): Promise<boolean> {
+  const [row] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(sql`${users.passwordHash} is not null`)
+    .limit(1);
+  return Boolean(row);
 }
 
 export async function listUsers(db: Database): Promise<UserRow[]> {
@@ -99,12 +140,4 @@ export async function listAdminEmails(db: Database): Promise<string[]> {
     .from(users)
     .where(and(eq(users.role, 'admin'), eq(users.active, true)));
   return rows.map((r) => r.email);
-}
-
-export async function accountsOfClient(db: Database, clientId: string): Promise<string[]> {
-  const rows = await db
-    .select({ id: adAccounts.id })
-    .from(adAccounts)
-    .where(eq(adAccounts.clientId, clientId));
-  return rows.map((r) => r.id);
 }

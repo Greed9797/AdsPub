@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "drive_import_jobs_open_unique" ON "drive_import_jobs" USING btree ("client_id","folder_url") WHERE status in ('queued', 'running');

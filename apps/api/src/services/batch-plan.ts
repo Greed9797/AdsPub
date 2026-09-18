@@ -26,13 +26,19 @@ import {
   type AdDraftStatus,
   type BatchPlan,
   type Copy,
+  type ObjectRef,
   type PlanItem,
   type SessionUser,
 } from '@adpub/shared';
 import type { AiAssetInsight, AiCache, AiLearningRef, PlanContext } from '@adpub/ai';
 import { notFound, unprocessable, type ProblemError } from '../lib/problem.js';
 import type { ApiDeps } from '../lib/deps.js';
-import { assetsForDrafts, loadBatchContext, validateContextFrom } from './batch-context.js';
+import {
+  assetsForDraftsStrict,
+  loadBatchContext,
+  validateContextFrom,
+  type BatchContext,
+} from './batch-context.js';
 
 export function aiCacheFor(deps: ApiDeps, batchId: string | null): AiCache {
   return {
@@ -178,7 +184,7 @@ export async function generatePlan(
     clientId: batch.clientId,
     adAccountId: batch.adAccountId,
   });
-  const assets = await assetsForDrafts(deps, input.assetIds);
+  const assets = await assetsForDraftsStrict(deps, batch.clientId, input.assetIds);
   if (assets.length === 0) {
     throw unprocessable('Selecione ao menos um criativo válido para gerar o plano.');
   }
@@ -233,7 +239,7 @@ export async function generatePlan(
     // plano antigo e o botão de regenerar não fazia nada.
     bypassCache: input.regenerate,
   });
-  assertPlanRefs(plan);
+  assertPlanStructure(plan, ctx);
 
   // A12: o lote fica ligado à geração que consumiu — inclusive quando o plano
   // veio do cache, que é a linha em `ai_generations` que já existia. Regenerar
@@ -250,7 +256,7 @@ export async function generatePlan(
     regenerated: Boolean(input.regenerate),
   });
 
-  const drafts = await buildPlanDrafts(deps, { batch, plan, assets });
+  const drafts = buildPlanDrafts({ batch, plan, assets, ctx, now: deps.now?.() ?? new Date() });
   const items = await swapPlan(deps, { batchId: batch.id, plan, drafts });
 
   await audit(deps.db, {
@@ -273,34 +279,75 @@ export async function generatePlan(
   return result;
 }
 
+/** Item (do plano ou do formulário) na parte que aponta para campanha/conjunto. */
+export interface ItemRefs {
+  campaign_ref: ObjectRef;
+  adset_ref: ObjectRef;
+}
+
+/** Especificações que acompanham o item: o plano tem; o formulário, não. */
+interface PlanSpecs {
+  campaigns?: readonly { key: string }[];
+  adsets?: readonly { key: string; campaign_key?: string | undefined }[];
+  items: readonly ItemRefs[];
+}
+
 /**
- * Toda ref `new` precisa de spec no plano — sem isso o item só falharia na
- * etapa `ensure_campaign`, depois de já ter passado pela validação e pela fila.
+ * Ref `existing` fora da conta. Cache vazio (sync nunca rodou) não bloqueia —
+ * mesma regra das páginas elegíveis: só o que a conta sabe é que julga.
  */
-export function assertPlanRefs(plan: BatchPlan): void {
-  const campaignKeys = new Set(plan.campaigns.map((campaign) => campaign.key));
-  const adsetKeys = new Set(plan.adsets.map((adset) => adset.key));
-  const faltando: string[] = [];
+function outsideAccount(ref: ObjectRef, known: ReadonlySet<string>): string | undefined {
+  if (ref.kind !== 'existing') return undefined;
+  if (known.size === 0 || known.has(ref.id)) return undefined;
+  return ref.id;
+}
+
+/**
+ * Estrutura que todo item precisa ter antes de entrar na fila: ref `new` com
+ * especificação e ref `existing` que é desta conta. Sem isso o item só
+ * falharia em `ensure_campaign`, depois de já ter passado pela validação e
+ * pela fila. Vale para o plano da IA, o plano manual, os itens do formulário
+ * e a edição de um item — a regra é uma só.
+ */
+export function assertPlanStructure(plan: PlanSpecs, ctx: BatchContext): void {
+  const campaignKeys = new Set((plan.campaigns ?? []).map((campaign) => campaign.key));
+  const adsetKeys = new Set((plan.adsets ?? []).map((adset) => adset.key));
+  const knownCampaigns = new Set(ctx.campaigns.map((campaign) => campaign.id));
+  const knownAdsets = new Set(ctx.adsets.map((adset) => adset.id));
+
+  const semSpec: string[] = [];
+  const foraDaConta: string[] = [];
 
   plan.items.forEach((item, index) => {
+    const rotulo = `item ${index + 1}`;
     if (item.campaign_ref.kind === 'new' && !campaignKeys.has(item.campaign_ref.key)) {
-      faltando.push(`item ${index + 1}: campanha "${item.campaign_ref.key}"`);
+      semSpec.push(`${rotulo}: campanha "${item.campaign_ref.key}"`);
     }
     if (item.adset_ref.kind === 'new' && !adsetKeys.has(item.adset_ref.key)) {
-      faltando.push(`item ${index + 1}: conjunto "${item.adset_ref.key}"`);
+      semSpec.push(`${rotulo}: conjunto "${item.adset_ref.key}"`);
     }
+    const campanha = outsideAccount(item.campaign_ref, knownCampaigns);
+    if (campanha) foraDaConta.push(`${rotulo}: campanha ${campanha}`);
+    const conjunto = outsideAccount(item.adset_ref, knownAdsets);
+    if (conjunto) foraDaConta.push(`${rotulo}: conjunto ${conjunto}`);
   });
 
-  for (const adset of plan.adsets) {
+  for (const adset of plan.adsets ?? []) {
     if (adset.campaign_key && !campaignKeys.has(adset.campaign_key)) {
-      faltando.push(`conjunto "${adset.key}": campanha "${adset.campaign_key}"`);
+      semSpec.push(`conjunto "${adset.key}": campanha "${adset.campaign_key}"`);
     }
   }
 
-  if (faltando.length > 0) {
+  if (semSpec.length > 0) {
     throw unprocessable(
-      `Plano com referências sem especificação — ${faltando.join('; ')}. ` +
+      `Plano com referências sem especificação — ${semSpec.join('; ')}. ` +
         'Descreva a campanha/conjunto novo no plano ou aponte para um existente.',
+    );
+  }
+  if (foraDaConta.length > 0) {
+    throw unprocessable(
+      `Referência que não é desta conta de anúncios — ${foraDaConta.join('; ')}. ` +
+        'Escolha uma campanha/conjunto da conta ou descreva um novo no plano.',
     );
   }
 }
@@ -313,17 +360,26 @@ export async function setManualPlan(
 ): Promise<{ batch: BatchRow; items: AdDraftRow[] }> {
   const batch = await getBatch(deps.db, input.batchId);
   if (!batch) throw notFound(`Lote ${input.batchId} não encontrado.`);
-  assertPlanRefs(input.plan);
 
-  const requested = [...new Set(input.plan.items.flatMap((item) => item.asset_ids))];
-  const assets = await assetsForDrafts(deps, requested);
-  const known = new Set(assets.map((asset) => asset.id));
-  const missing = requested.filter((id) => !known.has(id));
-  if (missing.length > 0) {
-    throw unprocessable(`Criativos não encontrados neste cliente: ${missing.join(', ')}.`);
-  }
+  const ctx = await loadBatchContext(deps, {
+    clientId: batch.clientId,
+    adAccountId: batch.adAccountId,
+  });
+  assertPlanStructure(input.plan, ctx);
 
-  const drafts = await buildPlanDrafts(deps, { batch, plan: input.plan, assets });
+  const assets = await assetsForDraftsStrict(
+    deps,
+    batch.clientId,
+    input.plan.items.flatMap((item) => item.asset_ids),
+  );
+
+  const drafts = buildPlanDrafts({
+    batch,
+    plan: input.plan,
+    assets,
+    ctx,
+    now: deps.now?.() ?? new Date(),
+  });
   const items = await swapPlan(deps, { batchId: batch.id, plan: input.plan, drafts });
 
   await audit(deps.db, {
@@ -344,16 +400,15 @@ export async function setManualPlan(
 }
 
 /** Expande o plano em linhas: 1 AdDraft por (criativo × variação de copy). */
-async function buildPlanDrafts(
-  deps: ApiDeps,
-  input: { batch: BatchRow; plan: BatchPlan; assets: AssetRow[] },
-): Promise<DraftInsert[]> {
-  const ctx = await loadBatchContext(deps, {
-    clientId: input.batch.clientId,
-    adAccountId: input.batch.adAccountId,
-  });
+function buildPlanDrafts(input: {
+  batch: BatchRow;
+  plan: BatchPlan;
+  assets: AssetRow[];
+  ctx: BatchContext;
+  now: Date;
+}): DraftInsert[] {
+  const { ctx, now } = input;
   const objectiveByCampaignKey = new Map(input.plan.campaigns.map((c) => [c.key, c.objective]));
-  const now = deps.now?.() ?? new Date();
 
   const drafts: DraftInsert[] = [];
   let position = 0;
@@ -425,7 +480,15 @@ export async function addManualItems(
     clientId: batch.clientId,
     adAccountId: batch.adAccountId,
   });
-  const assets = await assetsForDrafts(deps, input.items.flatMap((i) => i.asset_ids));
+  // Sem plano por trás, ref nova não tem onde buscar especificação: a mesma
+  // regra do plano vale aqui, antes de o item entrar na fila.
+  assertPlanStructure({ items: input.items }, ctx);
+
+  const assets = await assetsForDraftsStrict(
+    deps,
+    batch.clientId,
+    input.items.flatMap((item) => item.asset_ids),
+  );
   const existing = await listDraftsOfBatch(deps.db, batch.id);
   const now = deps.now?.() ?? new Date();
   let position = existing.length;

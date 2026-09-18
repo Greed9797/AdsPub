@@ -1,7 +1,7 @@
 import {
   getAccount,
-  getAssetsByIds,
   getClient,
+  getClientAssetsByIds,
   listAccountPageIds,
   listAdsetsCache,
   listCampaignsCache,
@@ -10,7 +10,7 @@ import {
   type ClientRow,
 } from '@adpub/db';
 import type { ValidateContext } from '@adpub/rules';
-import { notFound } from '../lib/problem.js';
+import { notFound, unprocessable } from '../lib/problem.js';
 import type { ApiDeps } from '../lib/deps.js';
 
 export interface BatchContext {
@@ -90,9 +90,30 @@ export function validateContextFrom(
   };
 }
 
+/**
+ * Criativos que os itens citam, sempre dentro do cliente do lote: ID de outro
+ * cliente não entra no contexto de validação — logo o item não fica pronto.
+ */
 export async function assetsForDrafts(
   deps: ApiDeps,
+  clientId: string,
   assetIds: readonly string[],
 ): Promise<AssetRow[]> {
-  return getAssetsByIds(deps.db, [...new Set(assetIds)]);
+  return getClientAssetsByIds(deps.db, clientId, [...new Set(assetIds)]);
+}
+
+/** Mesma leitura, mas ID fora do cliente é erro explícito em vez de item bloqueado. */
+export async function assetsForDraftsStrict(
+  deps: ApiDeps,
+  clientId: string,
+  assetIds: readonly string[],
+): Promise<AssetRow[]> {
+  const requested = [...new Set(assetIds)];
+  const assets = await assetsForDrafts(deps, clientId, requested);
+  const known = new Set(assets.map((asset) => asset.id));
+  const missing = requested.filter((id) => !known.has(id));
+  if (missing.length > 0) {
+    throw unprocessable(`Criativos não encontrados neste cliente: ${missing.join(', ')}.`);
+  }
+  return assets;
 }

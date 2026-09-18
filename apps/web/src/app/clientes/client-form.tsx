@@ -1,12 +1,13 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from 'react';
+import { useId, useState, useTransition } from 'react';
 import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { inputClass, Field } from '@/components/ui';
 import type { Client } from '@/lib/types';
 import type { ActionResult, CreateClientInput, UpdateClientInput } from './actions';
 import { Button } from '@astryxdesign/core/Button';
+import { Dialog } from '@astryxdesign/core/Dialog';
 
 interface CreateClientFormProps {
   mode: 'create';
@@ -21,9 +22,7 @@ interface EditClientFormProps {
 
 type ClientFormProps = CreateClientFormProps | EditClientFormProps;
 
-type UtmParseResult =
-  | { ok: true; value: Record<string, string> }
-  | { ok: false; erro: string };
+type UtmParseResult = { ok: true; value: Record<string, string> } | { ok: false; erro: string };
 
 const DEFAULT_NAMING_TEMPLATE = '{cliente}_{objetivo}_{data:YYYYMMDD}_{criativo}_{formato}_{v}';
 
@@ -62,15 +61,14 @@ function isActionError(result: ActionResult): result is { erro: string } {
 
 export default function ClientForm(props: ClientFormProps) {
   const router = useRouter();
+  const titleId = useId();
 
   const isCreate = props.mode === 'create';
   const client = isCreate ? undefined : props.client;
 
-  const [open, setOpen] = useState(isCreate);
+  const [open, setOpen] = useState(false);
   const [nome, setNome] = useState(client?.name ?? '');
-  const [policyMode, setPolicyMode] = useState<'warn' | 'block'>(
-    client?.policy_mode ?? 'warn',
-  );
+  const [policyMode, setPolicyMode] = useState<'warn' | 'block'>(client?.policy_mode ?? 'warn');
   const [namingTemplate, setNamingTemplate] = useState(
     client?.naming_template ?? DEFAULT_NAMING_TEMPLATE,
   );
@@ -88,12 +86,8 @@ export default function ClientForm(props: ClientFormProps) {
       .map(([key, value]) => `${key}=${value}`)
       .join('\n'),
   );
-  const [landingDomains, setLandingDomains] = useState(
-    (client?.landing_domains ?? []).join('\n'),
-  );
-  const [advantageOptOut, setAdvantageOptOut] = useState(
-    client?.advantage_creative_optout ?? true,
-  );
+  const [landingDomains, setLandingDomains] = useState((client?.landing_domains ?? []).join('\n'));
+  const [advantageOptOut, setAdvantageOptOut] = useState(client?.advantage_creative_optout ?? true);
 
   const [isPending, startTransition] = useTransition();
   const [sucesso, setSucesso] = useState<string | null>(null);
@@ -132,40 +126,31 @@ export default function ClientForm(props: ClientFormProps) {
       advantage_creative_optout: advantageOptOut,
     };
 
-    startTransition(() => {
-      let resultPromise: Promise<ActionResult>;
-
-      if (props.mode === 'create') {
-        resultPromise = props.salvar(payload);
-      } else {
-        resultPromise = props.salvar(props.client.id, payload);
+    startTransition(async () => {
+      const result =
+        props.mode === 'create'
+          ? await props.salvar(payload)
+          : await props.salvar(props.client.id, payload);
+      if (isActionError(result)) {
+        setErro(result.erro);
+        return;
       }
-
-      void resultPromise.then((result) => {
-        if (isActionError(result)) {
-          setErro(result.erro);
-          return;
-        }
-
-        setSucesso(props.mode === 'create' ? 'Cliente criado com sucesso.' : 'Cliente atualizado com sucesso.');
-        router.refresh();
-
-        if (props.mode === 'create') {
-          setNome('');
-          setPolicyMode('warn');
-          setNamingTemplate(DEFAULT_NAMING_TEMPLATE);
-          setTone('');
-          setAudience('');
-          setForbiddenTerms('');
-          setAllowedClaims('');
-          setExamples('');
-          setDefaultUtm('');
-          setLandingDomains('');
-          setAdvantageOptOut(true);
-        } else {
-          setOpen(false);
-        }
-      });
+      setSucesso(props.mode === 'create' ? 'Cliente criado.' : 'Cliente atualizado.');
+      router.refresh();
+      setOpen(false);
+      if (props.mode === 'create') {
+        setNome('');
+        setPolicyMode('warn');
+        setNamingTemplate(DEFAULT_NAMING_TEMPLATE);
+        setTone('');
+        setAudience('');
+        setForbiddenTerms('');
+        setAllowedClaims('');
+        setExamples('');
+        setDefaultUtm('');
+        setLandingDomains('');
+        setAdvantageOptOut(true);
+      }
     });
   };
 
@@ -173,14 +158,35 @@ export default function ClientForm(props: ClientFormProps) {
 
   return (
     <div>
-      <Button variant="secondary" label={isCreate ? 'Novo cliente' : open ? 'Ocultar formulário' : 'Editar cliente'} onClick={() => setOpen((prev) => !prev)} />
-
-      {open ? (
-        <form
-          onSubmit={submit}
-          className="mt-3 space-y-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
+      <Button
+        variant={isCreate ? 'primary' : 'secondary'}
+        label={isCreate ? 'Novo cliente' : 'Editar cliente'}
+        onClick={() => setOpen(true)}
+      />
+      {sucesso ? (
+        <p role="status" className="mt-2 text-xs text-[var(--color-ok)]">
+          {sucesso}
+        </p>
+      ) : null}
+      <Dialog
+        isOpen={open}
+        onOpenChange={(next) => {
+          if (!isPending) setOpen(next);
+        }}
+        purpose="form"
+        width={760}
+        padding={5}
+        maxHeight="90dvh"
+        aria-labelledby={titleId}
+      >
+        <h2 id={titleId} className="text-lg font-semibold">
+          {isCreate ? 'Novo cliente' : `Editar ${client?.name}`}
+        </h2>
+        <p className="mt-1 mb-5 text-sm text-[var(--color-muted)]">
+          Identidade, linguagem e padrões usados na criação dos anúncios.
+        </p>
+        <form onSubmit={submit} className="space-y-5">
+          <fieldset disabled={isPending} className="grid gap-4 sm:grid-cols-2">
             <Field label="Nome">
               <input
                 value={nome}
@@ -198,13 +204,16 @@ export default function ClientForm(props: ClientFormProps) {
                   setPolicyMode(event.target.value === 'block' ? 'block' : 'warn')
                 }
               >
-                <option value="warn">warn</option>
-                <option value="block">block</option>
+                <option value="warn">Avisar e permitir revisão</option>
+                <option value="block">Bloquear violações</option>
               </select>
             </Field>
 
             <div className="sm:col-span-2">
-              <Field label="Template de nomeação">
+              <Field
+                label="Padrão dos nomes"
+                hint="Variáveis entre chaves são preenchidas automaticamente."
+              >
                 <input
                   value={namingTemplate}
                   onChange={(event) => setNamingTemplate(event.target.value)}
@@ -215,7 +224,7 @@ export default function ClientForm(props: ClientFormProps) {
             </div>
 
             <div className="sm:col-span-2">
-              <Field label="Tom">
+              <Field label="Tom de voz">
                 <input
                   value={tone}
                   onChange={(event) => setTone(event.target.value)}
@@ -245,7 +254,7 @@ export default function ClientForm(props: ClientFormProps) {
               />
             </Field>
 
-            <Field label="Claims permitidos (um por linha)">
+            <Field label="Promessas permitidas (uma por linha)">
               <textarea
                 value={allowedClaims}
                 onChange={(event) => setAllowedClaims(event.target.value)}
@@ -264,7 +273,10 @@ export default function ClientForm(props: ClientFormProps) {
             </Field>
 
             <div className="sm:col-span-2">
-              <Field label="Default UTM (chave=valor, um por linha)">
+              <Field
+                label="UTMs padrão"
+                hint="Uma chave=valor por linha. Ex.: utm_source=instagram."
+              >
                 <textarea
                   value={defaultUtm}
                   onChange={(event) => setDefaultUtm(event.target.value)}
@@ -291,22 +303,31 @@ export default function ClientForm(props: ClientFormProps) {
                 checked={advantageOptOut}
                 onChange={(event) => setAdvantageOptOut(event.target.checked)}
               />
-              <span>Desativar Advantage+ Creative?</span>
+              <span>Desativar melhorias automáticas Advantage+ Creative</span>
             </label>
+          </fieldset>
+
+          <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--color-border)] pt-4">
+            <Button
+              variant="secondary"
+              label="Fechar"
+              isDisabled={isPending}
+              onClick={() => setOpen(false)}
+            />
+            <Button
+              variant="primary"
+              label={isPending ? 'Salvando...' : submitLabel}
+              type="submit"
+              isDisabled={isPending}
+            />
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button variant="primary" label={isPending ? 'Salvando...' : submitLabel} type="submit" isDisabled={isPending} />
-
-            {isCreate ? null : (
-              <Button variant="secondary" label="Fechar" isDisabled={isPending} onClick={() => setOpen(false)} />
-            )}
-          </div>
-
-          {erro ? <p className="text-sm text-[var(--color-danger)]">{erro}</p> : null}
-          {sucesso ? <p className="text-sm text-[var(--color-ok)]">{sucesso}</p> : null}
+          {erro ? (
+            <p role="alert" className="notice notice-error">
+              {erro}
+            </p>
+          ) : null}
         </form>
-      ) : null}
+      </Dialog>
     </div>
   );
 }

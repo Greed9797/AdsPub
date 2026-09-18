@@ -4,7 +4,13 @@ import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
 import AccountDefaultsForm from './account-defaults-form';
 import ConnectionForm from './connection-form';
-import { criarConexao, girarToken, salvarDefaults, sincronizarConexao, testarConexao } from './actions';
+import {
+  criarConexao,
+  girarToken,
+  salvarDefaults,
+  sincronizarConexao,
+  testarConexao,
+} from './actions';
 import { TableCell, TableRow } from '@astryxdesign/core/Table';
 
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
@@ -46,7 +52,10 @@ export default async function ContasPage() {
 
   return (
     <div className="space-y-6">
-      <PageHead title="Conexões" description="Ligação com a Meta, contas de anúncio e padrões de publicação." />
+      <PageHead
+        title="Conexões Meta"
+        description="Conecte empresas, sincronize contas e defina a identidade padrão dos anúncios."
+      />
 
       {isAdmin && !passosCompletos ? (
         <Card title="Primeiros passos">
@@ -78,7 +87,15 @@ export default async function ContasPage() {
                   }`}
                 >
                   {passo.feito ? (
-                    <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      viewBox="0 0 12 12"
+                      className="h-3 w-3"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <path d="M2.5 6.5 5 9l4.5-6" />
                     </svg>
                   ) : (
@@ -99,14 +116,19 @@ export default async function ContasPage() {
         title="Contas de anúncio"
         action={
           accounts.length > 0 ? (
-            <span className="text-xs tabular-nums text-[var(--color-muted)]">{accounts.length}</span>
+            <span className="text-xs tabular-nums text-[var(--color-muted)]">
+              {accounts.length}
+            </span>
           ) : undefined
         }
       >
         {accounts.length === 0 ? (
-          <Empty title="Nenhuma conta disponível" hint="Sincronize uma conexão para importar contas." />
+          <Empty
+            title="Nenhuma conta disponível"
+            hint="Sincronize uma conexão para importar contas."
+          />
         ) : (
-          <Table head={canEditDefaults ? [...head, 'Defaults'] : head}>
+          <Table head={canEditDefaults ? [...head, 'Padrões'] : head} className="accounts-table">
             {accounts.map((account) => {
               const pausedUntil = account.paused_until;
               const lastSyncedAt = account.last_synced_at;
@@ -123,7 +145,7 @@ export default async function ContasPage() {
                   <TableCell>
                     {account.client_id === null
                       ? '—'
-                      : clientNameById.get(account.client_id) ?? account.client_id}
+                      : (clientNameById.get(account.client_id) ?? account.client_id)}
                   </TableCell>
                   <TableCell>{account.default_page_id ?? '—'}</TableCell>
                   <TableCell>{account.default_ig_user_id ?? '—'}</TableCell>
@@ -149,7 +171,11 @@ export default async function ContasPage() {
                   </TableCell>
                   {canEditDefaults ? (
                     <TableCell>
-                      <AccountDefaultsForm account={account} salvarDefaults={salvarDefaults} />
+                      <AccountDefaultsForm
+                        account={account}
+                        clients={clients}
+                        salvarDefaults={salvarDefaults}
+                      />
                     </TableCell>
                   ) : null}
                 </TableRow>

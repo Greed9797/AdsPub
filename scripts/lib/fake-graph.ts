@@ -17,6 +17,8 @@ export interface FakeGraph {
   count(key: string): number;
   /** Faz as próximas `times` chamadas a `key` (`"POST act_x/ads"`) falharem com erro transitório. */
   failNext(key: string, times: number): void;
+  /** Define o veredito de revisão devolvido no batch de status dos anúncios. */
+  setReview(review: { effective_status: string; ad_review_feedback?: Record<string, unknown> }): void;
   ids: {
     campaign: string;
     adset: string;
@@ -74,6 +76,10 @@ export function createFakeGraph(options: FakeGraphOptions = {}): FakeGraph {
   const calls = new Map<string, number>();
   let adFailuresLeft = options.failCreateAdTimes ?? 0;
   let videoChecksLeft = options.videoProcessingChecks ?? 0;
+  /** Veredito devolvido no batch de status; o smoke troca para provar reprovação. */
+  let review: { effective_status: string; ad_review_feedback?: Record<string, unknown> } = {
+    effective_status: 'PENDING_REVIEW',
+  };
   /** Falhas transientes pendentes por endpoint, alimentadas por `failNext`. */
   const failuresLeft = new Map<string, number>();
 
@@ -153,12 +159,37 @@ export function createFakeGraph(options: FakeGraphOptions = {}): FakeGraph {
       return json({ data: [{ id: '99887766554433', name: 'Pixel Loja Teste' }] });
     }
 
+    // A conta sincronizada tem 1 campanha e 1 conjunto já existentes: é o que
+    // alimenta o cache que a validação usa para julgar ref `existing`.
     if (method === 'GET' && path.endsWith('/campaigns')) {
-      return json({ data: [] });
+      return json({
+        data: [
+          {
+            id: ids.campaign,
+            name: 'Sempre ativa - Vendas',
+            objective: 'OUTCOME_SALES',
+            status: 'ACTIVE',
+            effective_status: 'ACTIVE',
+            special_ad_categories: [],
+          },
+        ],
+      });
     }
 
     if (method === 'GET' && path.endsWith('/adsets')) {
-      return json({ data: [] });
+      return json({
+        data: [
+          {
+            id: ids.adset,
+            campaign_id: ids.campaign,
+            name: 'Sempre ativa - Advantage+',
+            optimization_goal: 'OFFSITE_CONVERSIONS',
+            billing_event: 'IMPRESSIONS',
+            status: 'ACTIVE',
+            effective_status: 'ACTIVE',
+          },
+        ],
+      });
     }
 
     if (method === 'POST' && path.endsWith('/adimages')) {
@@ -237,8 +268,8 @@ export function createFakeGraph(options: FakeGraphOptions = {}): FakeGraph {
           code: 200,
           body: JSON.stringify({
             id: request.relative_url.split('?')[0],
-            effective_status: 'PENDING_REVIEW',
             configured_status: 'PAUSED',
+            ...review,
           }),
         })),
       );
@@ -293,6 +324,9 @@ export function createFakeGraph(options: FakeGraphOptions = {}): FakeGraph {
     calls,
     count: (key) => calls.get(key) ?? 0,
     failNext: (key, times) => failuresLeft.set(key, times),
+    setReview: (next) => {
+      review = next;
+    },
     ids,
   };
 }

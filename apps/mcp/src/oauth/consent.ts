@@ -72,6 +72,7 @@ export interface ConsentView {
   csrf: string;
   userName: string;
   userEmail: string;
+  userRole: string;
   writeAllowed: boolean;
 }
 
@@ -101,14 +102,7 @@ export function renderConsent(view: ConsentView): string {
       ${hidden}
     <ul>
       <li><span class="muted">✓</span> ${escapeHtml(SCOPE_LABELS[SCOPE_READ] ?? SCOPE_READ)}</li>
-      <li>
-        <label>
-          <input type="checkbox" name="scope_write" value="1" ${view.writeAllowed ? 'checked' : ''}>
-          <span>
-            ${escapeHtml(SCOPE_LABELS[SCOPE_WRITE] ?? SCOPE_WRITE)}
-            <br><span class="warn">Publicar cria anúncios de verdade e gasta verba da conta.</span>
-          </span>
-        </label>
+      <li>${view.writeAllowed ? `<label><input type="checkbox" name="scope_write" value="1"><span>${escapeHtml(SCOPE_LABELS[SCOPE_WRITE] ?? SCOPE_WRITE)}<br><span class="warn">Publicar cria anúncios de verdade e gasta verba da conta.</span></span></label>` : `<span class="muted">Sem permissão de alteração para o papel ${escapeHtml(view.userRole)} (somente leitura).</span>`}
       </li>
     </ul>
     <p class="muted">O acesso vale 30 dias, renova sozinho enquanto estiver em uso e pode ser cortado desconectando o aplicativo.</p>

@@ -18,7 +18,7 @@ export default async function InteligenciaPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  await requireSession();
+  const user = await requireSession();
   const raw = await searchParams;
   const accountId = first(raw.ad_account_id);
   const accounts = await api<AdAccount[]>('/ad-accounts');
@@ -26,25 +26,36 @@ export default async function InteligenciaPage({
 
   return (
     <div className="space-y-6">
-      <PageHead title="Inteligência" description="Fatos, hipóteses e próximos testes." />
-      <Card>
-        <form method="get" action="/inteligencia" className="flex flex-wrap items-end gap-3">
-          <Field label="Conta" className="w-full sm:w-64">
-            <select name="ad_account_id" defaultValue={accountId ?? ''} className={inputClass}>
-              <option value="">Selecione</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Button variant="primary" label="Usar conta" type="submit" />
-        </form>
-      </Card>
+      <PageHead
+        title="Inteligência"
+        description="Transforme dados de desempenho e análises de criativos em hipóteses para os próximos anúncios."
+      />
+      <form method="get" action="/inteligencia" className="toolbar">
+        <Field label="Conta" className="w-full sm:w-64">
+          <select name="ad_account_id" defaultValue={accountId ?? ''} className={inputClass}>
+            <option value="">Selecione</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Button variant="secondary" label="Usar conta" type="submit" />
+      </form>
       {!accountId || !selected?.client_id ? (
         <Card>
-          <Empty title="Nenhuma conta selecionada" hint="Selecione uma conta para gerar relatórios." />
+          <Empty
+            title="Nenhuma conta selecionada"
+            hint="Selecione uma conta para gerar relatórios."
+          />
+        </Card>
+      ) : user.role === 'viewer' ? (
+        <Card>
+          <Empty
+            title="Somente leitura"
+            hint="Geração de relatório restrita a gestor. Peça a um gestor para gerar."
+          />
         </Card>
       ) : (
         <Card title="Relatório de criativos">

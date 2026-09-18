@@ -174,8 +174,12 @@ export async function runSync(
     if (error instanceof MetaApiError && error.isAuth) {
       await meta.handleAuthFailure(connection.id, error.translated.title);
     } else {
+      // Falha que não é de autorização (rede, 5xx, ativo inacessível) não
+      // derruba a conexão: com `needs_attention` o próprio sync passaria a
+      // pular no early-return acima e nem o retry do job nem o ciclo de 6h
+      // tentariam de novo — só humano reativaria. O motivo fica em
+      // `last_error`, à vista em /contas, e a conexão segue tentável.
       await updateConnectionStatus(ctx.db, connection.id, {
-        status: 'needs_attention',
         lastError: error instanceof Error ? error.message : String(error),
       });
       await alert({

@@ -8,22 +8,34 @@
  *
  * ATENÇÃO: apaga os dados do banco apontado por DATABASE_URL.
  */
+import { randomUUID } from 'node:crypto';
 import { AiClient } from '@adpub/ai';
 import { ingestFile, tempFileFromBytes } from '@adpub/assets';
 import { QUEUES, RETRY, loadServerEnv } from '@adpub/config';
-import { mintSessionToken } from '@adpub/auth';
+import { hashPassword, mintSessionToken } from '@adpub/auth';
 import {
   activeBindingForDraft,
+  claimDriveImportJob,
   createConnection,
   createDb,
+  beginMetaWrite,
+  draftWriteKey,
+  finishMetaWrite,
+  lostMetaWrite,
+  purgeResolvedMetaWrites,
+  refWriteKey,
   deleteDraftsOfBatch,
   getBatch,
   getAccount,
   getConnectionRow,
+  getDriveImportJob,
   claimDraft,
+  claimRef,
+  getRef,
   getDraft,
   markDraftsQueued,
   listAudit,
+  listBatches,
   listDraftsOfBatch,
   setAccountPages,
   swapBatchPlan,
@@ -31,11 +43,13 @@ import {
   updateAccountDefaults,
   updateConnectionStatus,
   upsertAccounts,
+  upsertAdsetsCache,
+  upsertCampaignsCache,
   upsertInstagramAccounts,
   upsertPages,
   upsertPixels,
   truncateAllTables,
-  upsertUserFromLogin,
+  createUser,
   type DraftInsert,
 } from '@adpub/db';
 import {
@@ -49,13 +63,17 @@ import {
 import { MetaClient, MetaApiError, MetaTimeoutError } from '@adpub/meta-client';
 import { Storage } from '@adpub/storage';
 import { buildApp } from '@adpub/api/app';
+import { createQueues } from '@adpub/api/queues';
 import type { ApiDeps, JobRef, Queues } from '@adpub/api/lib/deps';
+import { ensureCampaign } from '@adpub/worker/publish/refs';
 import { AccountAuthError, runPublish } from '@adpub/worker/publish/pipeline';
 import { runAnalysis } from '@adpub/worker/analysis/run';
+import { runDriveImport } from '@adpub/worker/drive/import';
 import { runInsightsSync } from '@adpub/worker/insights/sync';
 import type { MetaFactory } from '@adpub/worker/meta';
 import { runStatusPoll } from '@adpub/worker/poll/status';
-import { runSync } from '@adpub/worker/sync/connection';
+import { runSync, type SyncJobData } from '@adpub/worker/sync/connection';
+import { reconcileSyncSchedulers } from '@adpub/worker/sync/schedule';
 import { createAlerter } from '@adpub/worker/alerts';
 import { createMetaFactory } from '@adpub/worker/meta';
 import { createPublishProcessor } from '@adpub/worker/publish/handler';
@@ -90,6 +108,15 @@ function check(label: string, condition: boolean, detail?: unknown): void {
 
 function phase(title: string): void {
   console.log(`\n▸ ${title}`);
+}
+
+/**
+ * Espera curta para polling de estado (fila real, worker inline).
+ * `Promise.withResolvers` só existe a partir de ES2024 e o projeto compila
+ * para ES2023 — por isso a forma com executor.
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** Falha ruidosamente quando a API responde fora do esperado. */
@@ -188,6 +215,8 @@ async function main(): Promise<void> {
   const metaFactory = createMetaFactory(workerCtx, alert);
 
   const publishedDrafts: string[] = [];
+  /** Itens que o smoke finge ter job vivo na fila (prova do 409 na retomada). */
+  const jobsVivos = new Set<string>();
   const queues: Queues = {
     async enqueueSync(connectionId) {
       await runSync(workerCtx, metaFactory, alert, { connectionId });
@@ -198,8 +227,16 @@ async function main(): Promise<void> {
       await runAnalysis(workerCtx, deps.ai, { jobId });
       return { job_id: `analysis-${jobId}`, queue: 'adpub.analysis' };
     },
-    async enqueueImportDrive() {
-      return { job_id: 'drive-1', queue: 'adpub.drive-import' };
+    async enqueueImportDrive(input) {
+      // Como no analysis: o stub roda o worker inline (o BullMQ só enfileira).
+      // Sem GOOGLE_SERVICE_ACCOUNT_JSON o worker falha e a rota devolve o job
+      // `failed` com o motivo — é a prova de observabilidade sem rede.
+      try {
+        await runDriveImport(workerCtx, { ...input, actorId: input.actorId ?? null });
+      } catch {
+        /* job falho: como o BullMQ faria */
+      }
+      return { job_id: `drive-${input.jobId}`, queue: 'adpub.drive-import' };
     },
     async enqueuePublish(items) {
       const refs: JobRef[] = [];
@@ -216,6 +253,9 @@ async function main(): Promise<void> {
         refs.push({ job_id: `draft-${item.draftId}`, queue: 'adpub.publish' });
       }
       return refs;
+    },
+    async publishJobAlive(draftId) {
+      return jobsVivos.has(draftId);
     },
     async enqueueInsights(input) {
       try {
@@ -241,12 +281,13 @@ async function main(): Promise<void> {
     apiTier: 'limited',
   });
 
-  const admin = await upsertUserFromLogin(db, {
+  const admin = await createUser(db, {
     email: `admin@${env.AUTH_ALLOWED_DOMAIN}`,
     name: 'Admin Smoke',
-    googleSub: 'google-sub-smoke',
+    role: 'admin',
+    passwordHash: hashPassword('smoke-admin-senha-0123456789'),
   });
-  check('primeiro usuário do domínio nasce admin', admin.role === 'admin', admin.role);
+  check('admin do smoke criado com senha', Boolean(admin.passwordHash), admin.role);
   const token = await mintSessionToken(
     { id: admin.id, email: admin.email, name: admin.name, role: admin.role },
     env.AUTH_SECRET,
@@ -377,6 +418,132 @@ async function main(): Promise<void> {
   check('dedupe por sha256 reaproveita o criativo', dedupe.reused && dedupe.asset.id === ingested.asset.id, {
     reused: dedupe.reused,
   });
+
+  // A importação do Drive é observável: a rota cria a linha `queued`, o worker
+  // marca o resto, e a tela acompanha por job — sem depender do Redis. Sem
+  // config do Google, falha com o motivo gravado, não some na fila.
+  const driveQueued = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/assets/import-drive',
+      headers: auth,
+      payload: { client_id: client.id, folder_url: 'https://drive.google.com/drive/folders/pasta-1' },
+    })
+    .then((r) => r.json())) as {
+    job_id: string;
+    status: string;
+    queue_job_id: string;
+  };
+  check(
+    'importação do Drive cria job observável',
+    driveQueued.status === 'queued' && Boolean(driveQueued.job_id) && Boolean(driveQueued.queue_job_id),
+    { status: driveQueued.status, job_id: driveQueued.job_id },
+  );
+  const driveJob = (await app
+    .inject({ method: 'GET', url: `/api/v1/drive-import-jobs/${driveQueued.job_id}`, headers: auth })
+    .then((r) => r.json())) as {
+    status: string;
+    error: string | null;
+    queue_wait_ms: number | null;
+    run_ms: number | null;
+  };
+  check(
+    'job do Drive termina com motivo, não some na fila',
+    driveJob.status === 'failed' && /GOOGLE_SERVICE_ACCOUNT_JSON/.test(driveJob.error ?? ''),
+    { status: driveJob.status, error: driveJob.error },
+  );
+  check(
+    'job do Drive mede espera e execução',
+    driveJob.queue_wait_ms !== null && driveJob.run_ms !== null,
+    { queue_wait_ms: driveJob.queue_wait_ms, run_ms: driveJob.run_ms },
+  );
+  // Pasta diferente é outro job, com o mesmo id estável de fila.
+  const driveDupe = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/assets/import-drive',
+      headers: auth,
+      payload: { client_id: client.id, folder_url: 'https://drive.google.com/drive/folders/pasta-2' },
+    })
+    .then((r) => r.json())) as { job_id: string; status: string; queue_job_id: string };
+  check(
+    'pasta diferente abre outro job com id de fila estável',
+    driveDupe.status === 'queued' &&
+      driveDupe.job_id !== driveQueued.job_id &&
+      driveDupe.queue_job_id === `drive-${driveDupe.job_id}`,
+    { job_id: driveDupe.job_id, queue_job_id: driveDupe.queue_job_id },
+  );
+  // O stub roda o worker inline e a pasta-2 falha sem config do Google: o job
+  // está `failed`, então reivindicar volta nulo — a transição `queued` →
+  // `running` só acontece uma vez, sem reimportar.
+  const driveReivindicado = await claimDriveImportJob(db, driveDupe.job_id);
+  const driveDupeAtual = await getDriveImportJob(db, driveDupe.job_id);
+  check(
+    'claim atômico não ressuscita job encerrado',
+    driveReivindicado === null && driveDupeAtual?.status === 'failed',
+    { status: driveDupeAtual?.status },
+  );
+  // Worker morto após o claim não trava a pasta: `running` com batida antiga
+  // é órfão e volta para a fila; `running` recente continua dedupado.
+  await sql`UPDATE drive_import_jobs SET status = 'running', updated_at = now() - interval '1 hour' WHERE id = ${driveDupe.job_id}`;
+  const driveOrfao = await claimDriveImportJob(db, driveDupe.job_id);
+  check('job running órfão volta para a fila', driveOrfao?.status === 'running', {
+    status: driveOrfao?.status,
+  });
+  const driveRecente = await claimDriveImportJob(db, driveDupe.job_id);
+  check('job running recente não roda duas vezes', driveRecente === null, {
+    reivindicado: driveRecente !== null,
+  });
+  // POST com `running` recente (batida renovada pelo claim acima) dedupa sem
+  // reenfileirar — prova da rota, não só do claim direto.
+  const driveDedupeRecente = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/assets/import-drive',
+      headers: auth,
+      payload: { client_id: client.id, folder_url: 'https://drive.google.com/drive/folders/pasta-2' },
+    })
+    .then((r) => r.json())) as { job_id: string; queue_job_id: string | null };
+  check(
+    'POST da pasta running recente dedupa',
+    driveDedupeRecente.job_id === driveDupe.job_id && driveDedupeRecente.queue_job_id === null,
+    driveDedupeRecente,
+  );
+  // Envelhece para o POST provar retomada COM execução: o stub roda o worker
+  // inline, então o órfão tem de sair de `running` para `failed` (sem config
+  // do Google) — não basta voltar `queue_job_id`.
+  await sql`UPDATE drive_import_jobs SET updated_at = now() - interval '1 hour' WHERE id = ${driveDupe.job_id}`;
+  const driveRetomada = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/assets/import-drive',
+      headers: auth,
+      payload: { client_id: client.id, folder_url: 'https://drive.google.com/drive/folders/pasta-2' },
+    })
+    .then((r) => r.json())) as { job_id: string; queue_job_id: string | null };
+  const driveRetomadaAtual = await getDriveImportJob(db, driveDupe.job_id);
+  check(
+    'POST da pasta órfã retoma e executa',
+    driveRetomada.job_id === driveDupe.job_id &&
+      driveRetomada.queue_job_id === `drive-${driveDupe.job_id}` &&
+      driveRetomadaAtual?.status === 'failed',
+    { retomada: driveRetomada, status: driveRetomadaAtual?.status },
+  );
+  // Job encerrado libera a pasta: novo POST abre outro job (reimportar após
+  // falha é permitido — o índice parcial só barra linha aberta).
+  const driveReimport = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/assets/import-drive',
+      headers: auth,
+      payload: { client_id: client.id, folder_url: 'https://drive.google.com/drive/folders/pasta-2' },
+    })
+    .then((r) => r.json())) as { job_id: string; queue_job_id: string | null };
+  check(
+    'pasta com job encerrado abre novo job',
+    driveReimport.job_id !== driveDupe.job_id && driveReimport.queue_job_id === `drive-${driveReimport.job_id}`,
+    driveReimport,
+  );
 
   phase('US3 — briefing → plano de IA → itens');
   deps.ai = new AiClient({
@@ -515,16 +682,166 @@ async function main(): Promise<void> {
     orfao.json(),
   );
 
+  phase('FR-021/Etapa 2 — dono do dado é cobrado na entrada');
+  const foraDaConta = await app.inject({
+    method: 'PUT',
+    url: `/api/v1/batches/${manualBatch.id}/plan`,
+    headers: auth,
+    payload: {
+      ...manualPlan,
+      campaigns: [],
+      adsets: [],
+      items: [
+        {
+          ...manualPlan.items[0],
+          campaign_ref: { kind: 'existing', id: '23850000000000999' },
+          adset_ref: { kind: 'existing', id: graph.ids.adset },
+        },
+      ],
+    },
+  });
+  check('ref existente de outra conta é recusada (422)', foraDaConta.statusCode === 422, foraDaConta.json());
+  check(
+    'erro nomeia a campanha de fora da conta',
+    JSON.stringify(foraDaConta.json()).includes('23850000000000999'),
+    foraDaConta.json(),
+  );
+
+  // Criativo de outro cliente não entra em lote deste cliente — hoje o plano
+  // aceitava o ID e o item nascia sem asset.
+  const outroCliente = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/clients',
+      headers: auth,
+      payload: {
+        name: 'Outra Loja',
+        landing_domains: ['outraloja.com.br'],
+        default_utm: {},
+        policy_mode: 'block',
+      },
+    })
+    .then((r) => r.json())) as { id: string };
+  const outroFixture = await tempFileFromBytes({
+    filename: 'outro-cliente.jpg',
+    bytes: new Uint8Array(png),
+    mime: 'image/jpeg',
+  });
+  const outroAsset = await ingestFile(
+    { db, storage },
+    { clientId: outroCliente.id, file: outroFixture.file, source: 'upload' },
+  );
+  await outroFixture.cleanup();
+  const assetInvasor = await app.inject({
+    method: 'PUT',
+    url: `/api/v1/batches/${manualBatch.id}/plan`,
+    headers: auth,
+    payload: {
+      ...manualPlan,
+      items: [{ ...manualPlan.items[0], asset_ids: [outroAsset.asset.id] }],
+    },
+  });
+  check('criativo de outro cliente é recusado (422)', assetInvasor.statusCode === 422, assetInvasor.json());
+  check(
+    'erro nomeia o criativo de fora do cliente',
+    JSON.stringify(assetInvasor.json()).includes(outroAsset.asset.id),
+    assetInvasor.json(),
+  );
+
+  // Manager sem conta atribuída não alcança o cliente por nenhuma porta.
+  const manager = await createUser(db, {
+    email: `manager@${env.AUTH_ALLOWED_DOMAIN}`,
+    name: 'Manager Smoke',
+    role: 'manager',
+    passwordHash: hashPassword('smoke-manager-senha-0123456789'),
+  });
+  const managerAuth = {
+    authorization: `Bearer ${await mintSessionToken(
+      { id: manager.id, email: manager.email, name: manager.name, role: manager.role },
+      env.AUTH_SECRET,
+    )}`,
+  };
+  const assetsAlheios = await app.inject({
+    method: 'GET',
+    url: `/api/v1/assets?client_id=${client.id}`,
+    headers: managerAuth,
+  });
+  check('manager sem conta não lista criativos do cliente (403)', assetsAlheios.statusCode === 403, assetsAlheios.json());
+  const clientesDoManager = (await app
+    .inject({ method: 'GET', url: '/api/v1/clients', headers: managerAuth })
+    .then((r) => r.json())) as Array<{ id: string }>;
+  check('lista de clientes do manager vem vazia', clientesDoManager.length === 0, clientesDoManager);
+  const loteAlheio = await app.inject({
+    method: 'POST',
+    url: '/api/v1/batches',
+    headers: managerAuth,
+    payload: {
+      client_id: client.id,
+      ad_account_id: AD_ACCOUNT_ID,
+      name: 'Lote fora do escopo',
+      mode: 'manual',
+    },
+  });
+  check('manager sem conta não cria lote do cliente (403)', loteAlheio.statusCode === 403, loteAlheio.json());
+  const clienteInexistente = await app.inject({
+    method: 'GET',
+    url: '/api/v1/assets?client_id=00000000-0000-4000-8000-000000000000',
+    headers: auth,
+  });
+  check('cliente inexistente devolve 404', clienteInexistente.statusCode === 404, clienteInexistente.json());
+
+  // O plano válido volta ao lugar: as fases seguintes contam com ele.
+  expect<{ items: unknown[] }>(
+    'plano manual restaurado após as recusas',
+    await app.inject({
+      method: 'PUT',
+      url: `/api/v1/batches/${manualBatch.id}/plan`,
+      headers: auth,
+      payload: manualPlan,
+    }),
+    200,
+  );
+
   phase('US4 — validação bloqueia antes da Meta');
   const second = planned.items[1];
   if (!second) throw new Error('smoke sem segundo item');
   const blockedItem = second.id;
   const blockedCopy = second.copy;
+
+  /** A revisão cobra a versão do item; validar e editar incrementam. */
+  async function itemVersion(batchId: string, itemId: string): Promise<number> {
+    const body = (await app
+      .inject({ method: 'GET', url: `/api/v1/batches/${batchId}`, headers: auth })
+      .then((r) => r.json())) as { items: Array<{ id: string; version: number }> };
+    const item = body.items.find((row) => row.id === itemId);
+    if (!item) throw new Error(`item ${itemId} fora do lote ${batchId}`);
+    return item.version;
+  }
+
+  const versaoAtual = await itemVersion(batch.id, blockedItem);
+  const semVersao = await app.inject({
+    method: 'PATCH',
+    url: `/api/v1/batches/${batch.id}/items/${blockedItem}`,
+    headers: auth,
+    payload: { copy: { ...blockedCopy, headline: 'Sem versão' } },
+  });
+  check('edição sem versão é recusada (422)', semVersao.statusCode === 422, semVersao.json());
+  const versaoVelha = await app.inject({
+    method: 'PATCH',
+    url: `/api/v1/batches/${batch.id}/items/${blockedItem}`,
+    headers: auth,
+    payload: { version: versaoAtual - 1, copy: { ...blockedCopy, headline: 'Versão velha' } },
+  });
+  check('edição com versão velha bate de frente (409)', versaoVelha.statusCode === 409, versaoVelha.json());
+
   const patched = await app.inject({
     method: 'PATCH',
     url: `/api/v1/batches/${batch.id}/items/${blockedItem}`,
     headers: auth,
-    payload: { copy: { ...blockedCopy, link: 'https://dominio-nao-permitido.com/x' } },
+    payload: {
+      version: versaoAtual,
+      copy: { ...blockedCopy, link: 'https://dominio-nao-permitido.com/x' },
+    },
   });
   check('item editado', patched.statusCode === 200, patched.json());
 
@@ -541,6 +858,12 @@ async function main(): Promise<void> {
     blockedReport?.errors.some((error) => error.code === 'copy.link_domain') === true,
     blockedReport?.errors,
   );
+  const loteEditado = await getBatch(db, batch.id);
+  check(
+    'lote com item bloqueado não fica aprovado',
+    loteEditado?.approvalFingerprint === null && !!loteEditado?.validatedAt,
+    { fingerprint: loteEditado?.approvalFingerprint, validated_at: loteEditado?.validatedAt },
+  );
 
   const publishBlocked = await app.inject({
     method: 'POST',
@@ -555,7 +878,10 @@ async function main(): Promise<void> {
     method: 'PATCH',
     url: `/api/v1/batches/${batch.id}/items/${blockedItem}`,
     headers: auth,
-    payload: { copy: { ...blockedCopy, link: LANDING } },
+    payload: {
+      version: await itemVersion(batch.id, blockedItem),
+      copy: { ...blockedCopy, link: LANDING },
+    },
   });
   const report2 = (await app
     .inject({ method: 'POST', url: `/api/v1/batches/${batch.id}/validate`, headers: auth })
@@ -567,8 +893,27 @@ async function main(): Promise<void> {
     method: 'PATCH',
     url: `/api/v1/batches/${batch.id}/items/${blockedItem}`,
     headers: auth,
-    payload: { copy: { ...blockedCopy, link: LANDING, headline: 'Título pós-validação' } },
+    payload: {
+      version: await itemVersion(batch.id, blockedItem),
+      copy: { ...blockedCopy, link: LANDING, headline: 'Título pós-validação' },
+    },
   });
+  const loteSemAprovacao = await getBatch(db, batch.id);
+  check(
+    'edição derruba a aprovação gravada no lote',
+    loteSemAprovacao?.approvalFingerprint === null,
+    loteSemAprovacao?.approvalFingerprint,
+  );
+  // A tela precisa saber que a aprovação caiu: sem isso o botão publicar
+  // promete o que a API recusa.
+  const detalheSemAprovacao = (await app
+    .inject({ method: 'GET', url: `/api/v1/batches/${batch.id}`, headers: auth })
+    .then((r) => r.json())) as { approval: { approved: boolean; validated_at: string | null } };
+  check(
+    'detalhe do lote informa aprovação caída',
+    detalheSemAprovacao.approval.approved === false,
+    detalheSemAprovacao.approval,
+  );
   const publishStale = await app.inject({
     method: 'POST',
     url: `/api/v1/batches/${batch.id}/publish`,
@@ -580,6 +925,14 @@ async function main(): Promise<void> {
     .inject({ method: 'POST', url: `/api/v1/batches/${batch.id}/validate`, headers: auth })
     .then((r) => r.json())) as { can_publish: boolean };
   check('revalidar restaura a aprovação', report3.can_publish === true, report3);
+  const detalheAprovado = (await app
+    .inject({ method: 'GET', url: `/api/v1/batches/${batch.id}`, headers: auth })
+    .then((r) => r.json())) as { approval: { approved: boolean; validated_at: string | null } };
+  check(
+    'detalhe informa aprovação válida com data da validação',
+    detalheAprovado.approval.approved === true && !!detalheAprovado.approval.validated_at,
+    detalheAprovado.approval,
+  );
 
   phase('US5 — publicar (tudo PAUSED, idempotente)');
   const publish = (await app
@@ -597,7 +950,13 @@ async function main(): Promise<void> {
     .inject({ method: 'GET', url: `/api/v1/batches/${batch.id}`, headers: auth })
     .then((r) => r.json())) as {
     status: string;
-    items: Array<{ status: string; meta_ids: Record<string, string>; ads_manager_url: string | null }>;
+    items: Array<{
+      id: string;
+      version: number;
+      status: string;
+      meta_ids: Record<string, string>;
+      ads_manager_url: string | null;
+    }>;
   };
   check('todos os itens publicados', detail.items.every((item) => item.status === 'published'), detail.items.map((i) => i.status));
   check('lote fechado como done', detail.status === 'done', detail.status);
@@ -607,6 +966,29 @@ async function main(): Promise<void> {
     detail.items.map((item) => item.meta_ids),
   );
   check('link direto para o anúncio disponível', Boolean(detail.items[0]?.ads_manager_url), detail.items[0]?.ads_manager_url);
+
+  // T-000-3: item publicado sai da revisão — editar a linha não muda a Meta.
+  const publicado = detail.items[0];
+  if (!publicado) throw new Error('smoke sem item publicado para o guarda de edição');
+  const editaPublicado = await app.inject({
+    method: 'PATCH',
+    url: `/api/v1/batches/${batch.id}/items/${publicado.id}`,
+    headers: auth,
+    payload: { version: publicado.version, copy: { ...blockedCopy, headline: 'Reescrita indevida' } },
+  });
+  check('editar item publicado é recusado (422)', editaPublicado.statusCode === 422, editaPublicado.json());
+  const removePublicado = await app.inject({
+    method: 'DELETE',
+    url: `/api/v1/batches/${batch.id}/items/${publicado.id}`,
+    headers: auth,
+  });
+  check('remover item publicado é recusado (422)', removePublicado.statusCode === 422, removePublicado.json());
+  const intacto = await getDraft(db, publicado.id);
+  check(
+    'item publicado segue publicado com os IDs da Meta',
+    intacto?.status === 'published' && intacto?.metaIds?.ad_id === graph.ids.ad,
+    { status: intacto?.status, meta_ids: intacto?.metaIds },
+  );
 
   check('campanha nova criada uma única vez (lock de ref)', graph.count('POST act_1030000000001/campaigns') === 1, graph.calls);
   check('conjunto novo criado uma única vez', graph.count('POST act_1030000000001/adsets') === 1, graph.calls);
@@ -779,6 +1161,33 @@ async function main(): Promise<void> {
   check('status de revisão refletido', polled?.status === 'in_review', polled?.status);
   check('effective_status salvo', polled?.effectiveStatus === 'PENDING_REVIEW', polled?.effectiveStatus);
 
+  // FR-018 na revisão: reprovação da Meta precisa chegar ao detalhe do lote com
+  // o motivo, senão o gestor vê "reprovado" sem saber o que corrigir.
+  graph.setReview({
+    effective_status: 'DISAPPROVED',
+    ad_review_feedback: { global: { MISLEADING_CLAIMS: 'A copy promete resultado garantido.' } },
+  });
+  const pollReprovado = await runStatusPoll(workerCtx, metaFactory);
+  check('poller registrou a reprovação', pollReprovado.updated === 2, pollReprovado);
+  const detalheRevisao = (await app
+    .inject({ method: 'GET', url: `/api/v1/batches/${batch.id}`, headers: auth })
+    .then((r) => r.json())) as {
+    items: Array<{
+      status: string;
+      effective_status: string | null;
+      review_feedback: { global?: Record<string, string> } | null;
+    }>;
+  };
+  const reprovado = detalheRevisao.items.find((item) => item.status === 'disapproved');
+  check(
+    'detalhe do lote mostra reprovação com motivo da Meta',
+    reprovado?.effective_status === 'DISAPPROVED' &&
+      reprovado?.review_feedback?.global?.MISLEADING_CLAIMS ===
+        'A copy promete resultado garantido.',
+    { status: reprovado?.status, effective: reprovado?.effective_status, feedback: reprovado?.review_feedback },
+  );
+  graph.setReview({ effective_status: 'PENDING_REVIEW' });
+
   phase('US6 — auditoria e teto diário');
   const audit = await listAudit(db, { entityType: 'batch', entityId: batch.id, limit: 50 });
   const actions = audit.map((row) => row.action);
@@ -878,6 +1287,213 @@ async function main(): Promise<void> {
   check('lote duplicado para a outra conta', duplicated.ad_account_id === 'act_1030000000002', duplicated.ad_account_id);
   check('itens duplicados voltam para validação', duplicated.items.length === 2, duplicated.items.length);
 
+  // T-000-7: a cópia precisa nascer como plano revisável. Sem `plan` gravado,
+  // toda ref nova chega ao worker sem especificação e o item só falharia em
+  // `ensure_campaign`, depois da revisão e da fila.
+  const planoCopia = (await getBatch(db, duplicated.id))?.plan;
+  const keysCampanha = new Set((planoCopia?.campaigns ?? []).map((campanha) => campanha.key));
+  const keysConjunto = new Set((planoCopia?.adsets ?? []).map((conjunto) => conjunto.key));
+  const itensCopia = await listDraftsOfBatch(db, duplicated.id);
+  check(
+    'cópia grava o plano com especificação de toda ref nova',
+    itensCopia.length === 2 &&
+      itensCopia.every(
+        (item) =>
+          (item.campaignRef.kind === 'existing' || keysCampanha.has(item.campaignRef.key)) &&
+          (item.adsetRef.kind === 'existing' || keysConjunto.has(item.adsetRef.key)),
+      ),
+    { campanhas: [...keysCampanha], conjuntos: [...keysConjunto], itens: itensCopia.length },
+  );
+  check(
+    'cópia nasce sem aprovação herdada',
+    (await getBatch(db, duplicated.id))?.approvalFingerprint === null,
+    (await getBatch(db, duplicated.id))?.approvalFingerprint,
+  );
+
+  // Lote que aponta para campanha/conjunto já existentes na conta de origem: o
+  // ID da conta A não existe em B, então a cópia tem de recriar a estrutura com
+  // o que a sincronização sabe. Os IDs do fake entram no cache junto para as
+  // fases seguintes continuarem apontando para objetos desta conta.
+  await upsertCampaignsCache(db, AD_ACCOUNT_ID, [
+    {
+      id: '23850000000000901',
+      name: 'Sempre Ativa',
+      objective: 'OUTCOME_SALES',
+      status: 'ACTIVE',
+      effectiveStatus: 'ACTIVE',
+      raw: { special_ad_categories: [] },
+    },
+    {
+      id: graph.ids.campaign,
+      name: 'Campanha do fake',
+      objective: 'OUTCOME_SALES',
+      status: 'ACTIVE',
+      effectiveStatus: 'ACTIVE',
+      raw: {},
+    },
+  ]);
+  await upsertAdsetsCache(db, AD_ACCOUNT_ID, [
+    {
+      id: '23850000000000902',
+      campaignId: '23850000000000901',
+      name: 'Retargeting 30d',
+      optimizationGoal: 'OFFSITE_CONVERSIONS',
+      status: 'ACTIVE',
+      effectiveStatus: 'ACTIVE',
+      raw: { billing_event: 'IMPRESSIONS', promoted_object: { pixel_id: PIXEL_ID } },
+    },
+    {
+      id: graph.ids.adset,
+      campaignId: graph.ids.campaign,
+      name: 'Conjunto do fake',
+      optimizationGoal: 'OFFSITE_CONVERSIONS',
+      status: 'ACTIVE',
+      effectiveStatus: 'ACTIVE',
+      raw: { billing_event: 'IMPRESSIONS' },
+    },
+  ]);
+  const loteExistente = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/batches',
+      headers: auth,
+      payload: {
+        client_id: client.id,
+        ad_account_id: AD_ACCOUNT_ID,
+        name: 'Lote em estrutura existente',
+        mode: 'manual',
+      },
+    })
+    .then((r) => r.json())) as { id: string };
+  const itensExistente = await app.inject({
+    method: 'POST',
+    url: `/api/v1/batches/${loteExistente.id}/items`,
+    headers: auth,
+    payload: [
+      {
+        format: 'single_image',
+        asset_ids: [ingested.asset.id],
+        copy: manualCopy('dup'),
+        campaign_ref: { kind: 'existing', id: '23850000000000901' },
+        adset_ref: { kind: 'existing', id: '23850000000000902' },
+        page_id: PAGE_ID,
+        ig_user_id: IG_ID,
+      },
+    ],
+  });
+  check('item em estrutura existente aceito', itensExistente.statusCode === 201, itensExistente.json());
+
+  const copiaExistente = (await app
+    .inject({
+      method: 'POST',
+      url: `/api/v1/batches/${loteExistente.id}/duplicate`,
+      headers: auth,
+      payload: { ad_account_id: 'act_1030000000002' },
+    })
+    .then((r) => r.json())) as { id: string };
+  const planoRecriado = (await getBatch(db, copiaExistente.id))?.plan;
+  const itensRecriados = await listDraftsOfBatch(db, copiaExistente.id);
+  check(
+    'estrutura existente é recriada como campanha/conjunto novos com especificação',
+    planoRecriado?.campaigns.length === 1 &&
+      planoRecriado.campaigns[0]?.name === 'Sempre Ativa' &&
+      planoRecriado.campaigns[0]?.objective === 'OUTCOME_SALES' &&
+      planoRecriado.adsets.length === 1 &&
+      planoRecriado.adsets[0]?.optimization_goal === 'OFFSITE_CONVERSIONS' &&
+      planoRecriado.adsets[0]?.campaign_key === planoRecriado.campaigns[0]?.key &&
+      itensRecriados.every((item) => item.campaignRef.kind === 'new' && item.adsetRef.kind === 'new'),
+    { campanhas: planoRecriado?.campaigns, conjuntos: planoRecriado?.adsets },
+  );
+  check(
+    'o que a Meta não informa vira pendência da revisão',
+    (planoRecriado?.pending ?? []).some((pendencia) => /Orçamento da campanha/.test(pendencia.reason)) &&
+      (planoRecriado?.pending ?? []).some((pendencia) => /Público e orçamento/.test(pendencia.reason)),
+    planoRecriado?.pending,
+  );
+
+  // A prova do plano revisável: a cópia publica. Antes, a ref nova chegava ao
+  // worker sem especificação e o item morria em `ensure_campaign`.
+  const validaCopia = (await app
+    .inject({ method: 'POST', url: `/api/v1/batches/${copiaExistente.id}/validate`, headers: auth })
+    .then((r) => r.json())) as { can_publish: boolean; items: Array<{ errors: unknown[] }> };
+  check('cópia passa na validação da conta de destino', validaCopia.can_publish === true, validaCopia.items);
+  const publicaCopia = (await app
+    .inject({
+      method: 'POST',
+      url: `/api/v1/batches/${copiaExistente.id}/publish`,
+      headers: auth,
+      payload: { confirm_count: 1, only_failed: false },
+    })
+    .then((r) => r.json())) as { queued: number };
+  check('cópia é enfileirada', publicaCopia.queued === 1, publicaCopia);
+  const itemCopia = (await listDraftsOfBatch(db, copiaExistente.id))[0];
+  check(
+    'campanha e conjunto da cópia nascem na conta de destino',
+    graph.count('POST act_1030000000002/campaigns') === 1 &&
+      graph.count('POST act_1030000000002/adsets') === 1 &&
+      itemCopia?.metaIds.campaign_id === graph.ids.campaign &&
+      itemCopia?.metaIds.adset_id === graph.ids.adset &&
+      itemCopia?.metaIds.ad_id === graph.ids.ad,
+    { status: itemCopia?.status, meta_ids: itemCopia?.metaIds, erro: itemCopia?.error },
+  );
+
+  // Lote legado (foi duplicado pelo código antigo, que não gravava plano):
+  // refs novas sem especificação. Duplicar agora recusa citando a ref, em vez
+  // de gerar outro lote que só falha em `ensure_campaign`.
+  const loteLegado = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/batches',
+      headers: auth,
+      payload: {
+        client_id: client.id,
+        ad_account_id: AD_ACCOUNT_ID,
+        name: 'Lote sem especificação de ref',
+        mode: 'manual',
+      },
+    })
+    .then((r) => r.json())) as { id: string };
+  await swapBatchPlan(db, {
+    batchId: loteLegado.id,
+    plan: { campaigns: [], adsets: [], items: [], pending: [], notes: 'legado' } as BatchPlan,
+    drafts: [
+      {
+        batchId: loteLegado.id,
+        position: 0,
+        campaignRef: { kind: 'new', key: 'camp-legado' },
+        adsetRef: { kind: 'new', key: 'conj-legado' },
+        format: 'single_image',
+        assetIds: [ingested.asset.id],
+        copy: copySchema.parse(manualCopy('legado')),
+        name: 'legado-0',
+        pageId: PAGE_ID,
+        igUserId: IG_ID,
+        idempotencyKey: `legado-${loteLegado.id}`,
+        status: 'ready',
+      },
+    ],
+    blockingStatuses: [],
+  });
+  const recusaLegado = await app.inject({
+    method: 'POST',
+    url: `/api/v1/batches/${loteLegado.id}/duplicate`,
+    headers: auth,
+    payload: { ad_account_id: 'act_1030000000002' },
+  });
+  const problemaLegado = recusaLegado.json() as { detail?: string };
+  check(
+    'duplicar lote sem especificação de ref é recusado citando a ref',
+    recusaLegado.statusCode === 422 && /camp-legado/.test(problemaLegado.detail ?? ''),
+    { status: recusaLegado.statusCode, detail: problemaLegado.detail },
+  );
+  // Recusa pré-criação: nenhum lote vazio fica para trás.
+  const lotesAposRecusa = (await listBatches(db, {})).filter(
+    (lote) => lote.duplicatedFrom === loteLegado.id,
+  );
+  check('duplicação recusada não deixa lote órfão', lotesAposRecusa.length === 0, {
+    total: lotesAposRecusa.length,
+  });
+
   phase('US8 — painel de saúde');
   const totalCalls = () => [...graph.calls.values()].reduce((a, b) => a + b, 0);
   const writesAntesDiag = totalCalls();
@@ -913,6 +1529,12 @@ async function main(): Promise<void> {
 
   phase('SC-004/T070/T071 — falhas injetadas, retomada e zero duplicata');
   const stressAccount = 'act_1030000000002';
+  const antesStress = {
+    campanhas: graph.count('POST act_1030000000002/campaigns'),
+    conjuntos: graph.count('POST act_1030000000002/adsets'),
+    anuncios: graph.count('POST act_1030000000002/ads'),
+    criativos: graph.count('POST act_1030000000002/adcreatives'),
+  };
   const stressBatch = (await app
     .inject({
       method: 'POST',
@@ -1002,25 +1624,23 @@ async function main(): Promise<void> {
     stressFinal.length === 5 && stressFinal.every((item) => item.status === 'published'),
     stressFinal.map((item) => item.status),
   );
+  // Contagens por delta: a conta é reusada por outras fases, então o que prova
+  // "criado uma única vez" é o que esta fase criou, não o total da conta.
+  const criadosNoStress = {
+    campanhas: graph.count(`POST ${stressAccount}/campaigns`) - antesStress.campanhas,
+    conjuntos: graph.count(`POST ${stressAccount}/adsets`) - antesStress.conjuntos,
+    anuncios: graph.count(`POST ${stressAccount}/ads`) - antesStress.anuncios,
+    criativos: graph.count(`POST ${stressAccount}/adcreatives`) - antesStress.criativos,
+  };
   check(
     'campanha e conjunto novos criados uma única vez para os 5 itens (T071)',
-    graph.count(`POST ${stressAccount}/campaigns`) === 3 &&
-      graph.count(`POST ${stressAccount}/adsets`) === 3,
-    {
-      campanhas: graph.count(`POST ${stressAccount}/campaigns`),
-      conjuntos: graph.count(`POST ${stressAccount}/adsets`),
-    },
+    criadosNoStress.campanhas === 3 && criadosNoStress.conjuntos === 3,
+    criadosNoStress,
   );
   check(
     'nenhum anúncio duplicado apesar das falhas (SC-004)',
-    graph.count(`POST ${stressAccount}/ads`) === 8 &&
-      graph.count(`POST ${stressAccount}/adcreatives`) === 8,
-    {
-      anuncios: graph.count(`POST ${stressAccount}/ads`),
-      criativos: graph.count(`POST ${stressAccount}/adcreatives`),
-      execucoes,
-      erros,
-    },
+    criadosNoStress.anuncios === 8 && criadosNoStress.criativos === 8,
+    { ...criadosNoStress, execucoes, erros },
   );
 
   phase('SC-004 — entrega duplicada do mesmo job cria um anúncio só');
@@ -1198,7 +1818,7 @@ async function main(): Promise<void> {
       break;
     }
     if (atual?.status === 'failed') break;
-    await new Promise((r) => setTimeout(r, 250));
+    await sleep(250);
   }
   const crashFinal = await getDraft(db, crashItem.id);
   await crashWorker.close();
@@ -1225,6 +1845,379 @@ async function main(): Promise<void> {
     { antes: adsAntesCrash, depois: graph.count(`POST ${stressAccount}/ads`) },
   );
 
+  phase('R4 — despacho reenfileira de verdade e retomada preserva o pipeline');
+  // O `jobId` é estável (`draft:<id>`) e o BullMQ ignora `add` de id existente:
+  // sem limpar o registro do job encerrado, reprocessar não gerava execução.
+  const produtor = createQueues(redis);
+  const filaDespacho = new Queue<PublishJobData>(QUEUES.publish, { connection: redis });
+  await filaDespacho.obliterate({ force: true });
+  const noop = new Worker(QUEUES.publish, async () => ({ ok: true }), {
+    connection: redis,
+    concurrency: 1,
+  });
+  const despacho = { draftId: crashItem.id, adAccountId: stressAccount, batchId: crashBatch.id };
+  await produtor.enqueuePublish([despacho]);
+  let concluidos = 0;
+  for (let i = 0; i < 40; i += 1) {
+    concluidos = (await filaDespacho.getJobCounts()).completed ?? 0;
+    if (concluidos > 0) break;
+    await sleep(100);
+  }
+  await noop.close();
+  check('primeiro despacho executou', concluidos === 1, concluidos);
+  await produtor.enqueuePublish([despacho]);
+  const contagemPos = await filaDespacho.getJobCounts();
+  check(
+    'reenfileirar item com job já encerrado volta para a fila',
+    contagemPos.waiting === 1,
+    contagemPos,
+  );
+  await produtor.enqueuePublish([despacho]);
+  const contagemDupla = await filaDespacho.getJobCounts();
+  check(
+    'pedido redundante não cria segundo job para o mesmo item',
+    contagemDupla.waiting === 1,
+    contagemDupla,
+  );
+  check(
+    'job vivo é reconhecido pela retomada',
+    (await produtor.publishJobAlive(crashItem.id)) === true,
+    { draft: crashItem.id },
+  );
+  await filaDespacho.obliterate({ force: true });
+  check(
+    'sem job na fila a retomada sabe que o item está órfão',
+    (await produtor.publishJobAlive(crashItem.id)) === false,
+    { draft: crashItem.id },
+  );
+  await filaDespacho.close();
+  await produtor.close();
+
+  // Retomada de item órfão: job perdido, etapa e IDs preservados. O item é
+  // parado em `creating_ad` com o criativo já criado — retomar não pode
+  // recriar criativo nem duplicar anúncio.
+  const orfaoBatch = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/batches',
+      headers: auth,
+      payload: {
+        client_id: client.id,
+        ad_account_id: stressAccount,
+        name: 'Lote retomada órfã',
+        mode: 'manual',
+      },
+    })
+    .then((r) => r.json())) as { id: string };
+  expect(
+    'lote órfão com 1 item',
+    await app.inject({
+      method: 'PUT',
+      url: `/api/v1/batches/${orfaoBatch.id}/plan`,
+      headers: auth,
+      payload: {
+        ...manualPlan,
+        campaigns: [],
+        adsets: [],
+        items: [
+          {
+            ...manualPlan.items[0],
+            campaign_ref: { kind: 'existing', id: graph.ids.campaign },
+            adset_ref: { kind: 'existing', id: graph.ids.adset },
+            copies: [manualCopy('orfao')],
+          },
+        ],
+      },
+    }),
+    200,
+  );
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/batches/${orfaoBatch.id}/validate`,
+    headers: auth,
+  });
+  const orfaoItem = (await listDraftsOfBatch(db, orfaoBatch.id))[0]!;
+  await markDraftsQueued(db, [orfaoItem.id]);
+  // Estado de worker morto no meio: etapa `create_ad` com campanha, conjunto e
+  // criativo já resolvidos na Meta — é o que o pipeline persiste passo a passo.
+  await transitionDraft(db, orfaoItem.id, 'creating_ad', {
+    step: 'create_ad',
+    metaIds: {
+      image_hashes: { [ingested.asset.id]: graph.ids.imageHash },
+      video_ids: {},
+      thumbnail_hashes: {},
+      campaign_id: graph.ids.campaign,
+      adset_id: graph.ids.adset,
+      creative_id: graph.ids.creative,
+    },
+  });
+  jobsVivos.add(orfaoItem.id);
+  const retomaOcupada = await app.inject({
+    method: 'POST',
+    url: `/api/v1/batches/${orfaoBatch.id}/items/${orfaoItem.id}/retry`,
+    headers: auth,
+  });
+  check('retomada com job vivo é recusada (409)', retomaOcupada.statusCode === 409, retomaOcupada.json());
+  jobsVivos.delete(orfaoItem.id);
+  const criativosAntes = graph.count(`POST ${stressAccount}/adcreatives`);
+  const adsAntesOrfao = graph.count(`POST ${stressAccount}/ads`);
+  const retomada = await app.inject({
+    method: 'POST',
+    url: `/api/v1/batches/${orfaoBatch.id}/items/${orfaoItem.id}/retry`,
+    headers: auth,
+  });
+  check('item órfão é retomado (202)', retomada.statusCode === 202, retomada.json());
+  const orfaoFinal = await getDraft(db, orfaoItem.id);
+  check('retomada publica o item', orfaoFinal?.status === 'published', orfaoFinal?.status);
+  check(
+    'retomou em create_ad: não recriou o criativo',
+    graph.count(`POST ${stressAccount}/adcreatives`) === criativosAntes,
+    { antes: criativosAntes, depois: graph.count(`POST ${stressAccount}/adcreatives`) },
+  );
+  check(
+    'retomada criou um anúncio só',
+    graph.count(`POST ${stressAccount}/ads`) - adsAntesOrfao === 1,
+    { antes: adsAntesOrfao, depois: graph.count(`POST ${stressAccount}/ads`) },
+  );
+  const trilhaRetomada = (await listAudit(db, { entityId: orfaoItem.id })).map((row) => row.action);
+  check('retomada auditada como item.resume', trilhaRetomada.includes('item.resume'), trilhaRetomada);
+
+  phase('R5 — ref compartilhada: create sem resposta não duplica campanha');
+  // Dois itens dividem a mesma campanha nova. O primeiro perde a resposta do
+  // `POST /campaigns`: a campanha pode existir na Meta, então a ref congela e
+  // ninguém recria — nem o outro item do lote.
+  const refBatch = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/batches',
+      headers: auth,
+      payload: {
+        client_id: client.id,
+        ad_account_id: stressAccount,
+        name: 'Lote ref compartilhada',
+        mode: 'manual',
+      },
+    })
+    .then((r) => r.json())) as { id: string };
+  expect(
+    'lote com campanha nova compartilhada por 2 itens',
+    await app.inject({
+      method: 'PUT',
+      url: `/api/v1/batches/${refBatch.id}/plan`,
+      headers: auth,
+      payload: {
+        ...manualPlan,
+        campaigns: [{ ...manualPlan.campaigns[0], key: 'ref-c1' }],
+        adsets: [{ ...manualPlan.adsets[0], key: 'ref-a1', campaign_key: 'ref-c1' }],
+        items: [
+          {
+            ...manualPlan.items[0],
+            campaign_ref: { kind: 'new', key: 'ref-c1' },
+            adset_ref: { kind: 'new', key: 'ref-a1' },
+            copies: [manualCopy('ref1'), manualCopy('ref2')],
+          },
+        ],
+      },
+    }),
+    200,
+  );
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/batches/${refBatch.id}/validate`,
+    headers: auth,
+  });
+  const refItems = await listDraftsOfBatch(db, refBatch.id);
+  await markDraftsQueued(db, refItems.map((item) => item.id));
+
+  // Graph que perde a resposta do primeiro create de campanha.
+  let campanhaTimeoutInjetado = false;
+  const flakyCampanha: MetaFactory = {
+    ...metaFactory,
+    forAccount: async (accountId, draftId) => {
+      const client = await metaFactory.forAccount(accountId, draftId);
+      const originalPost = client.post.bind(client);
+      client.post = (async <T>(path: string, body: Record<string, unknown> = {}): Promise<T> => {
+        if (!campanhaTimeoutInjetado && /\/campaigns$/.test(path)) {
+          campanhaTimeoutInjetado = true;
+          throw new MetaTimeoutError(path, 1);
+        }
+        return originalPost(path, body);
+      }) as typeof client.post;
+      return client;
+    },
+  };
+
+  const campanhasAntes = graph.count(`POST ${stressAccount}/campaigns`);
+  let refPrimeiroErro = '';
+  try {
+    await runPublish(
+      workerCtx,
+      flakyCampanha,
+      alert,
+      { draftId: refItems[0]!.id, adAccountId: stressAccount, batchId: refBatch.id },
+      1,
+    );
+  } catch (error) {
+    refPrimeiroErro = (error as Error).name;
+  }
+  const refCongelada = await getRef(db, refBatch.id, 'campaign:ref-c1');
+  check(
+    'timeout no create de campanha congela a ref',
+    refCongelada?.state === 'needs_reconciliation',
+    { state: refCongelada?.state, erro: refPrimeiroErro },
+  );
+  check('ref congelada não fica com dono', !refCongelada?.claimOwner, refCongelada?.claimOwner);
+
+  // Segundo item do lote: encontra a ref congelada e para sem tocar na Meta.
+  let refSegundoErro = '';
+  try {
+    await runPublish(
+      workerCtx,
+      metaFactory,
+      alert,
+      { draftId: refItems[1]!.id, adAccountId: stressAccount, batchId: refBatch.id },
+      1,
+    );
+  } catch (error) {
+    refSegundoErro = (error as Error).name;
+  }
+  check(
+    'outro item do lote não recria a campanha congelada',
+    refSegundoErro === 'RefReconciliationRequiredError' &&
+      graph.count(`POST ${stressAccount}/campaigns`) === campanhasAntes,
+    {
+      erro: refSegundoErro,
+      antes: campanhasAntes,
+      depois: graph.count(`POST ${stressAccount}/campaigns`),
+    },
+  );
+  const refItem2 = await getDraft(db, refItems[1]!.id);
+  check(
+    'item para em falha apontando a ref, com ação clara',
+    refItem2?.status === 'failed' && (refItem2?.error?.action ?? '').includes('campaign:ref-c1'),
+    { status: refItem2?.status, error: refItem2?.error },
+  );
+  expect(
+    'ref que não existe no lote é 404',
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/batches/${refBatch.id}/refs/${encodeURIComponent('adset:ref-a1')}/resolve`,
+      headers: auth,
+      payload: { decision: 'adopt', meta_id: graph.ids.adset, motive: 'chute' },
+    }),
+    404,
+  );
+  expect(
+    'adotar sem informar o id conferido é 422',
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/batches/${refBatch.id}/refs/${encodeURIComponent('campaign:ref-c1')}/resolve`,
+      headers: auth,
+      payload: { decision: 'adopt', motive: 'sem conferir' },
+    }),
+    422,
+  );
+
+  // Operador confere na Meta: a campanha existe. Adota e o lote segue.
+  expect(
+    'adotar a campanha conferida (202)',
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/batches/${refBatch.id}/refs/${encodeURIComponent('campaign:ref-c1')}/resolve`,
+      headers: auth,
+      payload: {
+        decision: 'adopt',
+        meta_id: graph.ids.campaign,
+        motive: 'campanha criada na Meta, sem resposta',
+      },
+    }),
+    202,
+  );
+  expect(
+    'ref já resolvida não pode ser resolvida de novo (422)',
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/batches/${refBatch.id}/refs/${encodeURIComponent('campaign:ref-c1')}/resolve`,
+      headers: auth,
+      payload: { decision: 'discard', motive: 'tentativa dupla' },
+    }),
+    422,
+  );
+  const refDetalhe = expect<{ refs: Array<{ ref_key: string; state: string; meta_id: string }> }>(
+    'detalhe do lote mostra as refs',
+    await app.inject({ method: 'GET', url: `/api/v1/batches/${refBatch.id}`, headers: auth }),
+    200,
+  );
+  check(
+    'ref adotada aparece criada com o id conferido',
+    refDetalhe.refs.some(
+      (ref) => ref.ref_key === 'campaign:ref-c1' && ref.state === 'created' && ref.meta_id === graph.ids.campaign,
+    ),
+    refDetalhe.refs,
+  );
+  const adsAntesRef = graph.count(`POST ${stressAccount}/ads`);
+  await markDraftsQueued(db, [refItems[1]!.id]);
+  await runPublish(
+    workerCtx,
+    metaFactory,
+    alert,
+    { draftId: refItems[1]!.id, adAccountId: stressAccount, batchId: refBatch.id },
+    1,
+  );
+  const refItem2Final = await getDraft(db, refItems[1]!.id);
+  check(
+    'com a ref adotada o item publica usando a campanha conferida',
+    refItem2Final?.status === 'published' &&
+      refItem2Final?.metaIds?.campaign_id === graph.ids.campaign,
+    { status: refItem2Final?.status, metaIds: refItem2Final?.metaIds },
+  );
+  check(
+    'nenhuma campanha nova foi criada na retomada',
+    graph.count(`POST ${stressAccount}/campaigns`) === campanhasAntes,
+    graph.count(`POST ${stressAccount}/campaigns`),
+  );
+  check(
+    'a retomada criou um anúncio',
+    graph.count(`POST ${stressAccount}/ads`) - adsAntesRef === 1,
+    { antes: adsAntesRef, depois: graph.count(`POST ${stressAccount}/ads`) },
+  );
+  const trilhaRef = (await listAudit(db, { entityType: 'batch_ref' })).map((row) => row.action);
+  check('resolução da ref fica na auditoria', trilhaRef.includes('ref.resolve'), trilhaRef);
+
+  // Dono morto no meio da criação: posse expirada é reassumida, sem esperar
+  // para sempre por um worker que não existe mais.
+  const posseExpirada = await claimRef(db, {
+    batchId: refBatch.id,
+    refKey: 'campaign:orfa',
+    kind: 'campaign',
+    spec: { name: 'órfã' },
+    owner: 'worker-morto',
+    leaseMs: -1_000,
+  });
+  const reassumida = await claimRef(db, {
+    batchId: refBatch.id,
+    refKey: 'campaign:orfa',
+    kind: 'campaign',
+    spec: { name: 'órfã' },
+    owner: 'worker-vivo',
+  });
+  check(
+    'posse expirada de ref é reassumida pelo próximo item',
+    posseExpirada.role === 'owner' && reassumida.role === 'owner',
+    { primeiro: posseExpirada.role, segundo: reassumida.role },
+  );
+  const posseViva = await claimRef(db, {
+    batchId: refBatch.id,
+    refKey: 'campaign:orfa',
+    kind: 'campaign',
+    spec: { name: 'órfã' },
+    owner: 'worker-atrasado',
+  });
+  check(
+    'posse válida faz o outro item esperar, não criar',
+    posseViva.role === 'waiting',
+    posseViva.role,
+  );
 
   phase('T-000-2 — timeout após create não duplica: reconciliação + retomada auditada');
   const recBatch = (await app
@@ -1368,6 +2361,256 @@ async function main(): Promise<void> {
     resolucoes.map((a) => a.action),
   );
 
+  // Morte do processo entre o POST e a persistência do ID: nenhum erro chega
+  // ao app, então o único vestígio é a escrita registrada antes de sair.
+  const perdidoBatch = (await app
+    .inject({
+      method: 'POST',
+      url: '/api/v1/batches',
+      headers: auth,
+      payload: {
+        client_id: client.id,
+        ad_account_id: stressAccount,
+        name: 'Lote escrita perdida',
+        mode: 'manual',
+      },
+    })
+    .then((r) => r.json())) as { id: string };
+  expect(
+    'lote da escrita perdida com 1 item',
+    await app.inject({
+      method: 'PUT',
+      url: `/api/v1/batches/${perdidoBatch.id}/plan`,
+      headers: auth,
+      payload: {
+        ...manualPlan,
+        campaigns: [],
+        adsets: [],
+        items: [
+          {
+            format: 'single_image',
+            asset_ids: [ingested.asset.id],
+            campaign_ref: { kind: 'existing', id: graph.ids.campaign },
+            adset_ref: { kind: 'existing', id: graph.ids.adset },
+            copies: [manualCopy('perdido')],
+            page_id: PAGE_ID,
+          },
+        ],
+      },
+    }),
+    200,
+  );
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/batches/${perdidoBatch.id}/validate`,
+    headers: auth,
+  });
+  const [itemPerdido] = await listDraftsOfBatch(db, perdidoBatch.id);
+  await markDraftsQueued(db, [itemPerdido!.id]);
+  // Mesma função que o pipeline usa antes do POST; o desfecho nunca chega
+  // porque a execução "morreu".
+  await beginMetaWrite(db, {
+    writeKey: draftWriteKey(itemPerdido!.id, 'create_ad'),
+    method: 'POST',
+    endpoint: `${stressAccount}/ads`,
+    adAccountId: stressAccount,
+    adDraftId: itemPerdido!.id,
+  });
+  const adsAntesPerdido = graph.count(`POST ${stressAccount}/ads`);
+  let perdidoErro = '';
+  try {
+    await runPublish(
+      workerCtx,
+      metaFactory,
+      alert,
+      { draftId: itemPerdido!.id, adAccountId: stressAccount, batchId: perdidoBatch.id },
+      1,
+    );
+  } catch (error) {
+    perdidoErro = (error as Error).name;
+  }
+  const perdidoTravado = await getDraft(db, itemPerdido!.id);
+  check(
+    'escrita sem desfecho barra o create_ad em vez de repetir',
+    perdidoErro === 'ReconciliationRequiredError' &&
+      perdidoTravado?.status === 'needs_reconciliation' &&
+      graph.count(`POST ${stressAccount}/ads`) - adsAntesPerdido === 0,
+    {
+      erro: perdidoErro,
+      status: perdidoTravado?.status,
+      criados: graph.count(`POST ${stressAccount}/ads`) - adsAntesPerdido,
+    },
+  );
+  check(
+    'etapas anteriores seguiram: só o create ficou travado',
+    perdidoTravado?.step === 'create_ad' && Boolean(perdidoTravado?.metaIds?.creative_id),
+    { etapa: perdidoTravado?.step, criativo: perdidoTravado?.metaIds?.creative_id },
+  );
+  // Pedido inválido não pode encerrar a escrita: o guarda tem de sobreviver ao
+  // 422, senão a retomada seguinte recria às cegas.
+  const adoptIncompleto = await app.inject({
+    method: 'POST',
+    url: `/api/v1/batches/${perdidoBatch.id}/items/${itemPerdido!.id}/resolve`,
+    headers: auth,
+    payload: { decision: 'adopt', motive: 'sem conferir nada' },
+  });
+  check(
+    'adopt sem meta_ids é recusado e a escrita perdida continua de pé',
+    adoptIncompleto.statusCode === 422 &&
+      (await lostMetaWrite(db, draftWriteKey(itemPerdido!.id, 'create_ad'))) !== undefined,
+    { status: adoptIncompleto.statusCode, body: adoptIncompleto.json() },
+  );
+  expect(
+    'adotar o anúncio conferido na Meta (202)',
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/batches/${perdidoBatch.id}/items/${itemPerdido!.id}/resolve`,
+      headers: auth,
+      payload: {
+        decision: 'adopt',
+        meta_ids: { ...(perdidoTravado?.metaIds ?? {}), ad_id: '23850000000000909' },
+        step: 'create_ad',
+        motive: 'anúncio existe na Meta, app não registrou',
+      },
+    }),
+    202,
+  );
+  check(
+    'decisão humana encerra a escrita perdida',
+    (await lostMetaWrite(db, draftWriteKey(itemPerdido!.id, 'create_ad'))) === undefined,
+    await lostMetaWrite(db, draftWriteKey(itemPerdido!.id, 'create_ad')),
+  );
+  await runPublish(
+    workerCtx,
+    metaFactory,
+    alert,
+    { draftId: itemPerdido!.id, adAccountId: stressAccount, batchId: perdidoBatch.id },
+    1,
+  );
+  const perdidoResolvido = await getDraft(db, itemPerdido!.id);
+  check(
+    'retomada com ID adotado publica sem criar segundo anúncio',
+    perdidoResolvido?.status === 'published' &&
+      graph.count(`POST ${stressAccount}/ads`) - adsAntesPerdido === 0,
+    {
+      status: perdidoResolvido?.status,
+      criados: graph.count(`POST ${stressAccount}/ads`) - adsAntesPerdido,
+    },
+  );
+
+  // Ref compartilhada: a posse expirada é reassumida por outro item, e sem o
+  // registro da escrita a campanha do lote inteiro seria criada duas vezes.
+  const refPerdida = 'campaign:perdida';
+  const specPerdida = {
+    name: 'Campanha perdida',
+    objective: 'OUTCOME_TRAFFIC',
+    buying_type: 'AUCTION',
+    special_ad_categories: [],
+  } as const;
+  await claimRef(db, {
+    batchId: perdidoBatch.id,
+    refKey: refPerdida,
+    kind: 'campaign',
+    spec: { ...specPerdida },
+    owner: 'worker-morto',
+    leaseMs: -1,
+  });
+  await beginMetaWrite(db, {
+    writeKey: refWriteKey(perdidoBatch.id, refPerdida),
+    method: 'POST',
+    endpoint: `${stressAccount}/campaigns`,
+    adAccountId: stressAccount,
+  });
+  const campanhasAntesPerdida = graph.count(`POST ${stressAccount}/campaigns`);
+  const graphRef = await metaFactory.forAccount(stressAccount);
+  let refErro = '';
+  try {
+    await ensureCampaign(workerCtx, graphRef, {
+      batchId: perdidoBatch.id,
+      adAccountId: stressAccount,
+      ref: { kind: 'new', key: 'perdida' },
+      spec: { ...specPerdida, special_ad_categories: [] },
+      owner: 'worker-vivo',
+    });
+  } catch (error) {
+    refErro = (error as Error).name;
+  }
+  const refTravada = await getRef(db, perdidoBatch.id, refPerdida);
+  check(
+    'posse reassumida não recria campanha com escrita pendente',
+    refErro === 'RefReconciliationRequiredError' &&
+      refTravada?.state === 'needs_reconciliation' &&
+      graph.count(`POST ${stressAccount}/campaigns`) - campanhasAntesPerdida === 0,
+    {
+      erro: refErro,
+      estado: refTravada?.state,
+      criadas: graph.count(`POST ${stressAccount}/campaigns`) - campanhasAntesPerdida,
+    },
+  );
+  expect(
+    'adotar a campanha conferida na Meta (202)',
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/batches/${perdidoBatch.id}/refs/${encodeURIComponent(refPerdida)}/resolve`,
+      headers: auth,
+      payload: { decision: 'adopt', meta_id: graph.ids.campaign, motive: 'campanha existe na Meta' },
+    }),
+    202,
+  );
+  const refAdotada = await ensureCampaign(workerCtx, graphRef, {
+    batchId: perdidoBatch.id,
+    adAccountId: stressAccount,
+    ref: { kind: 'new', key: 'perdida' },
+    spec: { ...specPerdida, special_ad_categories: [] },
+    owner: 'worker-vivo',
+  });
+  check(
+    'ref adotada volta a servir o lote sem nova criação',
+    refAdotada === graph.ids.campaign &&
+      graph.count(`POST ${stressAccount}/campaigns`) - campanhasAntesPerdida === 0,
+    {
+      ref: refAdotada,
+      criadas: graph.count(`POST ${stressAccount}/campaigns`) - campanhasAntesPerdida,
+    },
+  );
+
+  // Purga do rastro: resolvida antiga sai, pendente fica — é ela que barra o
+  // replay, então prazo nenhum pode apagá-la.
+  const rastroResolvido = await beginMetaWrite(db, {
+    writeKey: 'draft:purga-resolvida:create_ad',
+    method: 'POST',
+    endpoint: `${stressAccount}/ads`,
+  });
+  await sql`UPDATE meta_writes SET outcome = 'ok', resolved_at = now() - interval '91 days' WHERE id = ${rastroResolvido}`;
+  const rastroPendente = await beginMetaWrite(db, {
+    writeKey: 'draft:purga-pendente:create_ad',
+    method: 'POST',
+    endpoint: `${stressAccount}/ads`,
+  });
+  await sql`UPDATE meta_writes SET sent_at = now() - interval '91 days' WHERE id = ${rastroPendente}`;
+  // Resolvida hoje: é o histórico de reconciliação do mês, prazo de 30 dias não
+  // a toca. Linha própria para o check não depender de fase anterior.
+  const rastroRecente = await beginMetaWrite(db, {
+    writeKey: 'draft:purga-recente:create_ad',
+    method: 'POST',
+    endpoint: `${stressAccount}/ads`,
+  });
+  await finishMetaWrite(db, rastroRecente, 'ok');
+  await purgeResolvedMetaWrites(db, 30);
+  const sobrouResolvida = (await sql`
+    select count(*)::int as total from meta_writes where id = ${rastroResolvido}
+  `) as unknown as Array<{ total: number }>;
+  const sobrouRecente = (await sql`
+    select count(*)::int as total from meta_writes where id = ${rastroRecente}
+  `) as unknown as Array<{ total: number }>;
+  check(
+    'purga tira só resolvida antiga: pendente e resolvida recente ficam',
+    sobrouResolvida[0]?.total === 0 &&
+      sobrouRecente[0]?.total === 1 &&
+      (await lostMetaWrite(db, 'draft:purga-pendente:create_ad')) !== undefined,
+    { antigas: sobrouResolvida[0]?.total, recentes: sobrouRecente[0]?.total },
+  );
+
   phase('T-001-1 — revogação pós-enqueue barra execução sem tocar na Meta');
   const authBatch = (await app
     .inject({
@@ -1411,6 +2654,18 @@ async function main(): Promise<void> {
   });
   const authItems = await listDraftsOfBatch(db, authBatch.id);
   await markDraftsQueued(db, authItems.map((item) => item.id));
+
+  // Item na fila é do worker: apagar a linha deixaria anúncio sem dono.
+  const removeEnfileirado = await app.inject({
+    method: 'DELETE',
+    url: `/api/v1/batches/${authBatch.id}/items/${authItems[1]!.id}`,
+    headers: auth,
+  });
+  check(
+    'remover item enfileirado é recusado (422)',
+    removeEnfileirado.statusCode === 422,
+    removeEnfileirado.json(),
+  );
 
   // Janela vencida: última checagem velha → revalida remoto e publica.
   await sql`UPDATE meta_connections SET last_checked_at = NOW() - INTERVAL '1 hour' WHERE id = ${connection.id}`;
@@ -1516,6 +2771,25 @@ async function main(): Promise<void> {
     pulado.accounts === 0 && totalCalls() === chamadasAntesSkip,
     { contas: pulado.accounts, chamadas: totalCalls() - chamadasAntesSkip },
   );
+  // A rota manual não promete o que o worker vai pular: conexão sem
+  // autorização é recusada com a ação, e UUID inexistente é 404.
+  const syncBloqueado = await app.inject({
+    method: 'POST',
+    url: `/api/v1/connections/${badConn.id}/sync`,
+    headers: auth,
+  });
+  check(
+    'sync manual recusa conexão sem autorização (409)',
+    syncBloqueado.statusCode === 409 &&
+      /troque o token/.test((syncBloqueado.json() as { detail?: string }).detail ?? ''),
+    syncBloqueado.json(),
+  );
+  const syncFantasma = await app.inject({
+    method: 'POST',
+    url: `/api/v1/connections/${randomUUID()}/sync`,
+    headers: auth,
+  });
+  check('sync manual de conexão inexistente é 404', syncFantasma.statusCode === 404, syncFantasma.statusCode);
   // Rotação com token aceito reativa a conexão.
   const girada = await app.inject({
     method: 'POST',
@@ -1524,6 +2798,20 @@ async function main(): Promise<void> {
     payload: { token: 'EAA-token-novo-nao-real-0123456789012345' },
   });
   check('rotação com token aceito reativa (200)', girada.statusCode === 200, girada.json());
+  // Trocar token é a saída da pausa: sem isto a conexão voltava "Ativa" e a
+  // publicação seguia recusada até a janela de 1h vencer sozinha.
+  const contaLiberada = await getAccount(db, 'act_1030000000009');
+  check(
+    'rotação libera a pausa das contas da conexão',
+    contaLiberada?.pausedUntil === null,
+    contaLiberada?.pausedUntil,
+  );
+  const syncLiberado = await app.inject({
+    method: 'POST',
+    url: `/api/v1/connections/${badConn.id}/sync`,
+    headers: auth,
+  });
+  check('sync manual volta a ser aceito depois da rotação (202)', syncLiberado.statusCode === 202, syncLiberado.json());
   const tokenRuim = await app.inject({
     method: 'POST',
     url: `/api/v1/connections/${badConn.id}/rotate`,
@@ -1531,6 +2819,87 @@ async function main(): Promise<void> {
     payload: { token: 'curto' },
   });
   check('rotação recusa token inválido (422)', tokenRuim.statusCode === 422, tokenRuim.statusCode);
+  // Falha que não é de autorização não pode derrubar a conexão: com
+  // `needs_attention` o próprio sync passa a pular no early-return e nem o
+  // retry do job nem o ciclo de 6h tentam de novo — o ciclo morria esperando
+  // humano para uma queda de rede.
+  const quedaDeRede = new MetaApiError({
+    httpStatus: 500,
+    endpoint: 'v25.0/me',
+    method: 'GET',
+    body: { message: 'Servidor da Meta indisponível.', code: 2 } as never,
+  });
+  const redeFactory: MetaFactory = {
+    ...metaFactory,
+    forConnection: async (connectionId) => {
+      const client = await metaFactory.forConnection(connectionId);
+      const originalGet = client.get.bind(client);
+      client.get = (async <T>(path: string, params?: Record<string, string | number | boolean | undefined | null>): Promise<T> => {
+        if (/(^|\/)me(\?|$)/.test(path)) throw quedaDeRede;
+        return originalGet(path, params);
+      }) as typeof client.get;
+      return client;
+    },
+  };
+  let redeErro = '';
+  try {
+    await runSync(workerCtx, redeFactory, alert, { connectionId: badConn.id });
+  } catch (error) {
+    redeErro = (error as Error).name;
+  }
+  const depoisDaRede = await getConnectionRow(db, badConn.id);
+  check(
+    'falha de rede no sync não derruba a conexão',
+    redeErro === 'MetaApiError' && depoisDaRede?.status === 'active',
+    { erro: redeErro, status: depoisDaRede?.status },
+  );
+  check(
+    'motivo da queda fica à vista em last_error',
+    /indispon/i.test(depoisDaRede?.lastError ?? ''),
+    depoisDaRede?.lastError,
+  );
+  const chamadasAntesRetomada = totalCalls();
+  await runSync(workerCtx, metaFactory, alert, { connectionId: badConn.id });
+  const depoisDaRetomada = await getConnectionRow(db, badConn.id);
+  check(
+    'ciclo seguinte sincroniza sozinho e limpa o erro',
+    totalCalls() > chamadasAntesRetomada && depoisDaRetomada?.lastError === null,
+    { chamadas: totalCalls() - chamadasAntesRetomada, last_error: depoisDaRetomada?.lastError },
+  );
+  // A Graph falsa devolve o mesmo inventário para qualquer BM: os syncs bem
+  // sucedidos acima reapontaram a conta principal para a conexão de teste.
+  // Devolve o vínculo original para as fases seguintes não herdarem fixture.
+  await sql`UPDATE ad_accounts SET connection_id = ${connection.id} WHERE id = ${AD_ACCOUNT_ID}`;
+
+  // Ciclo periódico com Redis de verdade: id estável coalesce cliques e o
+  // agendamento acompanha o banco sem reiniciar o worker.
+  const filaSync = new Queue<SyncJobData>(QUEUES.sync, { connection: redis });
+  await filaSync.obliterate({ force: true });
+  const produtorSync = createQueues(redis);
+  const pedido1 = await produtorSync.enqueueSync(badConn.id);
+  const pedido2 = await produtorSync.enqueueSync(badConn.id);
+  check(
+    'dois cliques em Sincronizar viram um job só',
+    pedido1.job_id === pedido2.job_id && (await filaSync.getJobCounts()).waiting === 1,
+    { pedido1: pedido1.job_id, pedido2: pedido2.job_id, fila: await filaSync.getJobCounts() },
+  );
+  const agendadas = await reconcileSyncSchedulers(db, filaSync);
+  const chaves = (await filaSync.getJobSchedulers()).map((s) => s.key);
+  check(
+    'conexão criada depois do boot entra no ciclo periódico',
+    chaves.includes(`sync:${badConn.id}`) && agendadas >= 2,
+    { agendadas, chaves },
+  );
+  await sql`DELETE FROM meta_connections WHERE id = ${badConn.id}`;
+  await reconcileSyncSchedulers(db, filaSync);
+  check(
+    'conexão apagada não deixa agendador órfão',
+    !(await filaSync.getJobSchedulers()).map((s) => s.key).includes(`sync:${badConn.id}`),
+    (await filaSync.getJobSchedulers()).map((s) => s.key),
+  );
+  await filaSync.obliterate({ force: true });
+  await filaSync.close();
+  await produtorSync.close();
 
   phase('T-004 — sync de Insights vira observação canônica');
   await sql`UPDATE ad_accounts SET client_id = ${client.id} WHERE id = ${stressAccount}`;

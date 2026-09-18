@@ -1,5 +1,11 @@
 import { IngestError, ingestFile } from '@adpub/assets';
-import { audit } from '@adpub/db';
+import {
+  audit,
+  claimDriveImportJob,
+  failDriveImportJob,
+  finishDriveImportJob,
+  getDriveImportJob,
+} from '@adpub/db';
 import { google } from 'googleapis';
 import { createWriteStream } from 'node:fs';
 import { mkdtemp, rm, stat } from 'node:fs/promises';
@@ -9,6 +15,7 @@ import { pipeline } from 'node:stream/promises';
 import type { WorkerContext } from '../context.js';
 
 export interface DriveImportJobData {
+  jobId: string;
   clientId: string;
   folderUrl: string;
   recursive: boolean;
@@ -46,16 +53,68 @@ function driveClient(serviceAccountJson: string) {
   });
   return google.drive({ version: 'v3', auth });
 }
-
 export async function runDriveImport(
   ctx: WorkerContext,
   data: DriveImportJobData,
+): Promise<DriveImportResult> {
+  // Linha concluída ou em execução não roda de novo: reentrega do Redis não
+  // vira segunda importação — mesmo padrão de `runAnalysis`.
+  const job = await getDriveImportJob(ctx.db, data.jobId);
+  if (!job) return { imported: 0, reused: 0, rejected: [] };
+  if (job.status === 'done' || job.status === 'failed') {
+    return { imported: job.imported, reused: job.reused, rejected: job.rejected };
+  }
+  // Claim atômico (`queued` ou `running` órfão → `running`): duas entregas
+  // concorrentes, uma vence; a perdedora volta o parcial sem reimportar.
+  const claimed = await claimDriveImportJob(ctx.db, job.id);
+  if (!claimed) {
+    const atual = await getDriveImportJob(ctx.db, job.id);
+    return { imported: atual?.imported ?? 0, reused: atual?.reused ?? 0, rejected: atual?.rejected ?? [] };
+  }
+  try {
+    const result = await importFolder(ctx, {
+      clientId: job.clientId,
+      folderUrl: job.folderUrl,
+      recursive: job.recursive,
+      actorId: data.actorId,
+    });
+    await finishDriveImportJob(ctx.db, job.id, result);
+    await audit(ctx.db, {
+      actor: { id: data.actorId, email: null },
+      action: 'asset.import_drive',
+      entityType: 'client',
+      entityId: job.clientId,
+      after: {
+        folder: job.folderUrl,
+        job_id: job.id,
+        imported: result.imported,
+        reused: result.reused,
+        rejected: result.rejected.length,
+      },
+    });
+    ctx.log.info({ client: job.clientId, ...result }, 'importação do Drive concluída');
+    return result;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await failDriveImportJob(ctx.db, job.id, message);
+    throw error;
+  }
+}
+
+/**
+ * Baixa e ingere a pasta: separado do ciclo do job para `runDriveImport`
+ * cuidar só de estado/auditoria. Sem config do Google, falha aqui e o job
+ * marca `failed` com o motivo — em vez de ficar `running` para sempre.
+ */
+async function importFolder(
+  ctx: WorkerContext,
+  input: { clientId: string; folderUrl: string; recursive: boolean; actorId: string | null },
 ): Promise<DriveImportResult> {
   if (!ctx.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
     throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não configurado — importação do Drive indisponível.');
   }
   const drive = driveClient(ctx.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-  const rootId = folderIdFromUrl(data.folderUrl);
+  const rootId = folderIdFromUrl(input.folderUrl);
 
   const result: DriveImportResult = { imported: 0, reused: 0, rejected: [] };
   const queue: string[] = [rootId];
@@ -80,7 +139,7 @@ export async function runDriveImport(
       for (const file of response.data.files ?? []) {
         if (!file.id || !file.name) continue;
         if (file.mimeType === 'application/vnd.google-apps.folder') {
-          if (data.recursive) queue.push(file.id);
+          if (input.recursive) queue.push(file.id);
           continue;
         }
         if (Number(file.size ?? 0) > MAX_FILE_BYTES) {
@@ -102,7 +161,7 @@ export async function runDriveImport(
             const ingested = await ingestFile(
               { db: ctx.db, storage: ctx.storage },
               {
-                clientId: data.clientId,
+                clientId: input.clientId,
                 file: {
                   filename: file.name,
                   path,
@@ -111,7 +170,7 @@ export async function runDriveImport(
                 },
                 source: 'drive',
                 driveFileId: file.id,
-                actor: { id: data.actorId },
+                actor: { id: input.actorId },
               },
             );
             if (ingested.reused) result.reused += 1;
@@ -141,19 +200,5 @@ export async function runDriveImport(
     } while (pageToken);
   }
 
-  await audit(ctx.db, {
-    actor: { id: data.actorId },
-    action: 'asset.import_drive',
-    entityType: 'client',
-    entityId: data.clientId,
-    after: {
-      folder: data.folderUrl,
-      imported: result.imported,
-      reused: result.reused,
-      rejected: result.rejected.length,
-    },
-  });
-
-  ctx.log.info({ client: data.clientId, ...result }, 'importação do Drive concluída');
   return result;
 }

@@ -11,13 +11,16 @@ test('lote planejado é validado, publicado e vira anúncio com link', async ({ 
   await page.getByRole('button', { name: 'Validar lote' }).click();
   await expect(page.getByText('lote liberado para publicar')).toBeVisible();
 
-  // A publicação é irreversível do lado da Meta: a UI pede confirmação.
-  page.once('dialog', (dialog) => {
-    expect(dialog.message()).toContain('Publicar 2 anúncios');
-    expect(dialog.message()).toContain('vai gerar cobrança');
-    void dialog.accept();
-  });
-  await page.getByRole('button', { name: 'Publicar 2 anúncios' }).click();
+  // Cancelar a confirmação não inicia a publicação.
+  await page.getByRole('button', { name: 'Publicar 2 anúncios', exact: true }).click();
+  const confirmation = page.getByRole('dialog');
+  await expect(confirmation).toContainText(seed.account.name);
+  await expect(confirmation.getByText(/veiculação.*cobrança/i)).toBeVisible();
+  await confirmation.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(confirmation).not.toBeVisible();
+  await expect(page.getByText('enfileirados: 2')).not.toBeVisible();
+  await page.getByRole('button', { name: 'Publicar 2 anúncios', exact: true }).click();
+  await confirmation.getByRole('button', { name: 'Confirmar publicação' }).click();
 
   await expect(page.getByText('enfileirados: 2')).toBeVisible();
   await expect(page.getByText(`saldo diário: ${seed.account.dailyAdCap - 2}`)).toBeVisible();

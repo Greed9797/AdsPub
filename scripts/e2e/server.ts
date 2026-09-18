@@ -19,14 +19,16 @@ import { promisify } from 'node:util';
 
 import { AiClient, trackedInvoker } from '@adpub/ai';
 import { ingestFile, tempFileFromBytes } from '@adpub/assets';
-import { mintSessionToken } from '@adpub/auth';
+import { hashPassword, mintSessionToken } from '@adpub/auth';
 import { loadServerEnv } from '@adpub/config';
 import {
   createConnection,
   createDb,
+  createUser,
   truncateAllTables,
+  setAccountPages,
   updateAccountDefaults,
-  upsertUserFromLogin,
+  upsertAccounts,
   saveAiUsage,
 } from '@adpub/db';
 import { MetaClient } from '@adpub/meta-client';
@@ -38,6 +40,7 @@ import { createAlerter } from '@adpub/worker/alerts';
 import { createMetaFactory } from '@adpub/worker/meta';
 import type { WorkerContext } from '@adpub/worker/context';
 import { runAnalysis } from '@adpub/worker/analysis/run';
+import { runDriveImport } from '@adpub/worker/drive/import';
 import { runPublish } from '@adpub/worker/publish/pipeline';
 import { runSync } from '@adpub/worker/sync/connection';
 import { Redis } from 'ioredis';
@@ -55,6 +58,8 @@ const LANDING_DOMAIN = 'lojateste.com.br';
 const LANDING = `https://${LANDING_DOMAIN}/inverno`;
 const AD_ACCOUNT_ID = 'act_1030000000001';
 const AD_ACCOUNT_NAME = 'Loja Teste - BR';
+const REVIEW_ACCOUNT_ID = 'act_1030000000002';
+const REVIEW_ACCOUNT_NAME = 'Loja Teste - SP';
 const PAGE_ID = '102030405060708';
 const IG_ID = '17841400000000001';
 const PIXEL_ID = '99887766554433';
@@ -194,8 +199,15 @@ const queues: Queues = {
     await runSync(workerCtx, metaFactory, alert, { connectionId });
     return { job_id: `sync-${connectionId}`, queue: 'adpub.sync' };
   },
-  async enqueueImportDrive() {
-    return { job_id: 'drive-e2e', queue: 'adpub.drive-import' };
+  async enqueueImportDrive(input) {
+    // Mesmo padrão do sync/analysis: o harness roda o worker embutido, então a
+    // tela acompanha o resultado real sem rede.
+    try {
+      await runDriveImport(workerCtx, { ...input, actorId: input.actorId ?? null });
+    } catch {
+      /* job falho: como o BullMQ faria */
+    }
+    return { job_id: `drive-${input.jobId}`, queue: 'adpub.drive-import' };
   },
   async enqueueAnalysis(jobId) {
     // A9: o harness roda o worker embutido — mesma função que a fila chama.
@@ -215,6 +227,10 @@ const queues: Queues = {
       refs.push({ job_id: `draft-${item.draftId}`, queue: 'adpub.publish' });
     }
     return refs;
+  },
+  async publishJobAlive() {
+    // Fila inline: quando a chamada volta, o job já rodou.
+    return false;
   },
   async close() {
     /* nada a fechar: o worker roda inline */
@@ -265,10 +281,11 @@ const connection = await createConnection(db, {
   apiTier: 'limited',
 });
 
-const admin = await upsertUserFromLogin(db, {
+const admin = await createUser(db, {
   email: `admin@${env.AUTH_ALLOWED_DOMAIN}`,
   name: 'Admin E2E',
-  googleSub: 'google-sub-e2e',
+  role: 'admin',
+  passwordHash: hashPassword('e2e-admin-senha-0123456789'),
 });
 const token = await mintSessionToken(
   { id: admin.id, email: admin.email, name: admin.name, role: admin.role },
@@ -313,6 +330,28 @@ const client = await seedCall<{ id: string }>(
 );
 
 await updateAccountDefaults(db, AD_ACCOUNT_ID, {
+  client_id: client.id,
+  default_page_id: PAGE_ID,
+  default_ig_user_id: IG_ID,
+  default_pixel_id: PIXEL_ID,
+  daily_ad_cap: DAILY_AD_CAP,
+});
+
+/**
+ * Segunda conta da mesma BM, só para a jornada de conferência pendente: o teto
+ * diário é por conta e a jornada 5 confere o saldo da conta principal.
+ */
+await upsertAccounts(db, connection.id, [
+  {
+    id: REVIEW_ACCOUNT_ID,
+    name: REVIEW_ACCOUNT_NAME,
+    currency: 'BRL',
+    timezoneName: 'America/Sao_Paulo',
+    accountStatus: 1,
+  },
+]);
+await setAccountPages(db, REVIEW_ACCOUNT_ID, [PAGE_ID]);
+await updateAccountDefaults(db, REVIEW_ACCOUNT_ID, {
   client_id: client.id,
   default_page_id: PAGE_ID,
   default_ig_user_id: IG_ID,
@@ -399,6 +438,7 @@ const seed: SeedData = {
     pixelId: PIXEL_ID,
     dailyAdCap: DAILY_AD_CAP,
   },
+  reviewAccount: { id: REVIEW_ACCOUNT_ID, name: REVIEW_ACCOUNT_NAME },
   asset: { id: ingested.asset.id, filename: ASSET_FILENAME },
   landing: LANDING,
 };

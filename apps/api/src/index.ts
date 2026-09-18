@@ -8,6 +8,7 @@ import { Redis } from 'ioredis';
 import { buildApp } from './app.js';
 import { aiCacheFor } from './services/batch-plan.js';
 import { createQueues } from './queues.js';
+import { redisLoginThrottle } from './lib/login-throttle.js';
 import type { ApiDeps } from './lib/deps.js';
 
 const env = loadServerEnv();
@@ -27,6 +28,7 @@ const storage = new Storage({
   secretKey: env.S3_SECRET_KEY,
 });
 
+const log = redactingLogger(env.LOG_LEVEL);
 function metaClientWith(token: string, connectionId?: string): MetaClient {
   return new MetaClient({
     version: env.META_API_VERSION,
@@ -34,17 +36,19 @@ function metaClientWith(token: string, connectionId?: string): MetaClient {
     appSecret: env.META_APP_SECRET,
     baseUrl: env.META_BASE_URL,
     token,
-    onCall: (log) => {
+    // Constituição VI: perder o registro em silêncio some com a auditoria da
+    // chamada; o pedido segue, mas a falha aparece no log.
+    onCall: (call) => {
       void recordMetaCall(db, {
-        method: log.method,
-        endpoint: log.endpoint,
-        apiVersion: log.apiVersion,
-        statusCode: log.statusCode,
-        latencyMs: log.latencyMs,
-        errorCode: log.errorCode ?? null,
-        errorSubcode: log.errorSubcode ?? null,
+        method: call.method,
+        endpoint: call.endpoint,
+        apiVersion: call.apiVersion,
+        statusCode: call.statusCode,
+        latencyMs: call.latencyMs,
+        errorCode: call.errorCode ?? null,
+        errorSubcode: call.errorSubcode ?? null,
         usage: { connection_id: connectionId ?? null },
-      }).catch(() => undefined);
+      }).catch((error: unknown) => log.warn({ err: error }, 'falha ao registrar chamada'));
     },
   });
 }
@@ -53,6 +57,7 @@ const deps: ApiDeps = {
   db,
   storage,
   queues,
+  loginThrottle: redisLoginThrottle(redis),
   env: {
     authSecret: env.AUTH_SECRET,
     allowedDomain: env.AUTH_ALLOWED_DOMAIN,
@@ -75,7 +80,6 @@ const deps: ApiDeps = {
 
 // A11: cada tentativa que chega ao provedor vira uma linha de consumo, com
 // tokens, latência e custo — inclusive quando a resposta é recusada depois.
-const log = redactingLogger(env.LOG_LEVEL);
 const invokeWithUsage = trackedInvoker(
   anthropicInvoker(env.ANTHROPIC_API_KEY),
   (event) =>

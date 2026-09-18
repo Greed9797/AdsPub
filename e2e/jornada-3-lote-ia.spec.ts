@@ -9,15 +9,14 @@ test('lote no modo IA gera itens com nome e UTM preenchidos', async ({ page, see
   await criarLoteComIa(page, seed, 'Inverno - Semana 2');
 
   await expect(page.getByRole('heading', { name: 'Inverno - Semana 2' })).toBeVisible();
-  await expect(page.getByText(`Conta: ${seed.account.name}`)).toBeVisible();
 
   // 1 criativo × 2 copies = 2 itens.
-  await expect(page.getByRole('heading', { name: 'Itens (2)' })).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: 'Imagem única' })).toHaveCount(2);
   await expect(page.getByText('Coleção de inverno com 20% OFF até sexta.')).toBeVisible();
   await expect(page.getByText('Últimos dias: 20% OFF na coleção de inverno')).toBeVisible();
 
   // A pendência que a IA não resolveu sozinha fica à vista do gestor.
-  await expect(page.getByText('orcamento')).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'orcamento' })).toBeVisible();
 
   // Nomenclatura do cliente: {cliente}_{objetivo}_{data}_{criativo}_{formato}_{v}
   const primeiroItem = page.getByRole('row').filter({ hasText: 'single-image' }).first();

@@ -45,8 +45,6 @@ jobs:
       META_TIER: limited
       AUTH_SECRET: ci-auth-secret-ci-auth-secret
       AUTH_ALLOWED_DOMAIN: empresa.com.br
-      GOOGLE_CLIENT_ID: ci-google-client
-      GOOGLE_CLIENT_SECRET: ci-google-secret
       ANTHROPIC_API_KEY: ci-anthropic-key
       S3_ENDPOINT: http://localhost:9000
       S3_BUCKET: adpub

@@ -88,10 +88,19 @@ export const INSIGHTS_SYNC = {
 } as const;
 
 /** Preço por milhão de tokens, para custo estimado das gerações. */
-export const AI_PRICING_USD_PER_MTOK: Record<string, { input: number; output: number }> = {
+export const AI_PRICING_USD_PER_MTOK: Record<
+  string,
+  { input: number; output: number; cacheRead?: number; cacheWrite?: number }
+> = {
   default: { input: 3, output: 15 },
   'claude-haiku-4-6': { input: 1, output: 5 },
   'claude-sonnet-4-6': { input: 3, output: 15 },
+  /**
+   * Tarifa documentada do provedor (USD/1M): entrada 0.10, saída 0.20,
+   * cache-read 0.002, sem cobrança de cache-write. Estimativa de consumo,
+   * não fatura da assinatura Go.
+   */
+  'opencode-go/muse-spark-1.3-contributor': { input: 0.1, output: 0.2, cacheRead: 0.002, cacheWrite: 0 },
 };
 
 /**

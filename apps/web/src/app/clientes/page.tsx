@@ -16,24 +16,27 @@ export default async function ClientesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHead title="Clientes" description="Cadastro, política e domínios de cada cliente." />
-
-      {canEdit ? (
-        <Card title="Novo cliente">
-          <ClientForm mode="create" salvar={criarCliente} />
-        </Card>
-      ) : null}
+      <PageHead
+        title="Clientes"
+        description="Gerencie a identidade, as regras e os padrões de anúncio de cada cliente."
+        action={canEdit ? <ClientForm mode="create" salvar={criarCliente} /> : undefined}
+      />
 
       <Card
         title="Clientes cadastrados"
         action={
           clientes.length > 0 ? (
-            <span className="text-xs tabular-nums text-[var(--color-muted)]">{clientes.length}</span>
+            <span className="text-xs tabular-nums text-[var(--color-muted)]">
+              {clientes.length}
+            </span>
           ) : undefined
         }
       >
         {clientes.length === 0 ? (
-          <Empty title="Nenhum cliente cadastrado" />
+          <Empty
+            title="Nenhum cliente cadastrado"
+            hint="Cadastre um cliente para organizar contas, mídias e regras de publicação."
+          />
         ) : (
           <Table head={canEdit ? [...head, 'Ações'] : head}>
             {clientes.map((cliente) => (
@@ -44,14 +47,12 @@ export default async function ClientesPage() {
                 </TableCell>
                 <TableCell>
                   <Badge tone={cliente.policy_mode === 'block' ? 'danger' : 'warn'}>
-                    {cliente.policy_mode}
+                    {cliente.policy_mode === 'block' ? 'Bloquear violações' : 'Avisar'}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-xs">{cliente.naming_template}</TableCell>
                 <TableCell className="text-xs">
-                  {cliente.landing_domains.length === 0
-                    ? '—'
-                    : cliente.landing_domains.join(', ')}
+                  {cliente.landing_domains.length === 0 ? '—' : cliente.landing_domains.join(', ')}
                 </TableCell>
                 <TableCell>{cliente.advantage_creative_optout ? 'sim' : 'não'}</TableCell>
                 {canEdit ? (

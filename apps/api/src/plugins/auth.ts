@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { SESSION_COOKIE, verifySessionToken } from '@adpub/auth';
+import { findUserById } from '@adpub/db';
 import type { Role, SessionUser } from '@adpub/shared';
 import { forbidden, unauthorized } from '../lib/problem.js';
 import type { ApiDeps } from '../lib/deps.js';
@@ -13,7 +14,8 @@ declare module 'fastify' {
 const PUBLIC_PATHS = new Set([
   '/health',
   '/api/v1/health',
-  '/api/v1/auth/login',
+  '/api/v1/auth/password/login',
+  '/api/v1/auth/password/bootstrap',
   '/docs',
   '/docs/json',
   '/openapi.json',
@@ -38,13 +40,19 @@ export function registerAuth(app: FastifyInstance, deps: ApiDeps): void {
 
     const token = bearerFrom(request);
     if (!token) throw unauthorized();
+    let claimed: SessionUser;
     try {
-      request.user = deps.verifySession
+      claimed = deps.verifySession
         ? await deps.verifySession(token)
         : await verifySessionToken(token, deps.env.authSecret);
     } catch {
       throw unauthorized('Sessão expirada ou assinatura inválida.');
     }
+    // Sessão válida usa id/email/name/role vigentes do banco. Sem cache que
+    // prolongue revogação: desativado/inexistente → 401, rebaixado vale na hora.
+    const row = await findUserById(deps.db, claimed.id);
+    if (!row || !row.active) throw unauthorized('Usuário desativado ou inexistente.');
+    request.user = { id: row.id, email: row.email, name: row.name, role: row.role };
   });
 }
 

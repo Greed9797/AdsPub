@@ -1,8 +1,8 @@
 # Credenciais externas — criar, colar e aplicar
 
 O `.env.prod` de produção fica em `/opt/adpub/.env.prod` (só no servidor, `chmod 600`) e hoje tem
-**6 `TROCAR`**: Google, Meta e Anthropic. Este é o passo a passo de cada provedor, onde o valor
-entra e como aplicar sem derrubar o que já está no ar.
+**5 `TROCAR`**: Meta, Anthropic e os segredos locais. O login é e-mail + senha (sem OAuth):
+o primeiro acesso cria o admin via bootstrap e os demais usuários nascem em `/usuarios`.
 
 O host onde o produto está publicado é `179.198.104.210` e o endereço público é
 `https://adpub.179-198-104-210.sslip.io` (quando houver domínio próprio, ele entra em `APP_DOMAIN`,
@@ -12,8 +12,8 @@ no `infra/Caddyfile.snippet` e no `/opt/mcrm/Caddyfile` — ver `docs/deploy.md`
 
 | Variável | Onde se cria | Para que serve no produto |
 |---|---|---|
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud → Credenciais | é o login (BFF troca o `id_token` pela sessão) |
-| `AUTH_ALLOWED_DOMAIN` | não se cria | domínio do Workspace aceito no login (`hd` do Google) |
+| `AUTH_ALLOWED_DOMAIN` | não se cria | domínio corporativo aceito no login com senha e no bootstrap |
+| `AUTH_SECRET` | `openssl rand -hex 32` | assina a sessão e o segredo interno do login/bootstrap |
 | `META_APP_ID` / `META_APP_SECRET` | painel de apps da Meta | assina `appsecret_proof` e identifica o app no App Review |
 | `ANTHROPIC_API_KEY` | console da Anthropic | geração de copy/variantes e análise |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` (opcional) | @BotFather | alertas de token inválido, rate limit e lote com falhas |
@@ -22,31 +22,28 @@ no `infra/Caddyfile.snippet` e no `/opt/mcrm/Caddyfile` — ver `docs/deploy.md`
 O que **não** entra no `.env.prod`: token da BM, nada de `AUTH_SECRET`/`MASTER_KEY` (já gerados no
 host — trocar o `MASTER_KEY` invalida os tokens já cifrados).
 
-## 1. Google — OAuth do login
+## 1. Login — senha e primeiro acesso
 
-1. `console.cloud.google.com` → crie (ou reuse) um projeto.
-2. **APIs e serviços → Tela de consentimento OAuth**: tipo **Interno** (Google Workspace) — assim só
-   o seu domínio entra e o app não expira em 7 dias como acontece em "Externo/Teste". Preencha nome
-   do app, e-mail de suporte e e-mail do desenvolvedor.
-3. **APIs e serviços → Credenciais → Criar credenciais → ID do cliente OAuth → Aplicativo da Web**.
-4. Em **URIs de redirecionamento autorizados**, cole exatamente (sem barra no fim, sem `localhost`):
+Não há OAuth: a senha (scrypt, mínimo 12 caracteres) mora em `users.password_hash` e
+o erro do login é sempre genérico (`401` idêntico para e-mail desconhecido, inativo ou
+senha errada). Tentativas repetidas por e-mail + IP caem em `429` (10 falhas / 10 min).
 
-   ```
-   https://adpub.179-198-104-210.sslip.io/api/auth/callback
-   ```
-
-   O produto monta essa URL a partir de `WEB_URL` (`apps/web/src/app/api/auth/login/route.ts`);
-   mudou o domínio, mude nos dois lugares.
-5. Criar → copiar **ID do cliente** e **Chave secreta do cliente**.
-6. No servidor:
+1. Confira `AUTH_ALLOWED_DOMAIN` no servidor (ex.: `w3bsite.com.br`): só esse domínio
+   entra, no bootstrap e na criação de usuários.
+2. Com o banco migrado e vazio, crie o admin inicial:
 
    ```bash
-   nano /opt/adpub/.env.prod   # GOOGLE_CLIENT_ID=… / GOOGLE_CLIENT_SECRET=…
+   curl -s -X POST https://APP_DOMAIN/api/v1/auth/password/bootstrap \
+     -H 'content-type: application/json' \
+     -H "x-adpub-login-secret: $AUTH_SECRET" \
+     -d '{"email":"voce@DOMINIO","name":"Seu Nome","password":"<12+ caracteres>"}'
    ```
 
-7. Confira `AUTH_ALLOWED_DOMAIN`: hoje está `w3bsite.com.br`. Ele é o `hd` mandado ao Google **e** a
-   barreira do produto (`isAllowedDomain` em `packages/auth/src/google.ts`, usada no login da API).
-   Quem não for desse domínio recebe 403 mesmo com login Google válido.
+   A rota responde 404 quando já existe qualquer senha — o desligamento é automático
+   e permanente. Depois dela, entre em `/login` com e-mail + senha.
+3. Os demais usuários nascem em `/usuarios` (admin): e-mail, nome, papel e senha
+   temporária. Reajuste de papel, ativação/desativação e redefinição de senha ficam
+   na mesma tela.
 
 ## 2. Anthropic — chave da IA
 
@@ -116,13 +113,10 @@ Só `web`, `api` e `worker` precisam reiniciar: banco, storage e bucket não mud
 
 ### Primeiro acesso
 
-Abra `https://adpub.179-198-104-210.sslip.io/login` → **Entrar com Google**, com um e-mail do
-domínio de `AUTH_ALLOWED_DOMAIN`. O **primeiro usuário nasce `admin`**; os seguintes entram como
-`manager` e o papel (e o escopo de contas, em `/usuarios`) é ajustado por você.
-
-Sem Google configurado, o caminho de emergência para criar o primeiro admin é o login interno do
-API (`POST /api/v1/auth/login` com o header `x-adpub-login-secret: <AUTH_SECRET>`), documentado em
-`docs/deploy.md` §9 — ele existe para bootstrap, não para uso diário.
+Abra `https://adpub.179-198-104-210.sslip.io/login`. Sem nenhuma senha no banco, a
+tela mostra **Primeiro acesso**: preencha nome, e-mail do domínio de
+`AUTH_ALLOWED_DOMAIN` e senha (12+ caracteres) para criar o admin. Depois disso a
+tela some para sempre e o login passa a ser e-mail + senha.
 
 ## 6. GitHub — CI e deploy por GHCR (opcional agora)
 

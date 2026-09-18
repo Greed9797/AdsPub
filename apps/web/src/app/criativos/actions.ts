@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { ApiError, api } from '@/lib/api';
-import { requireSession } from '@/lib/session';
+import { requireRole, requireSession } from '@/lib/session';
 import type { Asset } from '@/lib/types';
 
 const booleanSchema = z.preprocess(
@@ -39,11 +39,23 @@ export type UploadCriativosResult =
       erro: string;
     };
 
+export interface DriveImportJobView {
+  job_id: string;
+  status: 'queued' | 'running' | 'done' | 'failed';
+  imported: number;
+  reused: number;
+  rejected: Array<{ filename: string; reason: string }>;
+  error: string | null;
+  queue_wait_ms: number | null;
+  run_ms: number | null;
+}
+
 export type ImportarDriveResult =
   | {
       sucesso: true;
       job_id: string;
       queue: string;
+      job: DriveImportJobView;
     }
   | {
       erro: string;
@@ -51,7 +63,7 @@ export type ImportarDriveResult =
 
 export async function enviarCriativos(formData: FormData): Promise<UploadCriativosResult> {
   try {
-    await requireSession();
+    await requireRole(['admin', 'coordinator', 'manager']);
 
     const payload = uploadSchema.parse({
       client_id: formData.get('client_id'),
@@ -121,7 +133,7 @@ export async function analisarCriativo(
   assetId: string,
 ): Promise<{ erro: string } | { ok: true; job_id: string; status: string }> {
   try {
-    await requireSession();
+    await requireRole(['admin', 'coordinator', 'manager']);
     const job = await api<{ job_id: string; status: string }>(`/assets/${assetId}/analyses`, {
       method: 'POST',
       body: {},
@@ -150,7 +162,7 @@ export async function acompanharAnalise(
 
 export async function importarDoDrive(formData: FormData): Promise<ImportarDriveResult> {
   try {
-    await requireSession();
+    await requireRole(['admin', 'coordinator', 'manager']);
 
     const payload = importDriveSchema.parse({
       client_id: formData.get('client_id'),
@@ -158,17 +170,34 @@ export async function importarDoDrive(formData: FormData): Promise<ImportarDrive
       recursive: formData.get('recursive'),
     });
 
-    const job = await api<{ job_id: string; queue: string }>('/assets/import-drive', {
-      method: 'POST',
-      body: {
-        client_id: payload.client_id,
-        folder_url: payload.folder_url,
-        recursive: payload.recursive,
+    const job = await api<DriveImportJobView & { queue: string; queue_job_id: string | null }>(
+      '/assets/import-drive',
+      {
+        method: 'POST',
+        body: {
+          client_id: payload.client_id,
+          folder_url: payload.folder_url,
+          recursive: payload.recursive,
+        },
       },
-    });
+    );
 
     revalidatePath('/criativos');
-    return { sucesso: true, job_id: job.job_id, queue: job.queue };
+    return {
+      sucesso: true,
+      job_id: job.job_id,
+      queue: job.queue,
+      job: {
+        job_id: job.job_id,
+        status: job.status,
+        imported: job.imported,
+        reused: job.reused,
+        rejected: job.rejected,
+        error: job.error,
+        queue_wait_ms: job.queue_wait_ms,
+        run_ms: job.run_ms,
+      },
+    };
   } catch (error) {
     if (error instanceof z.ZodError) {
       return {
@@ -185,5 +214,24 @@ export async function importarDoDrive(formData: FormData): Promise<ImportarDrive
     return {
       erro: 'Não foi possível iniciar a importação do Drive.',
     };
+  }
+}
+
+/**
+ * Acompanha a importação: o worker roda fora da requisição e a linha do job
+ * conta o estado. Revalidar só no fim evita recarregar a biblioteca a cada
+ * poll — o resultado aparece quando termina.
+ */
+export async function acompanharImportacaoDrive(
+  jobId: string,
+): Promise<{ erro: string } | { ok: true; job: DriveImportJobView }> {
+  try {
+    await requireSession();
+    const job = await api<DriveImportJobView>(`/drive-import-jobs/${jobId}`);
+    if (job.status === 'done' || job.status === 'failed') revalidatePath('/criativos');
+    return { ok: true, job };
+  } catch (error) {
+    if (error instanceof ApiError) return { erro: error.problem.detail ?? error.problem.title };
+    return { erro: 'Não foi possível acompanhar a importação.' };
   }
 }

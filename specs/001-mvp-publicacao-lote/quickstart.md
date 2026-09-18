@@ -29,7 +29,7 @@ MASTER_KEY=<32 bytes base64>            # cifra de tokens (fora do banco!)
 META_APP_ID= META_APP_SECRET=
 META_API_VERSION=v25.0
 META_TIER=limited                        # limited|full — ajusta concorrência
-GOOGLE_CLIENT_ID= GOOGLE_CLIENT_SECRET= AUTH_ALLOWED_DOMAIN=empresa.com.br
+AUTH_SECRET= AUTH_ALLOWED_DOMAIN=empresa.com.br
 GOOGLE_SERVICE_ACCOUNT_JSON=<base64>
 ANTHROPIC_API_KEY=
 AI_MODEL_GENERATION=<modelo Sonnet atual> AI_MODEL_CLASSIFY=<modelo Haiku atual>

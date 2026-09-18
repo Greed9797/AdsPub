@@ -1,6 +1,18 @@
 import Link from 'next/link';
 
-import { Badge, Card, Empty, Field, PageHead, Table, inputClass, statusLabel } from '@/components/ui';
+import {
+  Badge,
+  Card,
+  Empty,
+  Field,
+  PageHead,
+  Table,
+  inputClass,
+  statusLabel,
+  formatLabel,
+  plural,
+} from '@/components/ui';
+import { Icon } from '@/components/icons';
 import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
 import type { AdAccount, Batch, BatchStatus } from '@/lib/types';
@@ -13,6 +25,8 @@ type HomeSearchParams = {
   ad_account_id?: string | string[];
   status?: string | string[];
   erro?: string | string[];
+  q?: string | string[];
+  view?: string | string[];
 };
 
 const BATCH_STATUSES: BatchStatus[] = [
@@ -36,8 +50,8 @@ function pickFirst(value: string | string[] | undefined): string | undefined {
 }
 
 function statusTone(status: string): 'ok' | 'warn' | 'danger' | 'info' {
-  if (status === 'done' || status === 'approved') return 'ok';
-  if (status === 'partial' || status === 'failed') return 'danger';
+  if (['done', 'approved', 'ready', 'published'].includes(status)) return 'ok';
+  if (['partial', 'failed', 'blocked', 'disapproved'].includes(status)) return 'danger';
   if (status === 'publishing' || status === 'queued') return 'warn';
   return 'info';
 }
@@ -47,7 +61,8 @@ export default async function HomePage({
 }: {
   searchParams: Promise<HomeSearchParams>;
 }) {
-  await requireSession();
+  const user = await requireSession();
+  const canEdit = user.role !== 'viewer';
   const params = await searchParams;
 
   const rawStatus = pickFirst(params.status);
@@ -71,88 +86,76 @@ export default async function HomePage({
 
   const accountMap = new Map(accounts.map((account) => [account.id, account.name]));
 
-  const getAccountName = (accountIdValue: string) => accountMap.get(accountIdValue) ?? 'Conta desconhecida';
+  const getAccountName = (accountIdValue: string) =>
+    accountMap.get(accountIdValue) ?? 'Conta desconhecida';
 
-  // Faixa-resumo do recorte listado (sem filtro = global). Sem fetch extra.
-  const ACTIVE = new Set(['queued', 'publishing']);
-  const ATTENTION = new Set(['failed', 'partial', 'blocked']);
-  const ativos = batches.filter((batch) => ACTIVE.has(batch.status)).length;
-  const concluidos = batches.filter((batch) => batch.status === 'done').length;
-  const atencao = batches.filter((batch) => ATTENTION.has(batch.status)).length;
+  const search = pickFirst(params.q)?.trim() ?? '';
+  const adsView = pickFirst(params.view) === 'ads';
+  const needle = search.toLocaleLowerCase('pt-BR');
+  const visibleBatches = batches.filter(
+    (batch) =>
+      !needle ||
+      [
+        batch.name,
+        getAccountName(batch.ad_account_id),
+        ...batch.items.map((item) => item.name),
+      ].some((value) => value.toLocaleLowerCase('pt-BR').includes(needle)),
+  );
+  const ads = visibleBatches.flatMap((batch) =>
+    batch.items
+      .filter(
+        (item) =>
+          !adsView ||
+          !needle ||
+          [item.name, batch.name, getAccountName(batch.ad_account_id)].some((value) =>
+            value.toLocaleLowerCase('pt-BR').includes(needle),
+          ),
+      )
+      .map((item) => ({ item, batch })),
+  );
+  const activeCount = visibleBatches.filter((batch) =>
+    ['queued', 'publishing'].includes(batch.status),
+  ).length;
+  const attentionCount = visibleBatches.filter((batch) =>
+    ['failed', 'partial', 'blocked'].includes(batch.status),
+  ).length;
 
-  const BAR_TONE: Record<string, string> = {
-    ok: 'bg-[var(--color-ok)]',
-    warn: 'bg-[var(--color-warn)]',
-    danger: 'bg-[var(--color-danger)]',
-    info: 'bg-[var(--color-muted)]',
-  };
+  function viewHref(view: 'batches' | 'ads') {
+    const query = new URLSearchParams(filters);
+    if (search) query.set('q', search);
+    if (view === 'ads') query.set('view', 'ads');
+    return query.size ? `/?${query}` : '/';
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHead
         title="Anúncios"
-        description="Monte, revise e publique anúncios Meta em lote."
-        action={
-          <ButtonLink variant="primary" label="Novo lote" href="/lotes/novo" />
-        }
+        description="Organize seus lotes, revise os anúncios e acompanhe a publicação."
+        action={canEdit ? <ButtonLink variant="primary" label="Novo lote" href="/lotes/novo" /> : undefined}
       />
 
       {errorMessage ? (
-        <p className="rounded-lg border border-[var(--color-danger)] bg-[var(--color-danger)]/10 p-3 text-sm text-[var(--color-text)]">
+        <p role="alert" className="notice notice-error">
           {errorMessage}
         </p>
       ) : null}
 
-      <Card title={filters.size > 0 ? 'Resumo do recorte' : 'Resumo'} variant="stat">
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-          {[
-            ['Lotes', batches.length, 'text-[var(--color-text)]'],
-            ['Ativos', ativos, 'text-[var(--color-warn)]'],
-            ['Concluídos', concluidos, 'text-[var(--color-ok)]'],
-            ['Atenção', atencao, atencao > 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-muted)]'],
-          ].map(([label, value, tone]) => (
-            <div key={label as string}>
-              <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
-                {label}
-              </dt>
-              <dd className={`font-cond mt-1 text-4xl font-semibold tabular-nums ${tone}`}>
-                {value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-        {batches.length > 0 ? (
-          <div
-            className="mt-4 flex h-2 overflow-hidden rounded-full bg-[var(--color-surface-2)]"
-            role="img"
-            aria-label={`Distribuição: ${BATCH_STATUSES.map((s) => {
-              const n = batches.filter((batch) => batch.status === s).length;
-              return n > 0 ? `${n} ${statusLabel(s).toLowerCase()}` : null;
-            })
-              .filter(Boolean)
-              .join(', ')}`}
-          >
-            {BATCH_STATUSES.map((s, index) => {
-              const n = batches.filter((batch) => batch.status === s).length;
-              if (n === 0) return null;
-              return (
-                <span
-                  key={s}
-                  style={{ width: `${(n / batches.length) * 100}%`, animationDelay: `${Math.min(index * 60, 240)}ms` }}
-                  className={`bar-draw ${BAR_TONE[statusTone(s)]}`}
-                />
-              );
-            })}
-          </div>
-        ) : null}
-      </Card>
-
-      <form
-        method="get"
-        aria-label="Filtrar lotes"
-        className="flex flex-wrap items-end gap-x-3 gap-y-3 border-b border-[var(--color-border)] pb-5"
-      >
-        <Field label="Conta" className="w-full sm:w-64">
+      <form method="get" aria-label="Filtrar lotes" className="toolbar">
+        {adsView ? <input type="hidden" name="view" value="ads" /> : null}
+        <div className="search-field">
+          <Field label="Pesquisar">
+            <input
+              type="search"
+              name="q"
+              defaultValue={search}
+              placeholder="Buscar por nome do lote ou anúncio"
+              className={inputClass}
+            />
+          </Field>
+          <Icon name="search" />
+        </div>
+        <Field label="Conta" className="w-full sm:w-56">
           <select name="ad_account_id" defaultValue={accountId ?? ''} className={inputClass}>
             <option value="">Todas as contas</option>
             {accounts.map((account) => (
@@ -162,10 +165,9 @@ export default async function HomePage({
             ))}
           </select>
         </Field>
-
-        <Field label="Status" className="w-full sm:w-52">
+        <Field label="Status do lote" className="w-full sm:w-44">
           <select name="status" defaultValue={status ?? ''} className={inputClass}>
-            <option value="">Todos</option>
+            <option value="">Todos os status</option>
             {BATCH_STATUSES.map((batchStatus) => (
               <option key={batchStatus} value={batchStatus}>
                 {statusLabel(batchStatus)}
@@ -173,62 +175,159 @@ export default async function HomePage({
             ))}
           </select>
         </Field>
-
-        <Button variant="primary" label="Aplicar" type="submit" />
+        <Button variant="secondary" label="Aplicar" type="submit" />
+        {filters.size > 0 || search ? (
+          <Link
+            href={adsView ? '/?view=ads' : '/'}
+            className="py-2 text-sm text-[var(--color-brand)]"
+          >
+            Limpar filtros
+          </Link>
+        ) : null}
       </form>
 
-      <Card
-        title="Últimos lotes"
-        action={
-          batches.length > 0 ? (
-            <span className="text-xs tabular-nums text-[var(--color-muted)]">{batches.length}</span>
-          ) : undefined
-        }
-      >
-        {batches.length === 0 ? (
-          <Empty
-            title="Nenhum lote encontrado"
-            hint="Ajuste os filtros ou crie o primeiro lote para começar a publicar."
-            action={
-              <ButtonLink variant="primary" label="Novo lote" href="/lotes/novo" />
-            }
-          />
-        ) : (
-          <Table
-            head={[
-              'Nome',
-              'Conta',
-              'Status',
-              'Itens',
-              'Atualizado em',
-              '',
-            ]}
-          >
-            {batches.map((batch) => {
-              const updatedAt = new Date(batch.updated_at);
+      <div className="workspace-summary" aria-label="Resumo dos lotes filtrados">
+        <span>
+          <strong>{visibleBatches.length}</strong> lotes no recorte
+        </span>
+        <span>
+          <strong>{ads.length}</strong> anúncios
+        </span>
+        <span>
+          <strong>{activeCount}</strong> lotes em publicação
+        </span>
+        <span>
+          <strong>{attentionCount}</strong> precisam de atenção
+        </span>
+      </div>
 
-              return (
-                <TableRow key={batch.id} className="border-b border-[var(--color-border)] last:border-0">
-                  <TableCell className="font-medium">{batch.name}</TableCell>
-                  <TableCell className="text-[var(--color-muted)]">{getAccountName(batch.ad_account_id)}</TableCell>
+      <div>
+        <nav className="workspace-tabs" aria-label="Visualização dos anúncios">
+          <Link
+            className="workspace-tab"
+            href={viewHref('batches')}
+            aria-current={!adsView ? 'page' : undefined}
+          >
+            <Icon name="folder" /> Lotes
+          </Link>
+          <Link
+            className="workspace-tab"
+            href={viewHref('ads')}
+            aria-current={adsView ? 'page' : undefined}
+          >
+            <Icon name="ad" /> Anúncios
+          </Link>
+          <Link
+            className="workspace-tab"
+            href={
+              accountId
+                ? `/performance?ad_account_id=${encodeURIComponent(accountId)}`
+                : '/performance'
+            }
+          >
+            <Icon name="chart" /> Desempenho
+          </Link>
+        </nav>
+        <Card
+          title={adsView ? 'Anúncios dos lotes' : 'Lotes de anúncios'}
+          action={
+            <span className="text-xs text-[var(--color-muted)]">
+              {plural(adsView ? ads.length : visibleBatches.length, 'resultado', 'resultados')}
+            </span>
+          }
+        >
+          {(adsView ? ads.length === 0 : visibleBatches.length === 0) ? (
+            <Empty
+              title={adsView ? 'Nenhum anúncio neste recorte' : 'Nenhum lote encontrado'}
+              hint={
+                adsView
+                  ? 'Os anúncios aparecem aqui depois de montar um lote. Abra um lote ou comece um novo.'
+                  : 'Ajuste a busca e os filtros, ou crie um lote para começar.'
+              }
+              action={canEdit ? <ButtonLink variant="primary" label="Novo lote" href="/lotes/novo" /> : undefined}
+            />
+          ) : adsView ? (
+            <Table head={['Anúncio', 'Lote', 'Formato', 'Status', 'Destino']}>
+              {ads.map(({ item, batch }) => (
+                <TableRow key={item.id}>
+                  <TableCell>
+                    <Link className="row-name" href={`/lotes/${batch.id}`}>
+                      {item.name}
+                    </Link>
+                    <p className="row-detail">{getAccountName(batch.ad_account_id)}</p>
+                  </TableCell>
+                  <TableCell>{batch.name}</TableCell>
+                  <TableCell>{formatLabel(item.format)}</TableCell>
+                  <TableCell>
+                    <Badge tone={statusTone(item.status)}>{statusLabel(item.status)}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {item.ads_manager_url ? (
+                      <a
+                        href={item.ads_manager_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[var(--color-brand)]"
+                      >
+                        Ver na Meta
+                      </a>
+                    ) : (
+                      <Link href={`/lotes/${batch.id}`} className="text-[var(--color-brand)]">
+                        Revisar anúncio
+                      </Link>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </Table>
+          ) : (
+            <Table
+              head={[
+                'Nome do lote',
+                'Status',
+                'Conta de anúncios',
+                'Anúncios',
+                'Última alteração',
+                '',
+              ]}
+            >
+              {visibleBatches.map((batch) => (
+                <TableRow key={batch.id}>
+                  <TableCell>
+                    <Link href={`/lotes/${batch.id}`} className="row-name">
+                      {batch.name}
+                    </Link>
+                    <p className="row-detail">
+                      {batch.mode === 'ai' ? 'Planejamento com IA' : 'Criação manual'}
+                    </p>
+                  </TableCell>
                   <TableCell>
                     <Badge tone={statusTone(batch.status)}>{statusLabel(batch.status)}</Badge>
                   </TableCell>
-                  <TableCell className="text-center tabular-nums">{batch.items.length}</TableCell>
-                  <TableCell className="whitespace-nowrap tabular-nums text-[var(--color-muted)]">
-                    {updatedAt.toLocaleString('pt-BR')}
+                  <TableCell className="text-[var(--color-muted)]">
+                    {getAccountName(batch.ad_account_id)}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <Link href={`/lotes/${batch.id}`} className="text-sm font-medium text-[var(--color-brand)]">
+                  <TableCell className="numeric">{batch.items.length}</TableCell>
+                  <TableCell className="whitespace-nowrap tabular-nums text-[var(--color-muted)]">
+                    {new Date(batch.updated_at).toLocaleString('pt-BR', {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })}
+                  </TableCell>
+                  <TableCell>
+                    <Link
+                      href={`/lotes/${batch.id}`}
+                      className="whitespace-nowrap text-[var(--color-brand)]"
+                    >
                       Abrir lote
                     </Link>
                   </TableCell>
                 </TableRow>
-              );
-            })}
-          </Table>
-        )}
-      </Card>
+              ))}
+            </Table>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }

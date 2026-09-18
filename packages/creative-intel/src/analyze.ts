@@ -173,7 +173,11 @@ export async function analyzeContent(
       inputHash,
       inputTokens: result.inputTokens,
       outputTokens: result.outputTokens,
-      costUsd: costUsd(model, result.inputTokens, result.outputTokens),
+      costUsd: costUsd(model, result.inputTokens, result.outputTokens, {
+        readTokens: result.cacheReadTokens,
+        creationTokens: result.cacheCreationTokens,
+        reasoningTokens: result.reasoningTokens,
+      }),
       latencyMs: Date.now() - started,
       cached: false,
     },

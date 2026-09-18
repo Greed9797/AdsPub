@@ -1,14 +1,42 @@
 'use client';
 
+import { createContext, useContext, useState } from 'react';
 import Link from 'next/link';
 import { Theme } from '@astryxdesign/core/theme';
 import { LinkProvider } from '@astryxdesign/core/Link';
-import { adpubTheme } from '@/astryx-theme';
+import { adpubTheme, type ThemeMode } from '@/astryx-theme';
 
-export function Providers({ children }: { children: React.ReactNode }) {
+const ThemePreference = createContext<{
+  mode: ThemeMode;
+  setMode: (mode: ThemeMode) => void;
+} | null>(null);
+
+export function useThemePreference() {
+  const preference = useContext(ThemePreference);
+  if (!preference) throw new Error('ThemePreference requires Providers.');
+  return preference;
+}
+
+export function Providers({
+  children,
+  initialMode,
+}: {
+  children: React.ReactNode;
+  initialMode: ThemeMode;
+}) {
+  const [mode, setThemeMode] = useState<ThemeMode>(initialMode);
+
+  function setMode(nextMode: ThemeMode) {
+    setThemeMode(nextMode);
+    document.documentElement.dataset.theme = nextMode;
+    document.cookie = `adpub_theme=${nextMode}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
+  }
+
   return (
-    <Theme theme={adpubTheme}>
-      <LinkProvider component={Link}>{children}</LinkProvider>
-    </Theme>
+    <ThemePreference.Provider value={{ mode, setMode }}>
+      <Theme theme={adpubTheme} mode={mode}>
+        <LinkProvider component={Link}>{children}</LinkProvider>
+      </Theme>
+    </ThemePreference.Provider>
   );
 }

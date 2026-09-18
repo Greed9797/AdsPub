@@ -32,7 +32,7 @@ erDiagram
 | email | text unique | domínio corporativo |
 | name | text | |
 | role | enum `admin, coordinator, manager, viewer` | |
-| google_sub | text | |
+| password_hash | text nullable | scrypt; login exige preenchido |
 | active | bool | |
 
 ### user_ad_accounts

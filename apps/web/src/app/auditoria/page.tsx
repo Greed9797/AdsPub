@@ -70,72 +70,70 @@ export default async function AuditoriaPage({
     <div className="space-y-6">
       <PageHead title="Auditoria" description="Quem fez o quê, em qual entidade e quando." />
 
-      <Card>
-        <form method="get" className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-4" action="/auditoria">
-          <Field label="Entidade">
-            <input
-              type="text"
-              name="entity_type"
-              defaultValue={filters.entity_type ?? ''}
-              placeholder="client, batch, ..."
-              className={inputClass}
-            />
-          </Field>
+      <form method="get" className="toolbar" action="/auditoria">
+        <Field label="Entidade">
+          <input
+            type="text"
+            name="entity_type"
+            defaultValue={filters.entity_type ?? ''}
+            placeholder="client, batch, ..."
+            className={inputClass}
+          />
+        </Field>
 
-          <Field label="ID da entidade">
-            <input
-              type="text"
-              name="entity_id"
-              defaultValue={filters.entity_id ?? ''}
-              placeholder="id"
-              className={inputClass}
-            />
-          </Field>
+        <Field label="ID da entidade">
+          <input
+            type="text"
+            name="entity_id"
+            defaultValue={filters.entity_id ?? ''}
+            placeholder="id"
+            className={inputClass}
+          />
+        </Field>
 
-          <Field label="Ator">
-            <input
-              type="text"
-              name="actor_id"
-              defaultValue={filters.actor_id ?? ''}
-              placeholder="uuid do usuário"
-              className={inputClass}
-            />
-          </Field>
+        <Field label="Usuário responsável">
+          <input
+            type="text"
+            name="actor_id"
+            defaultValue={filters.actor_id ?? ''}
+            placeholder="uuid do usuário"
+            className={inputClass}
+          />
+        </Field>
 
-          <Field label="Limite">
-            <input
-              type="number"
-              name="limit"
-              min={1}
-              max={500}
-              defaultValue={filters.limit}
-              className={inputClass}
-            />
-          </Field>
+        <Field label="Limite">
+          <input
+            type="number"
+            name="limit"
+            min={1}
+            max={500}
+            defaultValue={filters.limit}
+            className={inputClass}
+          />
+        </Field>
 
-          <Field label="De">
-            <input
-              type="datetime-local"
-              name="from"
-              defaultValue={filters.from ?? ''}
-              className={inputClass}
-            />
-          </Field>
+        <Field label="De">
+          <input
+            type="datetime-local"
+            name="from"
+            defaultValue={filters.from ?? ''}
+            className={inputClass}
+          />
+        </Field>
 
-          <Field label="Até">
-            <input
-              type="datetime-local"
-              name="to"
-              defaultValue={filters.to ?? ''}
-              className={inputClass}
-            />
-          </Field>
+        <Field label="Até">
+          <input
+            type="datetime-local"
+            name="to"
+            defaultValue={filters.to ?? ''}
+            className={inputClass}
+          />
+        </Field>
 
-          <div className="sm:col-span-2 xl:col-span-1">
-            <Button variant="primary" label="Aplicar filtros" type="submit" />
-          </div>
-        </form>
-      </Card>
+        <div className="sm:col-span-2 xl:col-span-1">
+          <Button variant="secondary" label="Aplicar filtros" type="submit" />
+        </div>
+      </form>
 
       <Card
         title="Eventos"
@@ -146,7 +144,10 @@ export default async function AuditoriaPage({
         }
       >
         {rows.length === 0 ? (
-          <Empty title="Nenhum evento encontrado" hint="Ajuste os filtros informados e tente de novo." />
+          <Empty
+            title="Nenhum evento encontrado"
+            hint="Ajuste os filtros informados e tente de novo."
+          />
         ) : (
           <Table head={['Data', 'Ator', 'Ação', 'Entidade', 'Detalhes']}>
             {rows.map((entry) => (
@@ -154,11 +155,15 @@ export default async function AuditoriaPage({
                 <TableCell>{formatDate(entry.created_at)}</TableCell>
                 <TableCell>{entry.actor_email ?? entry.actor_id ?? '—'}</TableCell>
                 <TableCell>{entry.action}</TableCell>
-                <TableCell>{entry.entity_type} · {entry.entity_id}</TableCell>
+                <TableCell>
+                  {entry.entity_type} · {entry.entity_id}
+                </TableCell>
                 <TableCell>
                   <details>
-                    <summary className="cursor-pointer text-sm text-[var(--color-muted)]">Ver payload</summary>
-                    <pre className="mt-2 max-h-48 overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface-2)] p-2 text-xs">
+                    <summary className="cursor-pointer text-sm text-[var(--color-brand)]">
+                      Ver alterações
+                    </summary>
+                    <pre className="mt-2 max-h-48 max-w-lg overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface-2)] p-2 text-xs">
                       {JSON.stringify(
                         {
                           before: entry.before,

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { ApiError, api } from '@/lib/api';
-import { requireSession } from '@/lib/session';
+import { requireRole } from '@/lib/session';
 
 export interface ReportView {
   id: string;
@@ -29,7 +29,7 @@ function erroDe(error: unknown, fallback: string): ActionError {
 
 /** T-007-3: gera relatório validado (422 quando a IA inventa número). */
 export async function gerarRelatorio(formData: FormData): Promise<ActionError | ({ ok: true } & ReportView)> {
-  await requireSession();
+  await requireRole(['admin', 'coordinator', 'manager']);
   try {
     const payload = z
       .object({
@@ -54,7 +54,7 @@ export async function gerarRelatorio(formData: FormData): Promise<ActionError | 
 }
 
 export async function comentarRelatorio(reportId: string, text: string): Promise<ActionError | { ok: true }> {
-  await requireSession();
+  await requireRole(['admin', 'coordinator', 'manager']);
   try {
     await api(`/analysis-reports/${reportId}/feedback`, { method: 'POST', body: { text } });
     revalidatePath('/inteligencia');
@@ -65,7 +65,7 @@ export async function comentarRelatorio(reportId: string, text: string): Promise
 }
 
 export async function gerarRascunho(reportId: string, briefing: string): Promise<ActionError | { ok: true; batch_id: string }> {
-  await requireSession();
+  await requireRole(['admin', 'coordinator', 'manager']);
   try {
     const result = await api<{ batch_id: string }>(`/analysis-reports/${reportId}/test-drafts`, {
       method: 'POST',
@@ -82,7 +82,7 @@ export async function salvarAprendizado(
   clientId: string,
   hypothesis: string,
 ): Promise<ActionError | { ok: true; id: string }> {
-  await requireSession();
+  await requireRole(['admin', 'coordinator', 'manager']);
   try {
     const result = await api<{ id: string }>('/learnings', {
       method: 'POST',
@@ -100,7 +100,7 @@ export async function registrarResultado(
   resultSummary: string,
   outcome: 'positive' | 'negative' | 'inconclusive',
 ): Promise<ActionError | { ok: true }> {
-  await requireSession();
+  await requireRole(['admin', 'coordinator', 'manager']);
   try {
     await api(`/learnings/${learningId}/outcome`, {
       method: 'PATCH',

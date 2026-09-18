@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { api, ApiError } from '@/lib/api';
-import { requireSession } from '@/lib/session';
+import { requireRole } from '@/lib/session';
 
 export interface PreviewRow {
   row_number: number;
@@ -39,7 +39,7 @@ function errorFromException(error: unknown, fallback: string): ActionError {
 
 /** T-003-3: envia CSV/XLSX + contexto; volta a prévia linha a linha. */
 export async function enviarRelatorio(formData: FormData): Promise<UploadRelatorioResult> {
-  await requireSession();
+  await requireRole(['admin', 'coordinator']);
   try {
     const context = JSON.stringify({
       currency: String(formData.get('currency') ?? ''),
@@ -62,7 +62,7 @@ export async function enviarRelatorio(formData: FormData): Promise<UploadRelator
 }
 
 export async function confirmarImportacao(importId: string): Promise<CommitRelatorioResult> {
-  await requireSession();
+  await requireRole(['admin', 'coordinator']);
   try {
     const result = await api<{ observations: number }>(`/report-imports/${importId}/commit`, {
       method: 'POST',

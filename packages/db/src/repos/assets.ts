@@ -89,6 +89,22 @@ export async function getAssetsByIds(db: Database, ids: readonly string[]): Prom
   return db.select().from(assets).where(inArray(assets.id, [...ids]));
 }
 
+/**
+ * Criativos de um cliente por ID. O escopo do cliente entra no SQL: ID de
+ * outro cliente não volta, então quem monta o lote nunca o vê como válido.
+ */
+export async function getClientAssetsByIds(
+  db: Database,
+  clientId: string,
+  ids: readonly string[],
+): Promise<AssetRow[]> {
+  if (ids.length === 0) return [];
+  return db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.clientId, clientId), inArray(assets.id, [...ids])));
+}
+
 /** FR-005: cache de image_hash/video_id por (asset, conta). */
 export async function getAssetUpload(
   db: Database,

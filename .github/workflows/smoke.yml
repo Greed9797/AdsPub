@@ -50,8 +50,6 @@ jobs:
       META_TIER: limited
       AUTH_SECRET: smoke-auth-secret-smoke-auth-secret
       AUTH_ALLOWED_DOMAIN: empresa.com.br
-      GOOGLE_CLIENT_ID: smoke-google-client
-      GOOGLE_CLIENT_SECRET: smoke-google-secret
       ANTHROPIC_API_KEY: smoke-anthropic-key
       LOG_LEVEL: warn
       # Conta de TESTE: o script cria anúncios PAUSED e os arquiva em seguida.

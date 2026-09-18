@@ -44,12 +44,18 @@ export const test = base.extend<Fixtures>({
 /**
  * Jornada 3 em forma reutilizável: a jornada 5 precisa de um lote já planejado
  * e o caminho honesto para chegar nele é o mesmo formulário do gestor.
+ * `conta` permite isolar jornadas que publicam: o teto diário é por conta.
  */
-export async function criarLoteComIa(page: Page, seed: SeedData, nome: string): Promise<void> {
+export async function criarLoteComIa(
+  page: Page,
+  seed: SeedData,
+  nome: string,
+  conta: string = seed.account.name,
+): Promise<void> {
   await page.goto('/lotes/novo');
 
   await page.getByLabel('Cliente').selectOption({ label: seed.client.name });
-  await page.getByLabel('Conta de anúncios').selectOption({ label: seed.account.name });
+  await page.getByLabel('Conta de anúncios').selectOption({ label: conta });
   await page.getByLabel('Nome do lote').fill(nome);
   await page.getByRole('combobox', { name: /^Modo/ }).selectOption('ai');
   await page.getByLabel(/Textos diferentes por foto/).fill('2');

@@ -54,8 +54,6 @@ export const E2E_ENV: Record<string, string> = {
   META_TIER: 'limited',
   AUTH_SECRET,
   AUTH_ALLOWED_DOMAIN,
-  GOOGLE_CLIENT_ID: 'e2e-google-client',
-  GOOGLE_CLIENT_SECRET: 'e2e-google-secret',
   ANTHROPIC_API_KEY: 'e2e-anthropic-key',
   API_PORT: String(API_PORT),
   API_URL,

@@ -1,4 +1,4 @@
-import { requireSession } from '@/lib/session';
+import { requireRole } from '@/lib/session';
 import { api } from '@/lib/api';
 import { PageHead } from '@/components/ui';
 import type { AdAccount, Asset, Client } from '@/lib/types';
@@ -10,7 +10,7 @@ export default async function NovoLotePage({
 }: {
   searchParams: Promise<{ client_id?: string | string[] }>;
 }) {
-  await requireSession();
+  await requireRole(['admin', 'coordinator', 'manager']);
 
   const query = await searchParams;
   const rawClientId = Array.isArray(query.client_id) ? query.client_id[0] : query.client_id;

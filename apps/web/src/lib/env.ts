@@ -3,8 +3,6 @@ export interface WebRuntimeEnv {
   apiUrl: string;
   webUrl: string;
   authSecret: string;
-  googleClientId: string;
-  googleClientSecret: string;
   allowedDomain: string;
 }
 
@@ -19,8 +17,6 @@ export function webEnv(): WebRuntimeEnv {
     apiUrl: process.env.API_URL ?? 'http://localhost:4000',
     webUrl: process.env.WEB_URL ?? 'http://localhost:3000',
     authSecret: required('AUTH_SECRET'),
-    googleClientId: required('GOOGLE_CLIENT_ID'),
-    googleClientSecret: required('GOOGLE_CLIENT_SECRET'),
     allowedDomain: required('AUTH_ALLOWED_DOMAIN'),
   };
 }

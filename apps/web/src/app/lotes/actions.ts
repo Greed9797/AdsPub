@@ -6,6 +6,7 @@ import { batchPlanSchema, ctaSchema, type BatchPlan } from '@adpub/shared';
 
 import { ApiError, api } from '@/lib/api';
 import type { Copy, AdDraft, Batch, PublishResult, ValidationReport } from '@/lib/types';
+import { requireRole } from '@/lib/session';
 
 export type ActionResult<T> = { sucesso: true; data: T } | { erro: string };
 
@@ -83,6 +84,24 @@ const idSchema = z.object({
   item_id: uuid,
 });
 
+/** Motivo é obrigatório nas duas decisões: a auditoria guarda o porquê. */
+const resolveItemSchema = z.object({
+  batch_id: uuid,
+  item_id: uuid,
+  decision: z.enum(['adopt', 'discard']),
+  motive: z.string().trim().min(1, 'Descreva o que você conferiu na Meta.'),
+  meta_ids: z.record(z.string(), z.unknown()).optional(),
+  step: z.string().min(1).optional(),
+});
+
+const resolveRefSchema = z.object({
+  batch_id: uuid,
+  ref_key: z.string().trim().min(1),
+  decision: z.enum(['adopt', 'discard']),
+  motive: z.string().trim().min(1, 'Descreva o que você conferiu na Meta.'),
+  meta_id: z.string().trim().min(1).optional(),
+});
+
 const publishRequestSchema = z.object({
   batch_id: uuid,
   only_failed: z.boolean(),
@@ -115,6 +134,7 @@ function errorFromApi(error: unknown): string {
 
 export async function criarLote(formData: FormData): Promise<ActionResult<{ id: string }>> {
   'use server';
+  await requireRole(['admin', 'coordinator', 'manager']);
 
   const parsed = createBatchSchema.safeParse({
     name: formData.get('name'),
@@ -171,7 +191,7 @@ export async function gerarPlano(data: {
   regenerate?: boolean;
 }): Promise<ActionResult<Batch>> {
   'use server';
-
+  await requireRole(['admin', 'coordinator', 'manager']);
   try {
     const parsed = planSchema.parse({
       batch_id: data.batch_id,
@@ -207,6 +227,7 @@ export async function salvarPlanoManual(data: {
   'use server';
 
   try {
+    await requireRole(['admin', 'coordinator', 'manager']);
     const parsed = z.object({ batch_id: uuid, plan: batchPlanSchema }).parse(data);
 
     const updated = await api<Batch>(`/batches/${parsed.batch_id}/plan`, {
@@ -233,6 +254,7 @@ export async function salvarItem(data: {
   'use server';
 
   try {
+    await requireRole(['admin', 'coordinator', 'manager']);
     const parsed = saveItemSchema.parse(data);
 
     const updated = await api<AdDraft>(`/batches/${parsed.batch_id}/items/${parsed.item_id}`, {
@@ -266,6 +288,7 @@ export async function removerItem(data: {
   'use server';
 
   try {
+    await requireRole(['admin', 'coordinator', 'manager']);
     const parsed = idSchema.parse(data);
 
     await api<void>(`/batches/${parsed.batch_id}/items/${parsed.item_id}`, {
@@ -284,7 +307,7 @@ export async function reprocessarItem(data: {
   item_id: string;
 }): Promise<ActionResult<{ job_id: string; queue: string }>> {
   'use server';
-
+  await requireRole(['admin', 'coordinator', 'manager']);
   try {
     const parsed = idSchema.parse(data);
 
@@ -302,12 +325,82 @@ export async function reprocessarItem(data: {
   }
 }
 
+/**
+ * Reconciliação do item: adotar exige o ID conferido na Meta e a etapa de
+ * retomada; descartar encerra o item com o motivo. Nunca recria às cegas.
+ */
+export async function resolverItem(data: {
+  batch_id: string;
+  item_id: string;
+  decision: 'adopt' | 'discard';
+  motive: string;
+  meta_ids?: Record<string, unknown>;
+  step?: string;
+}): Promise<ActionResult<{ status: string }>> {
+  'use server';
+  try {
+    await requireRole(['admin', 'coordinator', 'manager']);
+    const parsed = resolveItemSchema.parse(data);
+
+    const result = await api<{ status: string }>(
+      `/batches/${parsed.batch_id}/items/${parsed.item_id}/resolve`,
+      {
+        method: 'POST',
+        body: {
+          decision: parsed.decision,
+          motive: parsed.motive,
+          ...(parsed.meta_ids ? { meta_ids: parsed.meta_ids } : {}),
+          ...(parsed.step ? { step: parsed.step } : {}),
+        },
+      },
+    );
+
+    revalidatePath(`/lotes/${parsed.batch_id}`);
+    return { sucesso: true, data: result };
+  } catch (error) {
+    return { erro: errorFromApi(error) };
+  }
+}
+
+/** Reconciliação da campanha/conjunto compartilhado do lote. */
+export async function resolverRef(data: {
+  batch_id: string;
+  ref_key: string;
+  decision: 'adopt' | 'discard';
+  motive: string;
+  meta_id?: string;
+}): Promise<ActionResult<{ ref_key: string; state: string }>> {
+  'use server';
+  try {
+    await requireRole(['admin', 'coordinator', 'manager']);
+    const parsed = resolveRefSchema.parse(data);
+
+    const result = await api<{ ref_key: string; state: string }>(
+      `/batches/${parsed.batch_id}/refs/${encodeURIComponent(parsed.ref_key)}/resolve`,
+      {
+        method: 'POST',
+        body: {
+          decision: parsed.decision,
+          motive: parsed.motive,
+          ...(parsed.meta_id ? { meta_id: parsed.meta_id } : {}),
+        },
+      },
+    );
+
+    revalidatePath(`/lotes/${parsed.batch_id}`);
+    return { sucesso: true, data: result };
+  } catch (error) {
+    return { erro: errorFromApi(error) };
+  }
+}
+
 export async function validarLote(data: {
   batch_id: string;
 }): Promise<ActionResult<ValidationReport>> {
   'use server';
 
   try {
+    await requireRole(['admin', 'coordinator', 'manager']);
     const parsed = z.object({ batch_id: uuid }).parse(data);
 
     const report = await api<ValidationReport>(`/batches/${parsed.batch_id}/validate`, {
@@ -329,6 +422,7 @@ export async function publicarLote(data: {
   'use server';
 
   try {
+    await requireRole(['admin', 'coordinator', 'manager']);
     const parsed = publishRequestSchema.parse(data);
 
     const result = await api<PublishResult>(`/batches/${parsed.batch_id}/publish`, {
@@ -355,6 +449,7 @@ export async function duplicarLote(data: {
   'use server';
 
   try {
+    await requireRole(['admin', 'coordinator']);
     const parsed = duplicateSchema.parse(data);
 
     const duplicated = await api<Batch>(`/batches/${parsed.batch_id}/duplicate`, {

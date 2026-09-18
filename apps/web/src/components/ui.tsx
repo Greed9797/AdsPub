@@ -17,6 +17,20 @@ export const STATUS_PT: Record<string, string> = {
   failed: 'Falhou',
   archived: 'Arquivado',
   approved: 'Aprovado',
+  disapproved: 'Reprovado',
+  in_review: 'Em análise',
+  uploading_media: 'Enviando mídia',
+  ensuring_campaign: 'Preparando campanha',
+  ensuring_adset: 'Preparando conjunto',
+  creating_creative: 'Preparando criativo',
+  creating_ad: 'Criando anúncio',
+  needs_reconciliation: 'Precisa de conferência',
+  // Etapas do pipeline: aparecem no item e no painel de conferência.
+  upload_media: 'Envio de mídia',
+  ensure_campaign: 'Campanha',
+  ensure_adset: 'Conjunto',
+  create_creative: 'Criativo',
+  create_ad: 'Anúncio',
 };
 
 export function statusLabel(status: string): string {
@@ -119,15 +133,12 @@ export function PageHead({
   action?: ReactNode;
 }) {
   return (
-    <div>
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0">
-          <h1 className="text-display text-[28px]">{title}</h1>
-          {description ? <p className="mt-1 text-sm text-[var(--color-muted)]">{description}</p> : null}
-        </div>
-        {action}
+    <div className="page-head">
+      <div className="min-w-0">
+        <h1 className="page-title">{title}</h1>
+        {description ? <p className="page-description">{description}</p> : null}
       </div>
-      <div className="mt-4 h-px bg-[var(--color-border)]" aria-hidden="true" />
+      {action ? <div className="page-actions">{action}</div> : null}
     </div>
   );
 }
@@ -141,18 +152,21 @@ export function Card({
   title?: string;
   action?: ReactNode;
   children: ReactNode;
-  /** 'stat' aplica o crystalline stat-card da ID Pulmão (KPIs). */
+  /** Compact data summary; shares the same surface as other panels. */
   variant?: 'default' | 'stat';
 }) {
   return (
-    <AstryxCard padding={0} className={variant === 'stat' ? 'stat-card' : 'liquid-glass rounded-[14px]'}>
+    <AstryxCard
+      padding={0}
+      className={`surface-panel${variant === 'stat' ? ' summary-panel' : ''}`}
+    >
       {title ? (
-        <header className="flex items-center justify-between gap-3 border-b border-[var(--color-border)] px-5 py-3.5">
-          <h2 className="text-sm font-semibold tracking-[-0.01em]">{title}</h2>
+        <header className="panel-head">
+          <h2>{title}</h2>
           {action}
         </header>
       ) : null}
-      <div className="p-5">{children}</div>
+      <div className="panel-body">{children}</div>
     </AstryxCard>
   );
 }
@@ -165,14 +179,26 @@ const TONE = {
   brand: 'orange',
 } as const;
 
-export function Badge({ tone = 'info', children }: { tone?: keyof typeof TONE | string; children: ReactNode }) {
-  return <AstryxBadge variant={TONE[tone as keyof typeof TONE] ?? 'neutral'} label={children} />;
+export function Badge({
+  tone = 'info',
+  children,
+}: {
+  tone?: keyof typeof TONE | string;
+  children: ReactNode;
+}) {
+  return (
+    <AstryxBadge
+      className="status-badge"
+      variant={TONE[tone as keyof typeof TONE] ?? 'neutral'}
+      label={children}
+    />
+  );
 }
 
-export function Table({ head, children }: { head: ReactNode[]; children: ReactNode }) {
+export function Table({ head, children, className }: { head: ReactNode[]; children: ReactNode; className?: string }) {
   return (
-    <div className="-mx-5 overflow-x-auto px-5">
-      <AstryxTable hasHover dividers="rows">
+    <div className="data-table-scroll" tabIndex={0} role="region" aria-label="Tabela de dados">
+      <AstryxTable className={className ? `data-table ${className}` : 'data-table'} hasHover dividers="rows">
         <TableHeader>
           <TableRow>
             {head.map((cell, index) => (
@@ -214,19 +240,26 @@ export function Field({
   children: ReactNode;
   className?: string;
 }) {
-  const inputID = useId();
-  const control =
-    isValidElement(children) && !(children.props as { id?: string }).id
-      ? cloneElement(children as ReactElement<{ id?: string }>, { id: inputID })
-      : children;
+  const generatedID = useId();
+  const element = isValidElement(children)
+    ? (children as ReactElement<{ id?: string; 'aria-describedby'?: string }>)
+    : undefined;
+  const inputID = element?.props.id ?? generatedID;
+  const descriptionID = hint ? `${inputID}-description` : undefined;
+  const control = element
+    ? cloneElement(element, {
+        id: inputID,
+        'aria-describedby':
+          [element.props['aria-describedby'], descriptionID].filter(Boolean).join(' ') || undefined,
+      })
+    : children;
   return (
-    <div className={`min-w-0 ${className ?? ''}`}>
-      <AstryxField label={label} inputID={inputID} description={hint}>
+    <div className={`adpub-field ${className ?? ''}`}>
+      <AstryxField label={label} inputID={inputID} description={hint} descriptionID={descriptionID}>
         {control}
       </AstryxField>
     </div>
   );
 }
 
-export const inputClass =
-  'h-10 w-full rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 text-sm outline-none focus:border-[var(--color-brand)] focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40';
+export const inputClass = 'field-control';

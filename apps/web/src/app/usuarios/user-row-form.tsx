@@ -2,7 +2,12 @@
 
 import { useMemo, useState, type FormEvent } from 'react';
 import { Card, Field, inputClass } from '@/components/ui';
-import { salvarUsuario, type SalvarUsuarioResult, type Usuario } from './actions';
+import {
+  redefinirSenha,
+  salvarUsuario,
+  type SalvarUsuarioResult,
+  type Usuario,
+} from './actions';
 import type { AdAccount, Role } from '@/lib/types';
 import { Button } from '@astryxdesign/core/Button';
 
@@ -23,6 +28,8 @@ const roles: Array<{ value: Role; label: string }> = [
 export function UserRowForm({ user, accounts }: UserRowFormProps) {
   const [state, setState] = useState<FormState>(null);
   const [saving, setSaving] = useState(false);
+  const [resetState, setResetState] = useState<FormState>(null);
+  const [resetting, setResetting] = useState(false);
 
   const assigned = useMemo(() => new Set(user.ad_account_ids), [user.ad_account_ids]);
 
@@ -34,6 +41,17 @@ export function UserRowForm({ user, accounts }: UserRowFormProps) {
     const result = await salvarUsuario(formData);
     setState(result);
     setSaving(false);
+  }
+
+  async function onResetPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+    setResetting(true);
+    const result = await redefinirSenha(formData);
+    setResetState(result);
+    if ('sucesso' in result) event.currentTarget.reset();
+    setResetting(false);
   }
 
   return (
@@ -55,6 +73,19 @@ export function UserRowForm({ user, accounts }: UserRowFormProps) {
               </option>
             ))}
           </select>
+        </Field>
+
+        <Field label="Status">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="active"
+              value="1"
+              defaultChecked={user.active}
+              disabled={saving}
+            />
+            <span>{user.active ? 'Ativo' : 'Inativo'}</span>
+          </label>
         </Field>
 
         <Field label="Contas atribuídas">
@@ -82,6 +113,36 @@ export function UserRowForm({ user, accounts }: UserRowFormProps) {
               <span className="text-sm text-[var(--color-danger)]">{state.erro}</span>
             ) : (
               <span className="text-sm text-[var(--color-ok)]">Atualizado com sucesso.</span>
+            )
+          ) : null}
+        </div>
+      </form>
+
+      <form onSubmit={onResetPassword} className="mt-4 space-y-3 border-t border-[var(--color-border)] pt-4">
+        <input type="hidden" name="user_id" value={user.id} />
+        <Field label="Nova senha (mínimo 12 caracteres)">
+          <input
+            name="password"
+            type="password"
+            minLength={12}
+            required
+            autoComplete="new-password"
+            disabled={resetting}
+            className={inputClass}
+          />
+        </Field>
+        <div className="flex items-center justify-between gap-2">
+          <Button
+            variant="secondary"
+            label={resetting ? 'Redefinindo...' : 'Redefinir senha'}
+            type="submit"
+            isDisabled={resetting}
+          />
+          {resetState ? (
+            'erro' in resetState ? (
+              <span className="text-sm text-[var(--color-danger)]">{resetState.erro}</span>
+            ) : (
+              <span className="text-sm text-[var(--color-ok)]">Senha redefinida.</span>
             )
           ) : null}
         </div>

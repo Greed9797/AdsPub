@@ -1,9 +1,13 @@
 import {
   audit,
+  closeLostWrites,
   countPublishedToday,
   getAccount,
   getBatch,
   getDraft,
+  getRef,
+  resolveRef,
+  refWriteKey,
   listDraftsOfBatch,
   setBatchPlanFeedback,
   markDraftsQueued,
@@ -13,7 +17,13 @@ import {
   type AdDraftRow,
 } from '@adpub/db';
 import { DEFAULT_DAILY_AD_CAP } from '@adpub/config';
-import type { MetaIds, PublishStep, SessionUser } from '@adpub/shared';
+import {
+  IN_FLIGHT_STATUSES,
+  type AdDraftStatus,
+  type MetaIds,
+  type PublishStep,
+  type SessionUser,
+} from '@adpub/shared';
 import { conflict, notFound, unprocessable } from '../lib/problem.js';
 import type { ApiDeps, JobRef } from '../lib/deps.js';
 import { approvalFingerprint } from './approval.js';
@@ -135,6 +145,13 @@ export async function publishBatch(
   };
 }
 
+/**
+ * R3/R4: reprocessar item em falha **e** retomar item em voo cujo job se
+ * perdeu (Redis limpo, job removido, worker morto depois de esgotar as
+ * tentativas). A retomada não mexe em status, etapa nem `meta_ids`: o
+ * pipeline continua de onde parou e as etapas já concluídas são puladas pelos
+ * IDs gravados — zerar isso recriaria objeto na Meta.
+ */
 export async function retryDraft(
   deps: ApiDeps,
   actor: SessionUser,
@@ -143,17 +160,35 @@ export async function retryDraft(
   batchId: string,
   adAccountId: string,
 ): Promise<JobRef> {
-  if (draft.status !== 'failed') {
-    throw unprocessable(`Item em ${draft.status} — só itens em falha podem ser reprocessados.`);
+  const emVoo = IN_FLIGHT_STATUSES.includes(draft.status as AdDraftStatus);
+  if (draft.status !== 'failed' && !emVoo) {
+    throw unprocessable(
+      `Item em ${draft.status} — só itens em falha ou em voo podem ser reprocessados.`,
+    );
   }
-  await markDraftsQueued(deps.db, [draftId]);
+
+  if (emVoo) {
+    if (await deps.queues.publishJobAlive(draftId)) {
+      throw conflict(`Item em ${draft.status} já está na fila — aguarde a execução.`);
+    }
+    const agora = deps.now?.() ?? new Date();
+    if (draft.leaseUntil && draft.leaseUntil.getTime() > agora.getTime()) {
+      throw conflict(
+        `Item em execução por outro worker até ${draft.leaseUntil.toISOString()} — aguarde.`,
+      );
+    }
+  } else {
+    await markDraftsQueued(deps.db, [draftId]);
+  }
+
   const [job] = await deps.queues.enqueuePublish([{ draftId, adAccountId, batchId }]);
   await audit(deps.db, {
     actor: { id: actor.id, email: actor.email },
-    action: 'item.retry',
+    action: emVoo ? 'item.resume' : 'item.retry',
     entityType: 'ad_draft',
     entityId: draftId,
     before: { status: draft.status, step: draft.step, error: draft.error },
+    ...(emVoo ? { after: { resumed_from: draft.step, meta_ids: draft.metaIds } } : {}),
   });
   if (!job) throw unprocessable('Não foi possível enfileirar o reprocessamento.');
   return job;
@@ -189,6 +224,9 @@ export async function resolveReconciliation(
     if (!input.metaIds || !input.step || input.step === 'done') {
       throw unprocessable('Adotar exige meta_ids conferidos e etapa de retomada (diferente de done).');
     }
+    // Só depois da decisão valer: encerrar a escrita perdida num pedido que
+    // vai falhar com 422 deixaria a próxima retomada recriar às cegas.
+    const encerradas = await closeLostWrites(deps.db, { adDraftId: draft.id });
     const updated = await transitionDraft(deps.db, draft.id, 'queued', {
       step: input.step,
       metaIds: input.metaIds,
@@ -204,12 +242,19 @@ export async function resolveReconciliation(
       entityType: 'ad_draft',
       entityId: draft.id,
       before: { status: draft.status, step: draft.step, error: draft.error },
-      after: { decision: 'adopt', step: input.step, meta_ids: input.metaIds, motive: input.motive },
+      after: {
+        decision: 'adopt',
+        step: input.step,
+        meta_ids: input.metaIds,
+        motive: input.motive,
+        closed_writes: encerradas,
+      },
     });
     if (!job) throw unprocessable('Não foi possível enfileirar a retomada.');
     return { status: updated.status, job };
   }
 
+  const encerradas = await closeLostWrites(deps.db, { adDraftId: draft.id });
   const updated = await transitionDraft(deps.db, draft.id, 'failed', {
     error: {
       message: input.motive,
@@ -226,7 +271,75 @@ export async function resolveReconciliation(
     entityType: 'ad_draft',
     entityId: draft.id,
     before: { status: draft.status, step: draft.step, error: draft.error },
-    after: { decision: 'discard', motive: input.motive },
+    after: { decision: 'discard', motive: input.motive, closed_writes: encerradas },
   });
   return { status: updated.status };
+}
+
+/**
+ * Reconciliação de ref compartilhada: `adopt` fixa o objeto conferido na Meta
+ * (nenhum item recria) e `discard` libera a criação de novo. Os itens que
+ * pararam por causa da ref voltam pelo reprocessamento normal.
+ */
+export async function resolveRefReconciliation(
+  deps: ApiDeps,
+  actor: SessionUser,
+  input: {
+    batchId: string;
+    refKey: string;
+    decision: 'adopt' | 'discard';
+    metaId?: string;
+    motive: string;
+  },
+): Promise<{ ref_key: string; state: string; meta_id: string | null }> {
+  const ref = await getRef(deps.db, input.batchId, input.refKey);
+  if (!ref) throw notFound(`Referência ${input.refKey} não encontrada no lote.`);
+  if (ref.state !== 'needs_reconciliation') {
+    throw unprocessable(
+      `Referência em ${ref.state} — só referências em reconciliação podem ser resolvidas.`,
+    );
+  }
+  if (input.decision === 'adopt' && !input.metaId) {
+    throw unprocessable('Adotar exige o ID conferido na Meta.');
+  }
+
+  const updated = await resolveRef(
+    deps.db,
+    input.decision === 'adopt'
+      ? {
+          batchId: input.batchId,
+          refKey: input.refKey,
+          decision: 'adopt',
+          metaId: input.metaId as string,
+        }
+      : {
+          batchId: input.batchId,
+          refKey: input.refKey,
+          decision: 'discard',
+          motive: input.motive,
+        },
+  );
+  // Outra requisição resolveu entre a leitura e a escrita.
+  if (!updated) throw conflict(`Referência ${input.refKey} já foi resolvida.`);
+  // `discard` libera a recriação: a escrita perdida tem de sair do caminho,
+  // senão o próximo dono da ref cai no guarda de replay.
+  const encerradas = await closeLostWrites(deps.db, {
+    writeKey: refWriteKey(input.batchId, input.refKey),
+  });
+
+  await audit(deps.db, {
+    actor: { id: actor.id, email: actor.email },
+    action: 'ref.resolve',
+    entityType: 'batch_ref',
+    entityId: `${input.batchId}:${input.refKey}`,
+    before: { state: ref.state, meta_id: ref.metaId, error: ref.lastError },
+    after: {
+      decision: input.decision,
+      state: updated.state,
+      meta_id: updated.metaId,
+      motive: input.motive,
+      closed_writes: encerradas,
+    },
+  });
+  return { ref_key: updated.refKey, state: updated.state, meta_id: updated.metaId };
 }

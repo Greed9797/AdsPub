@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import {
   bigint,
@@ -15,9 +16,9 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
 import type {
   BatchOptions,
   BatchPlan,
@@ -136,7 +137,12 @@ export const publishStepEnum = pgEnum('publish_step', [
   'done',
 ]);
 export const refKindEnum = pgEnum('ref_kind', ['campaign', 'adset']);
-export const refStateEnum = pgEnum('ref_state', ['pending', 'created', 'failed']);
+export const refStateEnum = pgEnum('ref_state', [
+  'pending',
+  'created',
+  'failed',
+  'needs_reconciliation',
+]);
 export const jobStateEnum = pgEnum('job_state', [
   'waiting',
   'active',
@@ -153,6 +159,14 @@ export const analysisJobStatusEnum = pgEnum('analysis_job_status', [
   'failed',
 ]);
 
+/** Drive observável: o job do banco acompanha a fila do Redis. */
+export const driveImportStatusEnum = pgEnum('drive_import_status', [
+  'queued',
+  'running',
+  'done',
+  'failed',
+]);
+
 const createdAt = timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 const updatedAt = timestamp('updated_at', { withTimezone: true }).notNull().defaultNow();
 
@@ -161,7 +175,7 @@ export const users = pgTable('users', {
   email: text('email').notNull().unique(),
   name: text('name').notNull().default(''),
   role: roleEnum('role').notNull().default('manager'),
-  googleSub: text('google_sub'),
+  passwordHash: text('password_hash'),
   active: boolean('active').notNull().default(true),
   createdAt,
   updatedAt,
@@ -773,6 +787,13 @@ export const batchRefs = pgTable(
     state: refStateEnum('state').notNull().default('pending'),
     spec: jsonb('spec').$type<Record<string, unknown>>().notNull().default({}),
     lastError: text('last_error'),
+    /**
+     * Dono da criação em curso e validade da posse. Sem isso o item que morre
+     * durante o create deixa a ref em `pending` para sempre e todos os outros
+     * itens do lote esperam um dono que não existe mais.
+     */
+    claimOwner: text('claim_owner'),
+    claimUntil: timestamp('claim_until', { withTimezone: true }),
     createdAt,
     updatedAt,
   },
@@ -818,6 +839,40 @@ export const metaApiCalls = pgTable(
     createdAt,
   },
   (t) => [index('meta_api_calls_account_idx').on(t.adAccountId, t.createdAt)],
+);
+
+/**
+ * Escrita enviada à Meta e o desfecho que o app conseguiu observar.
+ *
+ * Resolve um caso que nenhum outro registro cobre: o processo morre entre o
+ * POST e a persistência do ID. Quem retoma vê o mesmo estado de "morreu antes
+ * de enviar" e recriaria o objeto — anúncio ou campanha duplicada na Meta.
+ * `resolved_at IS NULL` significa exatamente "saiu do app e ninguém viu o
+ * fim": retomar exige decisão humana. Erro observado em processo (timeout,
+ * 5xx) já resolve a linha; a reconciliação continua sendo decidida pelo
+ * caminho de erro ambíguo.
+ */
+export const metaWrites = pgTable(
+  'meta_writes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** `draft:<id>:<step>` ou `ref:<batch>:<refKey>` — o que a retomada sabe consultar. */
+    writeKey: text('write_key').notNull(),
+    method: text('method').notNull(),
+    endpoint: text('endpoint').notNull(),
+    adAccountId: text('ad_account_id'),
+    adDraftId: uuid('ad_draft_id').references(() => adDrafts.id, { onDelete: 'cascade' }),
+    outcome: text('outcome'),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    createdAt,
+  },
+  (t) => [
+    index('meta_writes_pending_idx')
+      .on(t.writeKey)
+      .where(sql`resolved_at is null`),
+    index('meta_writes_draft_idx').on(t.adDraftId),
+  ],
 );
 
 export const aiGenerations = pgTable(
@@ -867,6 +922,47 @@ export const analysisJobs = pgTable(
   (t) => [
     index('analysis_jobs_asset_idx').on(t.assetId, t.status),
     index('analysis_jobs_status_idx').on(t.status, t.queuedAt),
+  ],
+);
+
+/**
+ * Importação do Drive observável: a requisição cria a linha `queued`, o worker
+ * marca `running`/`done`/`failed`. Resultado agregado fica aqui para a tela
+ * acompanhar sem depender do Redis (que descarta job concluído).
+ */
+export const driveImportJobs = pgTable(
+  'drive_import_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    folderUrl: text('folder_url').notNull(),
+    recursive: boolean('recursive').notNull().default(true),
+    status: driveImportStatusEnum('status').notNull().default('queued'),
+    imported: integer('imported').notNull().default(0),
+    reused: integer('reused').notNull().default(0),
+    rejected: jsonb('rejected')
+      .$type<Array<{ filename: string; reason: string }>>()
+      .notNull()
+      .default([]),
+    error: text('error'),
+    requestedBy: uuid('requested_by').references(() => users.id, { onDelete: 'set null' }),
+    queuedAt: timestamp('queued_at', { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    index('drive_import_jobs_client_idx').on(t.clientId, t.status),
+    index('drive_import_jobs_status_idx').on(t.status, t.queuedAt),
+    // Uma pasta tem no máximo um job aberto: dois POSTs concorrentes não
+    // importam a mesma pasta duas vezes — o segundo volta ao job vivo.
+    // Parcial porque pasta com job encerrado (done/failed) pode reimportar.
+    uniqueIndex('drive_import_jobs_open_unique')
+      .on(t.clientId, t.folderUrl)
+      .where(sql`status in ('queued', 'running')`),
   ],
 );
 
@@ -972,7 +1068,6 @@ export const oauthTokens = pgTable(
     clientId: text('client_id')
       .notNull()
       .references(() => oauthClients.clientId, { onDelete: 'cascade' }),
-    /** Quem consentiu: cada chamada de ferramenta age como este usuário. */
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
@@ -1009,5 +1104,6 @@ export type AuditLogRow = typeof auditLog.$inferSelect;
 export type AiGenerationRow = typeof aiGenerations.$inferSelect;
 export type AiUsageRow = typeof aiUsage.$inferSelect;
 export type AnalysisJobRow = typeof analysisJobs.$inferSelect;
+export type DriveImportJobRow = typeof driveImportJobs.$inferSelect;
 export type CampaignCacheRow = typeof campaignsCache.$inferSelect;
 export type AdsetCacheRow = typeof adsetsCache.$inferSelect;

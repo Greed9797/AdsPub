@@ -96,7 +96,7 @@ export async function generateReport(
     modelId: model,
     promptVersion,
     schemaVersion: REPORT_SCHEMA_VERSION,
-    costUsd: String(costUsd(model, result.inputTokens, result.outputTokens)),
+    costUsd: String(costUsd(model, result.inputTokens, result.outputTokens, { readTokens: result.cacheReadTokens, creationTokens: result.cacheCreationTokens, reasoningTokens: result.reasoningTokens })),
     latencyMs,
     version: 1,
   });

@@ -1,12 +1,23 @@
 # HANDOFF — AdPub
 
-Data: 2026-09-12. Branch `main` limpa até `20b46bb` (correções do diagnóstico de IA incluídas, além
-do vídeo). Produção
+Data: 2026-09-18. Branch `main` com o realinhamento das 12 etapas (o que o app promete
+é o que o código faz). Produção
 **no ar** em `https://adpub.179-198-104-210.sslip.io` (host compartilhado, atrás do Caddy do `mcrm`);
 falta só preencher as chaves externas do `.env.prod` (§3, item 1) — o host ainda roda a imagem
 anterior, sem o MCP e sem o vídeo.
 
 ## 1. Estado atual
+
+- **Redesign local inspirado no Meta Ads Manager:** navegação compacta, listagem com busca e
+  filtros, criação por seções, revisão com prévia de mídia real e confirmação de publicação em
+  diálogo. Identidade laranja preservada; temas Claro/Escuro/Sistema persistidos em cookie e
+  aplicados no servidor. Clientes e padrões de conta editados em diálogos; demais telas usam
+  superfícies, campos e tabelas compartilhados. Tema Gothic removido. APIs e worker intactos.
+- **Verificação deste redesign:** typecheck web, ESLint frontend/e2e e build de produção passaram;
+  7/7 jornadas Playwright passaram com Meta/IA simuladas, incluindo cancelar e confirmar
+  publicação. Onze rotas verificadas em Claro/Escuro no desktop e sem overflow horizontal em
+  mobile (390 px). Preferência persistiu após reload; Sistema acompanhou a aparência do SO.
+  Sem deploy e sem publicação na Meta real nesta alteração.
 
 - UI migrada para Astryx (fases 1–3) + vocabulário PT para leigos (fases A–C); slugs de API intactos.
 - Gates verdes: typecheck, eslint, build, testes, **e2e** e screenshot real conferido.
@@ -70,14 +81,13 @@ open http://localhost:3000/
 - Stack de produção na máquina de dev: `docs/deploy.md` §9.
 - Fumaça de integração (Graph API falsa, sem tocar a Meta). O script **apaga** o banco apontado por
   `DATABASE_URL` (o opt-in `ADPUB_ALLOW_TRUNCATE=1` já vem no npm script; a trava também exige
-  loopback ou sufixo `_test`/`_e2e`). Receita verificada em 2026-09-12, commit `4d7c6fb`, sha do
-  script `4edbbc63…`:
+  loopback ou sufixo `_test`/`_e2e`). Receita verificada em 2026-09-18:
 
   ```bash
   docker exec adpub-postgres-1 psql -U adpub -d postgres -c "create database adpub_smoke"  # uma vez
   set -a; . tmp/dev-logs/dev.env; set +a
   export DATABASE_URL="postgres://adpub:adpub@localhost:55432/adpub_smoke" REDIS_URL="redis://localhost:56379/4"
-  pnpm db:migrate && pnpm smoke:integration   # 139 checagens ok, SMOKE OK
+  pnpm db:migrate && pnpm smoke:integration   # 219 checagens ok, SMOKE OK
   ```
 
   Foi assim que a quebra de contrato da análise em job apareceu.
@@ -89,20 +99,19 @@ open http://localhost:3000/
 ## 3. O que falta (infra/humano)
 
 1. **Fechar a configuração de produção (só chaves externas)** — passo a passo em
-   `docs/credenciais-externas.md`: no `/opt/adpub/.env.prod` há 6 `TROCAR` —
-   `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (OAuth com redirect
-   `https://adpub.179-198-104-210.sslip.io/api/auth/callback`), `META_APP_ID`/`META_APP_SECRET`,
-   `ANTHROPIC_API_KEY` e `AUTH_ALLOWED_DOMAIN` (hoje `w3bsite.com.br` — **conferir**: é o domínio
-   Google dos usuários). Depois: `docker compose -f docker-compose.prod.yml --env-file .env.prod up
-   -d web api worker`. O primeiro login Google do domínio nasce admin.
-1b. **Antes do próximo deploy**: três migrações novas no host (`0013` insights, `0014` `ai_usage`,
-   `0015` `content_analyses` + `analysis_jobs`) entram no `migrate`. A fumaça de **integração**
-   (`pnpm smoke:integration`, Graph API falsa) foi rodada em 2026-09-12 contra banco novo: 139
-   checagens ok, 0 falhas — ela pegou a quebra de contrato que a A9 causou e o script foi corrigido
-   junto. A fumaça de **sandbox** (`pnpm smoke:sandbox`, conta de teste real) **não** foi rodada:
-   exige `SMOKE_META_TOKEN`/`SMOKE_BUSINESS_ID`/`SMOKE_AD_ACCOUNT_ID` do System User, que vivem nos
-   secrets do CI e não estão nesta máquina — é o último gate antes de subir release (Constituição V),
-   e o caminho de upload de vídeo mudou desde a última fumaça.
+   `docs/credenciais-externas.md`: no `/opt/adpub/.env.prod` há `TROCAR` —
+   `META_APP_ID`/`META_APP_SECRET`, `ANTHROPIC_API_KEY` e `AUTH_ALLOWED_DOMAIN`
+   (domínio corporativo do login por senha — **conferir**). Depois:
+   `docker compose -f docker-compose.prod.yml --env-file .env.prod up
+   -d web api worker`. O primeiro admin nasce pelo bootstrap com o segredo de login.
+1b. **Antes do próximo deploy**: migrações novas no host (`0016` senha, `0017` reconciliação,
+   `0018` Drive, `0019` `meta_writes`, `0020` índice parcial da pasta aberta) entram no `migrate`.
+   A fumaça de **integração** (`pnpm smoke:integration`, Graph API falsa) foi rodada em 2026-09-18
+   contra banco local: 219 checagens ok, 0 falhas. O e2e (`E2E_API_PORT=4510 E2E_WEB_PORT=3510`)
+   passou 16/16. A fumaça de **sandbox** (`pnpm smoke:sandbox`, conta de teste real) **não** foi
+   rodada: exige `SMOKE_META_TOKEN`/`SMOKE_BUSINESS_ID`/`SMOKE_AD_ACCOUNT_ID` do System User, que
+   vivem nos secrets do CI e não estão nesta máquina — é o último gate antes de subir release
+   (Constituição V).
 2. **Subir o MCP no host** (mesma tacada do item 1, mas o Caddy muda): sincronizar o código
    (`HOST=w3vps ./infra/deploy-host.sh` ou `git pull` em `/opt/adpub/app`), rodar `migrate` (cria as
    tabelas `oauth_*`), `up -d mcp api web worker` e **substituir** o bloco do AdPub no

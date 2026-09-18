@@ -43,13 +43,13 @@ do servidor, então isso dá TLS válido sem tocar no DNS. Quando houver domíni
 | `POSTGRES_PASSWORD`, `MINIO_ROOT_PASSWORD` | `openssl rand -hex 24` (hex não quebra URL) |
 | `MASTER_KEY` | `openssl rand -base64 32` — 32 bytes em base64, **fora do banco**; trocar depois invalida os tokens cifrados (é preciso reconectar) |
 | `AUTH_SECRET` | `openssl rand -hex 32` — assina a sessão e o login interno |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth client do Google Cloud com redirect URI `https://APP_DOMAIN/api/auth/callback` |
+| `AUTH_ALLOWED_DOMAIN` | domínio corporativo aceito no login com senha (e no bootstrap) |
 | `META_APP_ID` / `META_APP_SECRET` | painel do app Meta (mesmo app do App Review) |
 | `ANTHROPIC_API_KEY` | console da Anthropic |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` (opcional) | bot do @BotFather e o id do chat; os dois juntos (docs/piloto-e-rollout.md §1.1) |
 
 O `.env.prod` vive **só no servidor** (`chmod 600`) — nunca no repositório. O CI já roda `gitleaks`.
-Como criar cada credencial (Google OAuth, app Meta, chave Anthropic, bot do Telegram) e onde colar:
+Como criar cada credencial (app Meta, chave Anthropic, bot do Telegram) e onde colar:
 `docs/credenciais-externas.md`.
 
 ## 3. Preparar o host (uma vez)
@@ -87,7 +87,7 @@ feito pelo CI: crie o secret `GHCR_PAT` (PAT com `read:packages`) e o workflow f
 `docker login` no servidor por stdin antes do `pull`; sem esse secret ele assume pacotes públicos.
 
 Preencha o `.env.prod` antes do primeiro deploy: domínios, senhas, `MASTER_KEY`, `AUTH_SECRET`,
-Google, Meta e Anthropic. `IMAGE_TAG` pode ficar em `latest` até o primeiro deploy do CI (o
+`AUTH_ALLOWED_DOMAIN`, Meta e Anthropic. `IMAGE_TAG` pode ficar em `latest` até o primeiro deploy do CI (o
 workflow exporta o sha do commit — variável de shell vence o `--env-file`). As portas 80/443 já
 estão abertas e resolvidas pelo stack `mcrm` — **não** mexa no `ufw` dele nem suba um segundo
 proxy. Se o `caddy reload` reclamar que `adpub-web` não resolve, suba o stack (§4) e recarregue
@@ -146,8 +146,9 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres 
 
 Checklist do primeiro deploy:
 
-- [ ] `https://APP_DOMAIN` abre o login; o **primeiro usuário do domínio nasce admin** e os
-      seguintes entram como `manager` (papel ajustado em `/usuarios`).
+- [ ] `https://APP_DOMAIN` abre o login; o primeiro acesso cria o admin via bootstrap
+      (`POST /api/v1/auth/password/bootstrap`, que desliga sozinho depois) e os
+      seguintes entram com e-mail + senha (papel ajustado em `/usuarios`).
 - [ ] `GET /api/v1/health` mostra `meta_tier` igual ao `META_TIER` do `.env.prod` (ver
       `docs/meta-app-review.md` §1).
 - [ ] Banco é novo: `select count(*) from clients;` = 0 — o seed de demonstração (BM Demo/Demo
@@ -235,6 +236,7 @@ docker compose -p adpub-local -f infra/docker-compose.prod.yml -f /tmp/override.
 
 O IP da máquina (e não `localhost`) é o que faz o link assinado valer dos dois lados: o container
 grava no MinIO e o browser abre a miniatura — em produção esse papel é do `S3_DOMAIN` no Caddy.
-Para entrar sem Google: `POST /api/v1/auth/login` com o header `x-adpub-login-secret` cria o
-primeiro usuário (admin) e o `mintSessionToken` de `@adpub/auth` assina a sessão do cookie
-`adpub_session`.
+Primeiro acesso: com o banco migrado e vazio, `POST /api/v1/auth/password/bootstrap`
+com o header `x-adpub-login-secret: <AUTH_SECRET>` e corpo
+`{"email": "voce@DOMINIO", "name": "...", "password": "<12+ caracteres>"}` cria o
+admin inicial. A rota responde 404 quando já existe senha — o desligamento é automático.

@@ -1,4 +1,4 @@
-import { canAccessAccount, getBatch, type BatchRow } from '@adpub/db';
+import { canAccessAccount, getBatch, getClient, listVisibleAccounts, type BatchRow } from '@adpub/db';
 import type { SessionUser } from '@adpub/shared';
 import { forbidden, notFound } from './problem.js';
 import type { ApiDeps } from './deps.js';
@@ -22,4 +22,25 @@ export async function batchInScope(
   if (!batch) throw notFound(`Lote ${batchId} não encontrado.`);
   await assertAccountAccess(deps, user, batch.adAccountId);
   return batch;
+}
+
+/**
+ * Etapa 2: cliente é o universo de contas visíveis. admin/coordinator
+ * administram cliente sem conta; manager/viewer precisam de ao menos uma
+ * conta desse cliente. Não cria ACL nova: reusa escopo de conta (FR-021).
+ */
+export async function assertClientAccess(
+  deps: ApiDeps,
+  user: SessionUser,
+  clientId: string,
+): Promise<void> {
+  const client = await getClient(deps.db, clientId);
+  if (!client) throw notFound(`Cliente ${clientId} não encontrado.`);
+  if (user.role === 'admin' || user.role === 'coordinator') return;
+  const visible = await listVisibleAccounts(
+    deps.db,
+    { userId: user.id, role: user.role },
+    { clientId },
+  );
+  if (visible.length === 0) throw forbidden('Você não tem acesso a este cliente.');
 }

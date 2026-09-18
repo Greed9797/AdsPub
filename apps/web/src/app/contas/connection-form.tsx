@@ -113,7 +113,7 @@ export default function ConnectionForm({
         [connectionId]:
           'erro' in result
             ? result.erro
-            : 'Buscando contas, aguarde e recarregue a página.',
+            : 'Sincronização pedida. O resultado aparece em "Último check" e, se falhar, em "Último erro".',
       }));
       setBusyId(null);
       router.refresh();

@@ -42,6 +42,8 @@ export interface AiToolResult {
   cacheReadTokens?: number;
   /** Tokens gravados em cache de prefixo do provedor, quando houver. */
   cacheCreationTokens?: number;
+  /** Tokens de reasoning do provedor (OpenCode `step_finish`), quando houver. */
+  reasoningTokens?: number;
 }
 
 export type AiInvoker = (request: AiToolRequest) => Promise<AiToolResult>;

@@ -36,7 +36,11 @@ export async function validateBatch(
     clientId: batch.clientId,
     adAccountId: batch.adAccountId,
   });
-  const assets = await assetsForDrafts(deps, drafts.flatMap((d) => d.assetIds));
+  const assets = await assetsForDrafts(
+    deps,
+    batch.clientId,
+    drafts.flatMap((d) => d.assetIds),
+  );
   const now = deps.now?.() ?? new Date();
 
   const reportItems: ValidationReport['items'] = [];
@@ -138,10 +142,12 @@ export async function validateBatch(
   await refreshBatchStatus(deps.db, batchId);
   const canPublish = reportItems.length > 0 && reportItems.every((item) => item.status === 'ready');
 
-  // T-000-3: congela a revisão aprovada — publicar exige este fingerprint.
+  // T-000-3: só revisão sem pendência vira aprovação — o fingerprint é o que
+  // libera publicar. `validatedAt` marca a última validação (mesmo bloqueada):
+  // é o que permite a tela distinguir "nunca validado" de "mudou depois".
   const fresh = await listDraftsOfBatch(deps.db, batchId);
   await patchBatch(deps.db, batchId, {
-    approvalFingerprint: approvalFingerprint(fresh),
+    approvalFingerprint: canPublish ? approvalFingerprint(fresh) : null,
     validatedAt: now,
   });
 

@@ -52,9 +52,11 @@ export const forbidden = (detail = 'Sem permissão para esta conta.') =>
 
 export const notFound = (detail: string) =>
   new ProblemError({ status: 404, title: 'Não encontrado', detail });
-
 export const conflict = (detail: string) =>
   new ProblemError({ status: 409, title: 'Conflito', detail });
+
+export const tooMany = (detail = 'Muitas tentativas. Tente novamente mais tarde.') =>
+  new ProblemError({ status: 429, title: 'Muitas tentativas', detail });
 
 export const unprocessable = (detail: string, errors?: unknown[]) =>
   new ProblemError({

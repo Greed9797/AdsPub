@@ -3,6 +3,7 @@ import type {
   AdDraftRow,
   AdAccountRow,
   AssetRow,
+  BatchRefRow,
   BatchRow,
   ClientRow,
   PublicConnection,
@@ -124,6 +125,21 @@ export function batchDto(row: BatchRow, items: AdDraftRow[] = []) {
     plan_notes: row.plan?.notes ?? '',
     items: items.map((item) => draftDto(item, row.adAccountId)),
     created_at: row.createdAt.toISOString(),
+    updated_at: row.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * Campanha/conjunto compartilhado do lote. Sem isso uma ref travada é
+ * invisível: os itens falham e a tela não diz o que precisa ser resolvido.
+ */
+export function refDto(row: BatchRefRow) {
+  return {
+    ref_key: row.refKey,
+    kind: row.kind,
+    state: row.state,
+    meta_id: row.metaId,
+    last_error: row.lastError,
     updated_at: row.updatedAt.toISOString(),
   };
 }

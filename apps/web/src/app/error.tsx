@@ -14,14 +14,14 @@ export default function RouteError({
   reset: () => void;
 }) {
   return (
-    <div className="space-y-6">
+    <div className="error-state space-y-6" role="alert">
       <PageHead
         title="Algo falhou ao carregar"
-        description="Confira se a API está no ar e tente de novo."
+        description="Não foi possível carregar os dados desta página. Tente novamente; se continuar, confira sua sessão e a conexão com o serviço."
         action={
           <div className="flex gap-2">
             <Button variant="primary" label="Tentar de novo" onClick={reset} />
-            <Button variant="secondary" label="Voltar para Lotes" href="/" as={Link} />
+            <Button variant="secondary" label="Voltar aos anúncios" href="/" as={Link} />
           </div>
         }
       />

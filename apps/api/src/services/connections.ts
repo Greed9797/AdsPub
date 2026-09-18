@@ -4,6 +4,7 @@ import {
   getConnectionRow,
   listConnections,
   pauseAccountsOfConnection,
+  resumeAccountsOfConnection,
   rotateConnectionToken,
   toPublicConnection,
   updateConnectionStatus,
@@ -94,12 +95,17 @@ export async function retestConnection(
       apiTier: client.lastUsage?.tier ?? row.apiTier,
       lastError: null,
     });
+    // Voltar de `needs_attention` tem de liberar a fila: a pausa de 1h foi
+    // imposta pelo token inválido, e sem limpá-la a publicação seguiria
+    // recusada com a conexão já marcada como "Ativa" na tela.
+    const resumed =
+      row.status === 'active' ? [] : await resumeAccountsOfConnection(deps.db, connectionId);
     await audit(deps.db, {
       actor: { id: actor.id, email: actor.email },
       action: 'connection.test',
       entityType: 'meta_connection',
       entityId: connectionId,
-      after: { ok: true, accounts: accounts.length },
+      after: { ok: true, accounts: accounts.length, resumed_accounts: resumed },
     });
     return updated ?? toPublicConnection(row);
   } catch (error) {
@@ -159,12 +165,17 @@ export async function rotateAndTestConnection(
   const updated = await updateConnectionStatus(deps.db, connectionId, {
     apiTier: test.tier,
   });
+  // Trocar token é a ação que resolve o token inválido: a pausa que o auth-fail
+  // impôs às contas sai junto, senão a conexão volta "Ativa" e a publicação
+  // continua recusada até a janela de 1h vencer sozinha.
+  const resumed =
+    row.status === 'active' ? [] : await resumeAccountsOfConnection(deps.db, connectionId);
   await audit(deps.db, {
     actor: { id: actor.id, email: actor.email },
     action: 'connection.rotate',
     entityType: 'meta_connection',
     entityId: connectionId,
-    after: { api_tier: test.tier, accounts: test.accounts },
+    after: { api_tier: test.tier, accounts: test.accounts, resumed_accounts: resumed },
   });
   return updated ?? toPublicConnection(row);
 }
