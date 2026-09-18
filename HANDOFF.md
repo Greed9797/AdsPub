@@ -12,8 +12,8 @@ anterior, sem o MCP e sem o vídeo.
   revisão/aprovação coerentes, despacho retomável, reconciliação de item e ref, duplicação como
   plano revisável, Drive observável sem duplicar pasta, ciclo de sync que sobrevive queda de rede,
   escrita na Meta registrada. Migrações 0016–0020. Fumaça de integração reexecutada **depois**
-  deste commit: SMOKE OK em 6.9s (Graph API falsa, 219 checagens). Typecheck 34/34.
-  e2e 16/16 em 37.7s (`E2E_API_PORT=4510 E2E_WEB_PORT=3510`).
+  deste commit: SMOKE OK em 6.7s (Graph API falsa, 219 checagens). Typecheck 34/34.
+  e2e 16/16 em 32.6s (`E2E_API_PORT=4510 E2E_WEB_PORT=3510`).
 - **Redesign local inspirado no Meta Ads Manager:** navegação compacta, listagem com busca e
   filtros, criação por seções, revisão com prévia de mídia real e confirmação de publicação em
   diálogo. Identidade laranja preservada; temas Claro/Escuro/Sistema persistidos em cookie e
@@ -94,7 +94,7 @@ open http://localhost:3000/
   docker exec adpub-postgres-1 psql -U adpub -d postgres -c "create database adpub_smoke"  # uma vez
   set -a; . tmp/dev-logs/dev.env; set +a
   export DATABASE_URL="postgres://adpub:adpub@localhost:55432/adpub_smoke" REDIS_URL="redis://localhost:56379/4"
-  pnpm db:migrate && pnpm smoke:integration   # SMOKE OK em 6.9s
+  pnpm db:migrate && pnpm smoke:integration   # SMOKE OK em 6.7s
   ```
 
   Foi assim que a quebra de contrato da análise em job apareceu.
@@ -114,8 +114,8 @@ open http://localhost:3000/
 1b. **Antes do próximo deploy**: migrações novas no host (`0016` senha, `0017` reconciliação,
    `0018` Drive, `0019` `meta_writes`, `0020` índice parcial da pasta aberta) entram no `migrate`.
    A fumaça de **integração** (`pnpm smoke:integration`, Graph API falsa) foi reexecutada em
-   2026-09-18 **depois** de `aef6c2e` contra `adpub_smoke`: SMOKE OK em 6.9s, 219 checagens, 0
-   falhas. O e2e (`E2E_API_PORT=4510 E2E_WEB_PORT=3510`) passou 16/16 em 37.7s. A fumaça de
+   2026-09-18 **depois** de `aef6c2e` contra `adpub_smoke`: SMOKE OK em 6.7s, 219 checagens, 0
+   falhas. O e2e (`E2E_API_PORT=4510 E2E_WEB_PORT=3510`) passou 16/16 em 32.6s. A fumaça de
    **sandbox** (`pnpm smoke:sandbox`, conta de teste real) **não** foi
    rodada: exige `SMOKE_META_TOKEN`/`SMOKE_BUSINESS_ID`/`SMOKE_AD_ACCOUNT_ID` do System User, que
    vivem nos secrets do CI e não estão nesta máquina — é o último gate antes de subir release
