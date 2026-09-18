@@ -1,6 +1,6 @@
 # HANDOFF — AdPub
 
-Data: 2026-09-18. Branch `main` com o realinhamento das 12 etapas (o que o app promete
+Data: 2026-09-18. Branch `main` em `aef6c2e` — realinhamento das 12 etapas (o que o app promete
 é o que o código faz). Produção
 **no ar** em `https://adpub.179-198-104-210.sslip.io` (host compartilhado, atrás do Caddy do `mcrm`);
 falta só preencher as chaves externas do `.env.prod` (§3, item 1) — o host ainda roda a imagem
@@ -8,6 +8,12 @@ anterior, sem o MCP e sem o vídeo.
 
 ## 1. Estado atual
 
+- **Realinhamento commitado (`aef6c2e`)**: papel e sessão em toda entrada, plano estruturado,
+  revisão/aprovação coerentes, despacho retomável, reconciliação de item e ref, duplicação como
+  plano revisável, Drive observável sem duplicar pasta, ciclo de sync que sobrevive queda de rede,
+  escrita na Meta registrada. Migrações 0016–0020. Fumaça de integração reexecutada **depois**
+  deste commit: SMOKE OK em 6.9s (Graph API falsa, 219 checagens). Typecheck 34/34.
+  e2e 16/16 em 37.7s (`E2E_API_PORT=4510 E2E_WEB_PORT=3510`).
 - **Redesign local inspirado no Meta Ads Manager:** navegação compacta, listagem com busca e
   filtros, criação por seções, revisão com prévia de mídia real e confirmação de publicação em
   diálogo. Identidade laranja preservada; temas Claro/Escuro/Sistema persistidos em cookie e
@@ -74,20 +80,21 @@ open http://localhost:3000/
   morto, ele reinicia sozinho. E `node tmp/mcp-real-journey.mjs` (com o stack no ar) roda a jornada
   do MCP contra a **API real** — consentimento, escopos, ferramentas e um `criar_lote` de smoke
   (cria um lote "Smoke MCP (pode apagar)" no seed demo; não há rota de DELETE para ele).
-- Sem login: entra direto como admin dev.
+- Com `DEV_NO_AUTH=1` (só nesta máquina, nunca em produção): entra direto como admin. Sem isso,
+  login por senha — o primeiro admin nasce pelo bootstrap.
 - Se o Mac dormiu, o colima morre — rode `dev-up.sh` de novo.
 - Banco local tem **seed demo** (BM Demo, Demo Store, act_demo, 5 lotes). Apagar antes de teste
   sério: `DELETE FROM batches; DELETE FROM ad_accounts; DELETE FROM clients; DELETE FROM meta_connections;`
 - Stack de produção na máquina de dev: `docs/deploy.md` §9.
 - Fumaça de integração (Graph API falsa, sem tocar a Meta). O script **apaga** o banco apontado por
   `DATABASE_URL` (o opt-in `ADPUB_ALLOW_TRUNCATE=1` já vem no npm script; a trava também exige
-  loopback ou sufixo `_test`/`_e2e`). Receita verificada em 2026-09-18:
+  loopback ou sufixo `_test`/`_e2e`). Receita verificada em 2026-09-18, commit `aef6c2e`:
 
   ```bash
   docker exec adpub-postgres-1 psql -U adpub -d postgres -c "create database adpub_smoke"  # uma vez
   set -a; . tmp/dev-logs/dev.env; set +a
   export DATABASE_URL="postgres://adpub:adpub@localhost:55432/adpub_smoke" REDIS_URL="redis://localhost:56379/4"
-  pnpm db:migrate && pnpm smoke:integration   # 219 checagens ok, SMOKE OK
+  pnpm db:migrate && pnpm smoke:integration   # SMOKE OK em 6.9s
   ```
 
   Foi assim que a quebra de contrato da análise em job apareceu.
@@ -106,9 +113,10 @@ open http://localhost:3000/
    -d web api worker`. O primeiro admin nasce pelo bootstrap com o segredo de login.
 1b. **Antes do próximo deploy**: migrações novas no host (`0016` senha, `0017` reconciliação,
    `0018` Drive, `0019` `meta_writes`, `0020` índice parcial da pasta aberta) entram no `migrate`.
-   A fumaça de **integração** (`pnpm smoke:integration`, Graph API falsa) foi rodada em 2026-09-18
-   contra banco local: 219 checagens ok, 0 falhas. O e2e (`E2E_API_PORT=4510 E2E_WEB_PORT=3510`)
-   passou 16/16. A fumaça de **sandbox** (`pnpm smoke:sandbox`, conta de teste real) **não** foi
+   A fumaça de **integração** (`pnpm smoke:integration`, Graph API falsa) foi reexecutada em
+   2026-09-18 **depois** de `aef6c2e` contra `adpub_smoke`: SMOKE OK em 6.9s, 219 checagens, 0
+   falhas. O e2e (`E2E_API_PORT=4510 E2E_WEB_PORT=3510`) passou 16/16 em 37.7s. A fumaça de
+   **sandbox** (`pnpm smoke:sandbox`, conta de teste real) **não** foi
    rodada: exige `SMOKE_META_TOKEN`/`SMOKE_BUSINESS_ID`/`SMOKE_AD_ACCOUNT_ID` do System User, que
    vivem nos secrets do CI e não estão nesta máquina — é o último gate antes de subir release
    (Constituição V).
