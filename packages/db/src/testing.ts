@@ -46,6 +46,6 @@ export async function truncateAllTables(db: Database, url: string): Promise<void
     analysis_reports, learnings,
     insight_snapshots, account_sync_state, ad_drafts,
     batches, asset_uploads, assets, user_ad_accounts, users, pixels, adsets_cache,
-    campaigns_cache, instagram_accounts, pages, ad_accounts, meta_connections, clients
+    campaigns_cache, instagram_accounts, pages, ad_accounts, meta_connections, whatsapp_accounts, clients
     restart identity cascade`);
 }

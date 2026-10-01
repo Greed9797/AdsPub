@@ -3,6 +3,7 @@ export * as schema from './schema.js';
 export * from './schema.js';
 export * from './repos/audit.js';
 export * from './repos/connections.js';
+export * from './repos/whatsapp.js';
 export * from './repos/accounts.js';
 export * from './repos/clients.js';
 export * from './repos/users.js';

@@ -42,6 +42,7 @@ export function LoginForm({ next }: { next?: string }) {
         label={pending ? 'Entrando...' : 'Entrar'}
         type="submit"
         isDisabled={pending}
+        className="w-full"
       />
     </form>
   );

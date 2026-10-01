@@ -12,6 +12,7 @@ import { auditRoutes } from './routes/audit.js';
 import { batchRoutes } from './routes/batches.js';
 import { clientRoutes } from './routes/clients.js';
 import { connectionRoutes } from './routes/connections.js';
+import { whatsappRoutes } from './routes/whatsapp.js';
 import { healthRoutes } from './routes/health.js';
 import { userRoutes } from './routes/users.js';
 import { variantRoutes } from './routes/variants.js';
@@ -60,6 +61,7 @@ export async function buildApp(deps: ApiDeps, options: BuildOptions = {}): Promi
     async (scope) => {
       healthRoutes(scope, deps);
       connectionRoutes(scope, deps);
+      whatsappRoutes(scope, deps);
       accountRoutes(scope, deps);
       clientRoutes(scope, deps);
       assetRoutes(scope, deps);

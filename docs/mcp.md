@@ -1,32 +1,63 @@
-# Servidor MCP (ChatGPT)
+# Servidor MCP (Grok, ChatGPT, Claude)
 
-O AdPub publica um **servidor MCP remoto** em `https://APP_DOMAIN/mcp`, no mesmo host do app. Com
-ele, um cliente compatível — o ChatGPT com um connector, o Claude, o MCP Inspector — lê clientes,
-contas, lotes, métricas e auditoria, e (com permissão de alteração) cria lote, gera plano, valida e
-publica.
+O AdPub publica um **servidor MCP remoto** em `https://APP_DOMAIN/mcp`, no mesmo host do app. Um
+único endpoint; **três connectors** (Grok, OpenAI/ChatGPT, Claude) se cadastram sozinhos via OAuth.
+Cada um lê clientes, contas, lotes, métricas e auditoria. Com o escopo de publicação marcado,
+cria lote, gera plano, valida e publica anúncios.
 
 Quem age é **o usuário que consentiu**: cada chamada de ferramenta assina uma sessão dessa pessoa,
 então a API aplica os papéis dela e a auditoria registra o nome dela, não um serviço.
 
-## 1. Conectar no ChatGPT
+## 1. Conectar os três
 
-1. ChatGPT → **Configurações → Connectors → Create** (developer mode).
-2. Informe a URL: `https://APP_DOMAIN/mcp` (sem barra no fim).
+URL local (default `MCP_PORT`): `http://localhost:4100/mcp`
+URL pública (depois do MCP no host): `https://adpub.179-198-104-210.sslip.io/mcp`
+
+Na tela de consentimento, **consultar** já entra; **publicar anúncios** é um checkbox desmarcado (gasta verba).
+Marque se o bot for subir lote. Viewer nunca recebe write.
+
+Configs no repositório (apontam para o MCP local):
+
+| Cliente | Arquivo | Onde ligar |
+|---|---|---|
+| Grok no Cursor | `.cursor/mcp.json` | Settings → Tools & MCP → Connect no `adpub` |
+| Grok (CLI / grok.com) | `.grok/config.toml` | `grok mcp add` ou grok.com → Connectors → Custom |
+| Claude | `.mcp.json` | Claude Code lê o arquivo; claude.ai → Customize → Connectors |
+| ChatGPT | (sem arquivo) | Settings → Connectors (developer mode) → URL pública |
+
+Grok.com, ChatGPT e claude.ai exigem **HTTPS público** — localhost não alcança. Até o MCP subir
+no host, use Cursor/Claude Code/Grok CLI contra `:4100` (ou `MCP_PORT` se a 4100 estiver ocupada).
+
+### ChatGPT
+
+1. Developer mode → **Configurações → Connectors → Create**.
+2. URL: `https://APP_DOMAIN/mcp` (sem barra no fim).
 3. O ChatGPT busca `/.well-known/oauth-protected-resource/mcp`, se registra sozinho
-   (*dynamic client registration*) e abre a tela de consentimento do AdPub.
-4. Faça login no AdPub no mesmo navegador (a tela usa a sessão do app) e escolha o que autorizar:
-   - **consultar** (sempre) — clientes, contas, lotes, métricas, auditoria;
-   - **publicar anúncios** (marque se quiser criar lote, gerar plano, validar e publicar — gasta
-     verba de verdade).
-5. Pronto. Para cortar o acesso, desconecte o connector no ChatGPT (ele chama `/revoke`) ou apague
-   as linhas de `oauth_tokens` do usuário no banco.
+   e abre o consentimento do AdPub.
+4. Login no AdPub no mesmo navegador. Marque **publicar anúncios** para subir lote;
+   deixe desmarcado para só consultar.
 
-Sem ChatGPT: qualquer cliente MCP com OAuth funciona; o MCP Inspector conecta no mesmo endereço.
+### Claude
+
+1. **claude.ai** → Customize → Connectors → custom → a mesma URL pública.
+2. **Claude Code** (esta pasta): já tem `.mcp.json`. Reinicie o Code e autorize no browser.
+3. Callbacks aceitos: `https://claude.ai/api/mcp/auth_callback` e `https://claude.com/api/mcp/auth_callback`.
+
+### Grok
+
+1. **Cursor (este bot):** `.cursor/mcp.json` aponta para `:4100`. Tools & MCP → Connect.
+2. **Grok CLI:** `.grok/config.toml` na raiz. `grok mcp add --transport http adpub http://localhost:4100/mcp`.
+3. **grok.com:** Connectors → New → Custom → URL pública HTTPS depois do deploy do MCP.
+
+Para cortar o acesso: desconecte o connector (chama `/revoke`) ou apague as linhas de
+`oauth_tokens` do usuário no banco.
+
+O MCP Inspector e o Cursor desktop também valem em `http://localhost:8787/callback`.
 
 ## 2. Ferramentas
 
-Todas falam com a **API existente** (`/api/v1/...`) — nenhuma rota nova foi criada para o MCP. Os
-caminhos da tabela são relativos a esse prefixo (o cliente do MCP monta a URL).
+Todas falam com a **API** (`/api/v1/...`). Os caminhos da tabela são relativos a esse prefixo
+(o cliente do MCP monta a URL). WhatsApp usa as rotas `/whatsapp-accounts`.
 
 | Ferramenta | Endpoint da API | Escopo |
 |---|---|---|
@@ -43,10 +74,19 @@ caminhos da tabela são relativos a esse prefixo (o cliente do MCP monta a URL).
 | `gerar_plano_do_lote` | `POST /batches/:id/plan` | publicação (custa IA) |
 | `validar_lote` | `POST /batches/:id/validate` | publicação |
 | `publicar_lote` | `POST /batches/:id/publish` | publicação (gasta verba) |
+| `listar_whatsapp` | `GET /whatsapp-accounts` | leitura |
+| `listar_templates_whatsapp` | `GET /whatsapp-accounts/:id/templates` | leitura |
+| `criar_template_whatsapp` | `POST /whatsapp-accounts/:id/templates` | publicação |
+| `enviar_template_whatsapp` | `POST /whatsapp-accounts/:id/messages` | publicação |
 
 `publicar_lote` exige `confirm_count` — a quantidade de itens que o usuário confirmou no chat — e a
-API recusa se não bater com o lote. As ferramentas de escrita ficam indisponíveis (mensagem
-`isError`, sem chamada à API) quando a conexão não tem o escopo de publicação.
+API recusa se não bater com o lote. `enviar_template_whatsapp` exige `confirm_to` idêntico ao
+telefone de destino; a API recusa leitor e não chama a Meta se a confirmação não bater. O token da
+conta não volta no JSON. As ferramentas de escrita ficam indisponíveis (mensagem `isError`, sem
+chamada à API) quando a conexão não tem o escopo de publicação.
+
+O servidor beta da Meta (`mcp.facebook.com/whatsapp_business_tools`) não entra neste conector. Quem
+quiser usá-lo adiciona o endpoint à parte, com o OAuth da própria Meta.
 
 ## 3. Autorização (por que é caseira)
 

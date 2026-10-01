@@ -9,7 +9,6 @@ import { SideNavSection } from '@astryxdesign/core/SideNav';
 import { TopNav } from '@astryxdesign/core/TopNav';
 import { useThemePreference } from './providers';
 import { Icon } from './icons';
-import type { ThemeMode } from '@/astryx-theme';
 
 export interface NavItem {
   href: string;
@@ -27,6 +26,7 @@ const ICON_PATHS: Record<string, string> = {
   '/': 'M2.5 3h11v10h-11zM2.5 6.5h11M6.5 6.5V13',
   '/criativos': 'M2.5 3h11v10h-11zM3 11l3-3 2 2 2-3 3 4M5 5.5h.01',
   '/contas': 'M3 5.5h10v8H3zM3 5.5 8 2.5l5 3M6 8.5h4',
+  '/whatsapp': 'M8 13.5c3.4 0 5.5-1.9 5.5-4.6S11.4 4.3 8 4.3 2.5 6.2 2.5 8.9c0 1.5.7 2.7 2 3.5L4 14.2l2-.9c.6.1 1.3.2 2 .2Z',
   '/performance': 'M2.5 13.5v-5M6.5 13.5v-9M10.5 13.5V6M14 13.5V3.5',
   '/inteligencia':
     'M8 2.5c2.5 0 4 1.8 4 4 0 1.5-.8 2.6-1.7 3.3-.5.4-.8.9-.8 1.7H6.5c0-.8-.3-1.3-.8-1.7C4.8 9.1 4 8 4 6.5c0-2.2 1.5-4 4-4ZM6.5 13.5h3',
@@ -84,15 +84,15 @@ export function AppSideNav({ groups }: { groups: NavGroup[] }) {
           <span className="brand-name">AdPub</span>
         </Link>
       }
-      footer={<p className="sidebar-note">Seu espaço de publicação Meta.</p>}
+      footer={<p className="sidebar-note">Publicação Meta em lote.</p>}
       footerIcons={
         <button
           type="button"
-          className="p-2 text-xs"
+          className="sidebar-collapse"
           onClick={() => setCollapsed(!collapsed)}
           aria-label={collapsed ? 'Expandir navegação' : 'Recolher navegação'}
         >
-          {collapsed ? '→' : '← Recolher'}
+          <Icon name={collapsed ? 'panel-right' : 'panel-left'} size={16} />
         </button>
       }
     >
@@ -157,16 +157,26 @@ export function AppTopNav({
       }
       endContent={
         <>
-          <select
-            aria-label="Tema"
-            className="theme-select"
-            value={mode}
-            onChange={(event) => setMode(event.target.value as ThemeMode)}
-          >
-            <option value="system">Sistema</option>
-            <option value="light">Claro</option>
-            <option value="dark">Escuro</option>
-          </select>
+          <div className="theme-switch" role="group" aria-label="Tema">
+            {(
+              [
+                ['light', 'sun', 'Claro'],
+                ['dark', 'moon', 'Escuro'],
+                ['system', 'display', 'Sistema'],
+              ] as const
+            ).map(([value, icon, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={mode === value}
+                aria-label={label}
+                title={label}
+                onClick={() => setMode(value)}
+              >
+                <Icon name={icon} size={14} />
+              </button>
+            ))}
+          </div>
           <span className="profile-avatar" aria-hidden="true">
             {email.slice(0, 2).toUpperCase()}
           </span>
@@ -177,10 +187,7 @@ export function AppTopNav({
             <p className="text-[11px] text-[var(--color-muted)]">{roleLabel}</p>
           </div>
           <form action="/api/auth/logout" method="post">
-            <button
-              type="submit"
-              className="rounded-md px-2 py-2 text-xs text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]"
-            >
+            <button type="submit" className="sign-out">
               Sair
             </button>
           </form>

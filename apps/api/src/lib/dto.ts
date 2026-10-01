@@ -7,8 +7,24 @@ import type {
   BatchRow,
   ClientRow,
   PublicConnection,
+  PublicWhatsappAccount,
   UserRow,
 } from '@adpub/db';
+
+export function whatsappAccountDto(row: PublicWhatsappAccount) {
+  return {
+    id: row.id,
+    client_id: row.clientId,
+    waba_id: row.wabaId,
+    phone_number_id: row.phoneNumberId,
+    display_name: row.displayName,
+    display_phone: row.displayPhone,
+    status: row.status,
+    last_error: row.lastError ?? null,
+    created_at: row.createdAt.toISOString(),
+    updated_at: row.updatedAt.toISOString(),
+  };
+}
 
 export function connectionDto(row: PublicConnection) {
   return {

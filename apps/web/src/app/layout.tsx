@@ -35,6 +35,7 @@ const NAV_GROUPS: Array<{ title: string; items: Array<NavItem & { roles?: string
       { href: '/', label: 'Anúncios' },
       { href: '/criativos', label: 'Biblioteca de mídia' },
       { href: '/contas', label: 'Conexões Meta' },
+      { href: '/whatsapp', label: 'WhatsApp' },
     ],
   },
   {
@@ -81,6 +82,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="pt-BR" className={`${geist.variable} ${geistMono.variable}`} data-theme={mode}>
       <body>
+        <a className="skip-link" href="#conteudo">
+          Ir para o conteúdo
+        </a>
         <Providers initialMode={mode}>
           {user ? (
             <AppShell
@@ -90,10 +94,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               sideNav={<AppSideNav groups={groups} />}
               topNav={<AppTopNav email={user.email} role={user.role} groups={groups} />}
             >
-              <div className="app-content">{children}</div>
+              <div className="app-content" id="conteudo">
+                {children}
+              </div>
             </AppShell>
           ) : (
-            <main className="auth-layout">{children}</main>
+            <main className="auth-layout" id="conteudo">
+              {children}
+            </main>
           )}
         </Providers>
       </body>

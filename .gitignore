@@ -15,3 +15,12 @@ tmp/
 # O `next dev` (16) grava estes dois no diretório do app a cada start.
 apps/web/AGENTS.md
 apps/web/CLAUDE.md
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# Local agent state and caches
+/.cursor/
+/.grok/
+/.impeccable/
+/.tlc/

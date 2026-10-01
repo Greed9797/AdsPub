@@ -332,4 +332,83 @@ export function registerTools(server: McpServer, context: ToolContext): void {
       );
     },
   );
+
+  server.registerTool(
+    'listar_whatsapp',
+    {
+      title: 'Listar contas WhatsApp',
+      description:
+        'Contas WhatsApp conectadas no AdPub (id, cliente, WABA, número). Não devolve token.',
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    async () => run('listar_whatsapp', () => api.call(user, '/whatsapp-accounts')),
+  );
+
+  server.registerTool(
+    'listar_templates_whatsapp',
+    {
+      title: 'Listar modelos WhatsApp',
+      description: 'Modelos da conta WhatsApp na Cloud API (nome, idioma, categoria, estado).',
+      inputSchema: z.object({
+        account_id: z.string().describe('UUID da conta WhatsApp no AdPub'),
+      }),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ account_id }) =>
+      run('listar_templates_whatsapp', () => api.call(user, `/whatsapp-accounts/${account_id}/templates`)),
+  );
+
+  server.registerTool(
+    'criar_template_whatsapp',
+    {
+      title: 'Criar modelo WhatsApp',
+      description:
+        'Cria um modelo só com corpo na conta WhatsApp. A Meta precisa aprovar antes do envio.',
+      inputSchema: z.object({
+        account_id: z.string().describe('UUID da conta WhatsApp no AdPub'),
+        name: z.string().describe('Nome em minúsculas, números e _'),
+        language: z.string().optional().describe('Código do idioma, padrão pt_BR'),
+        category: z.enum(['MARKETING', 'UTILITY', 'AUTHENTICATION']),
+        body: z.string().describe('Texto do corpo do modelo'),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    },
+    async ({ account_id, name, language, category, body }) => {
+      const denied = writeDenied(context);
+      if (denied) return denied;
+      return run('criar_template_whatsapp', () =>
+        api.call(user, `/whatsapp-accounts/${account_id}/templates`, {
+          method: 'POST',
+          body: { name, language: language ?? 'pt_BR', category, body },
+        }),
+      );
+    },
+  );
+
+  server.registerTool(
+    'enviar_template_whatsapp',
+    {
+      title: 'Enviar modelo WhatsApp',
+      description:
+        'Envia um modelo aprovado. Recusa se confirm_to não for idêntico ao telefone de destino. Não envia texto livre.',
+      inputSchema: z.object({
+        account_id: z.string().describe('UUID da conta WhatsApp no AdPub'),
+        to: z.string().describe('Telefone de destino com DDI, só dígitos'),
+        template: z.string().describe('Nome do modelo aprovado'),
+        language: z.string().optional().describe('Código do idioma, padrão pt_BR'),
+        confirm_to: z.string().describe('Repita o telefone de destino para confirmar o envio'),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    },
+    async ({ account_id, to, template, language, confirm_to }) => {
+      const denied = writeDenied(context);
+      if (denied) return denied;
+      return run('enviar_template_whatsapp', () =>
+        api.call(user, `/whatsapp-accounts/${account_id}/messages`, {
+          method: 'POST',
+          body: { to, template, language: language ?? 'pt_BR', confirm_to },
+        }),
+      );
+    },
+  );
 }

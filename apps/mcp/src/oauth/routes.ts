@@ -6,6 +6,7 @@ import { findUserById, type Database } from '@adpub/db';
 import type { SessionUser } from '@adpub/shared';
 import type { McpConfig } from '../config.js';
 import { newSecret } from './hash.js';
+import { clientNameFromRedirects, isValidRedirectUri } from './redirect.js';
 import { renderConsent, renderConsentError } from './consent.js';
 import { authorizationServerMetadata, protectedResourceMetadata } from './metadata.js';
 import { ALL_SCOPES, SCOPE_READ, SCOPE_WRITE } from './scopes.js';
@@ -44,18 +45,6 @@ const authorizeQuery = z.object({
   resource: z.string().optional(),
 });
 
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
-
-function isValidRedirectUri(value: string): boolean {
-  try {
-    const url = new URL(value);
-    if (url.protocol === 'https:') return true;
-    return url.protocol === 'http:' && LOCAL_HOSTS.has(url.hostname);
-  } catch {
-    return false;
-  }
-}
-
 function sessionFrom(request: FastifyRequest, secret: string): Promise<SessionUser | undefined> {
   const cookie = request.headers.cookie;
   if (!cookie) return Promise.resolve(undefined);
@@ -77,7 +66,7 @@ function redirectWith(
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) url.searchParams.set(key, value);
   }
-  return reply.redirect(url.href, 302);
+  return reply.redirect(url.href, 303);
 }
 
 export function registerOAuthRoutes(app: FastifyInstance, options: OAuthRoutesOptions): void {
@@ -127,14 +116,14 @@ export function registerOAuthRoutes(app: FastifyInstance, options: OAuthRoutesOp
     if (invalid.length > 0) {
       return reply.status(400).send({
         error: 'invalid_redirect_uri',
-        error_description: `redirect_uris precisa ser https (ou http em localhost): ${invalid.join(', ')}`,
+        error_description: `redirect_uris precisa ser https de Grok, ChatGPT, Claude ou Cursor (ou http em localhost): ${invalid.join(', ')}`,
       });
     }
 
     const clientId = newSecret('client');
     const client = await createOAuthClientRecord(db, {
       clientId,
-      clientName: parsed.data.client_name ?? 'Cliente MCP',
+      clientName: parsed.data.client_name?.trim() || clientNameFromRedirects(parsed.data.redirect_uris),
       redirectUris: parsed.data.redirect_uris,
       scopes: parsed.data.scope
         ? ALL_SCOPES.filter((scope) => parsed.data.scope?.split(/\s+/).includes(scope))

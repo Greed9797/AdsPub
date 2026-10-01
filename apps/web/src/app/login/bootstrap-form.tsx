@@ -52,6 +52,7 @@ export function BootstrapForm() {
         label={pending ? 'Criando...' : 'Criar administrador e entrar'}
         type="submit"
         isDisabled={pending}
+        className="w-full"
       />
     </form>
   );

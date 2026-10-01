@@ -214,6 +214,30 @@ export const clients = pgTable('clients', {
   updatedAt,
 });
 
+export const whatsappAccounts = pgTable(
+  'whatsapp_accounts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    wabaId: text('waba_id').notNull(),
+    phoneNumberId: text('phone_number_id').notNull(),
+    displayName: text('display_name').notNull().default(''),
+    displayPhone: text('display_phone').notNull().default(''),
+    tokenCiphertext: bytea('token_ciphertext').notNull(),
+    tokenIv: bytea('token_iv').notNull(),
+    status: text('status').notNull().default('active'),
+    lastError: text('last_error'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    uniqueIndex('whatsapp_accounts_waba_phone_unique').on(t.wabaId, t.phoneNumberId),
+    index('whatsapp_accounts_client_idx').on(t.clientId),
+  ],
+);
+
 export const adAccounts = pgTable(
   'ad_accounts',
   {
@@ -1093,6 +1117,7 @@ export type OAuthAuthorizationCodeRow = typeof oauthAuthorizationCodes.$inferSel
 export type OAuthTokenRow = typeof oauthTokens.$inferSelect;
 export type MetaConnectionRow = typeof metaConnections.$inferSelect;
 export type ClientRow = typeof clients.$inferSelect;
+export type WhatsappAccountRow = typeof whatsappAccounts.$inferSelect;
 export type AdAccountRow = typeof adAccounts.$inferSelect;
 export type AssetRow = typeof assets.$inferSelect;
 export type AssetUploadRow = typeof assetUploads.$inferSelect;

@@ -22,7 +22,7 @@ const DATABASE = 'adpub_mcp_test';
 const AUTH_SECRET = 'mcp-test-secret-mcp-test-secret-01';
 const PORT = 4311;
 const PUBLIC_URL = `http://127.0.0.1:${PORT}/mcp`;
-const REDIRECT_URI = 'https://cliente.exemplo/callback';
+const REDIRECT_URI = 'https://claude.ai/api/mcp/auth_callback';
 
 let db: Database;
 let app: FastifyInstance;
@@ -98,6 +98,8 @@ async function authorize(clientId: string, verifier: string, cookie: string): Pr
   });
   expect(page.status).toBe(200);
   const html = await page.text();
+  expect(html).toContain('name="scope_write" value="1"');
+  expect(html).not.toContain('name="scope_write" value="1" checked');
   const csrf = /name="csrf" value="([^"]+)"/.exec(html)?.[1] ?? '';
   expect(csrf).not.toBe('');
 
@@ -116,7 +118,7 @@ async function authorize(clientId: string, verifier: string, cookie: string): Pr
       decision: 'approve',
     }),
   });
-  expect(approved.status).toBe(302);
+  expect(approved.status).toBe(303);
   const location = new URL(approved.headers.get('location') ?? '');
   expect(location.searchParams.get('iss')).toBe(`http://127.0.0.1:${PORT}`);
   expect(location.searchParams.get('state')).toBe('estado-123');
@@ -200,6 +202,16 @@ describe('descoberta e porteiro', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ redirect_uris: ['http://exemplo.invalido/callback'] }),
+    });
+    expect(response.status).toBe(400);
+    expect(((await response.json()) as { error: string }).error).toBe('invalid_redirect_uri');
+  });
+
+  it('recusa https de host que não é Grok, ChatGPT, Claude ou Cursor', async () => {
+    const response = await fetch(`http://127.0.0.1:${PORT}/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ redirect_uris: ['https://cliente.exemplo/callback'] }),
     });
     expect(response.status).toBe(400);
     expect(((await response.json()) as { error: string }).error).toBe('invalid_redirect_uri');

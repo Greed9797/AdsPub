@@ -14,6 +14,11 @@ const paths = {
   upload: 'M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5',
   chart: 'M4 20V10m6 10V4m6 16v-8m5 8H2',
   close: 'm6 6 12 12M6 18 18 6',
+  sun: 'M12 3v2m0 14v2M4.2 4.2l1.4 1.4m12.8 12.8 1.4 1.4M3 12h2m14 0h2M4.2 19.8l1.4-1.4m12.8-12.8 1.4-1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
+  moon: 'M20 14.5A7.5 7.5 0 1 1 9.5 4 6 6 0 0 0 20 14.5Z',
+  display: 'M4 5h16v12H4zM8 21h8M12 17v4',
+  'panel-left': 'M4 5h16v14H4zM9 5v14',
+  'panel-right': 'M4 5h16v14H4zM15 5v14',
 } as const;
 
 export function Icon({ name, size = 18 }: { name: keyof typeof paths; size?: number }) {

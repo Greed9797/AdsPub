@@ -2,7 +2,6 @@ import Link from 'next/link';
 
 import {
   Badge,
-  Card,
   Empty,
   Field,
   PageHead,
@@ -10,7 +9,6 @@ import {
   inputClass,
   statusLabel,
   formatLabel,
-  plural,
 } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { requireSession } from '@/lib/session';
@@ -141,19 +139,22 @@ export default async function HomePage({
         </p>
       ) : null}
 
+      <div className="workspace">
       <form method="get" aria-label="Filtrar lotes" className="toolbar">
         {adsView ? <input type="hidden" name="view" value="ads" /> : null}
         <div className="search-field">
-          <Field label="Pesquisar">
+          <label htmlFor="ads-search">Pesquisar</label>
+          <div className="search-field-control">
+            <Icon name="search" />
             <input
+              id="ads-search"
               type="search"
               name="q"
               defaultValue={search}
-              placeholder="Buscar por nome do lote ou anúncio"
+              placeholder="Nome do lote ou anúncio"
               className={inputClass}
             />
-          </Field>
-          <Icon name="search" />
+          </div>
         </div>
         <Field label="Conta" className="w-full sm:w-56">
           <select name="ad_account_id" defaultValue={accountId ?? ''} className={inputClass}>
@@ -186,22 +187,7 @@ export default async function HomePage({
         ) : null}
       </form>
 
-      <div className="workspace-summary" aria-label="Resumo dos lotes filtrados">
-        <span>
-          <strong>{visibleBatches.length}</strong> lotes no recorte
-        </span>
-        <span>
-          <strong>{ads.length}</strong> anúncios
-        </span>
-        <span>
-          <strong>{activeCount}</strong> lotes em publicação
-        </span>
-        <span>
-          <strong>{attentionCount}</strong> precisam de atenção
-        </span>
-      </div>
-
-      <div>
+      <div className="workspace-rail">
         <nav className="workspace-tabs" aria-label="Visualização dos anúncios">
           <Link
             className="workspace-tab"
@@ -228,14 +214,22 @@ export default async function HomePage({
             <Icon name="chart" /> Desempenho
           </Link>
         </nav>
-        <Card
-          title={adsView ? 'Anúncios dos lotes' : 'Lotes de anúncios'}
-          action={
-            <span className="text-xs text-[var(--color-muted)]">
-              {plural(adsView ? ads.length : visibleBatches.length, 'resultado', 'resultados')}
-            </span>
-          }
-        >
+        <p className="workspace-summary" aria-label="Resumo dos lotes filtrados">
+          <span>
+            <strong>{visibleBatches.length}</strong> lotes
+          </span>
+          <span>
+            <strong>{ads.length}</strong> anúncios
+          </span>
+          <span>
+            <strong>{activeCount}</strong> publicando
+          </span>
+          <span>
+            <strong>{attentionCount}</strong> precisam de atenção
+          </span>
+        </p>
+      </div>
+      <div className="workspace-list">
           {(adsView ? ads.length === 0 : visibleBatches.length === 0) ? (
             <Empty
               title={adsView ? 'Nenhum anúncio neste recorte' : 'Nenhum lote encontrado'}
@@ -309,10 +303,11 @@ export default async function HomePage({
                   </TableCell>
                   <TableCell className="numeric">{batch.items.length}</TableCell>
                   <TableCell className="whitespace-nowrap tabular-nums text-[var(--color-muted)]">
-                    {new Date(batch.updated_at).toLocaleString('pt-BR', {
+                    {new Intl.DateTimeFormat('pt-BR', {
                       dateStyle: 'short',
                       timeStyle: 'short',
-                    })}
+                      timeZone: 'America/Sao_Paulo',
+                    }).format(new Date(batch.updated_at))}
                   </TableCell>
                   <TableCell>
                     <Link
@@ -326,7 +321,7 @@ export default async function HomePage({
               ))}
             </Table>
           )}
-        </Card>
+      </div>
       </div>
     </div>
   );

@@ -1,13 +1,23 @@
 # HANDOFF — AdPub
 
-Data: 2026-09-18. Branch `main` em `aef6c2e` — realinhamento das 12 etapas (o que o app promete
-é o que o código faz). Produção
-**no ar** em `https://adpub.179-198-104-210.sslip.io` (host compartilhado, atrás do Caddy do `mcrm`);
-falta só preencher as chaves externas do `.env.prod` (§3, item 1) — o host ainda roda a imagem
-anterior, sem o MCP e sem o vídeo.
+Data: 2026-09-19. Branch `main` em `d70bf31` (realinhamento em `aef6c2e`, docs de recertificação
+depois). Produção **no ar** em `https://adpub.179-198-104-210.sslip.io` (host compartilhado,
+atrás do Caddy do `mcrm`); a imagem no host ainda é `4155cf3` (11/09) — sem MCP, sem vídeo,
+sem senha (`users.google_sub` no lugar de `password_hash`).
 
 ## 1. Estado atual
 
+- **Inspecionado 2026-09-19 (esta sessão):** Colima `w3-tests` recriado; compose local
+  (postgres/redis/minio) saudável; migrações locais 0000–0020 aplicadas; api `:4000`, mcp
+  `:4410` e web `:3000`/`/login` em 200. Depois do wipe, `DEV_NO_AUTH` 500-ava até existir o
+  usuário `00000000-0000-4000-8000-000000000001` (`dev@empresa.com.br`) — inserido. Host
+  `w3vps`: imagens `adpub/adpub-{api,web,worker}:4155cf3` há 4 dias (healthy); **sem**
+  `adpub-mcp`; drizzle com **12** migrações (falta 0012–0020); `users=0` `clients=0`;
+  `users` ainda tem `google_sub`. `.env.prod` com `AUTH_ALLOWED_DOMAIN=w3bsite.com.br` e
+  `TROCAR` em `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`META_APP_ID`/`META_APP_SECRET`/
+  `ANTHROPIC_API_KEY`. Caddy sem rotas `/mcp`. Login público 200; `GET /api/v1/health` no
+  domínio público 404 (Caddy só manda para o web). `pnpm smoke:sandbox` **não** roda: nenhum
+  `SMOKE_*` nesta máquina. `deploy-host.sh` recusa árvore suja (`DESIGN.md` untracked — ignorar).
 - **Realinhamento commitado (`aef6c2e`)**: papel e sessão em toda entrada, plano estruturado,
   revisão/aprovação coerentes, despacho retomável, reconciliação de item e ref, duplicação como
   plano revisável, Drive observável sem duplicar pasta, ciclo de sync que sobrevive queda de rede,
