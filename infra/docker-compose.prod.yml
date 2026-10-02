@@ -69,6 +69,7 @@ services:
     # O MinIO tirou as imagens públicas do Docker Hub e do Quay. Esta é a cópia
     # espelhada (amd64+arm64) da RELEASE.2025-09-07T16-13-09Z; ver docs/deploy.md.
     image: ghcr.io/greed9797/minio:RELEASE.2025-09-07T16-13-09Z
+    platform: linux/arm64
     container_name: adpub-minio
     command: ['server', '/data', '--console-address', ':9001']
     environment:
@@ -93,6 +94,7 @@ services:
     <<: *app
     # A imagem do servidor já embute o mc (mesma RELEASE de 2025-08-13).
     image: ghcr.io/greed9797/minio:RELEASE.2025-09-07T16-13-09Z
+    platform: linux/arm64
     container_name: adpub-minio-init
     restart: 'no'
     networks: [internal]
