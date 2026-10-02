@@ -38,6 +38,7 @@ jobs:
       # fluxo OAuth do MCP). No runner os serviços ficam nas portas canônicas.
       E2E_POSTGRES_BASE_URL: postgres://adpub:adpub@127.0.0.1:5432
       REDIS_URL: redis://localhost:6379
+      TEST_REDIS_URL: redis://127.0.0.1:6379/14
       MASTER_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
       META_APP_ID: '000000000000000'
       META_APP_SECRET: ci-app-secret
