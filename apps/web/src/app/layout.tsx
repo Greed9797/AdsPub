@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { GeistSans } from 'geist/font/sans';
+import { GeistMono } from 'geist/font/mono';
 import { cookies } from 'next/headers';
 import './globals.css';
 import { currentSession } from '@/lib/session';
@@ -12,21 +13,6 @@ export const metadata: Metadata = {
   title: 'AdPub',
   description: 'Publicação de anúncios Meta em lote',
 };
-
-/** One readable UI family; monospace is reserved for technical values. */
-const geist = Geist({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
-  display: 'swap',
-  variable: '--font-geist',
-});
-
-const geistMono = Geist_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  display: 'swap',
-  variable: '--font-geist-mono',
-});
 
 const NAV_GROUPS: Array<{ title: string; items: Array<NavItem & { roles?: string[] }> }> = [
   {
@@ -80,7 +66,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const groups = visibleNav(user?.role);
 
   return (
-    <html lang="pt-BR" className={`${geist.variable} ${geistMono.variable}`} data-theme={mode}>
+    <html lang="pt-BR" className={`${GeistSans.variable} ${GeistMono.variable}`} data-theme={mode}>
       <body>
         <a className="skip-link" href="#conteudo">
           Ir para o conteúdo
