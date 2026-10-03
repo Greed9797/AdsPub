@@ -1,0 +1,128 @@
+/*
+ * Tokens do redesign v2 (Figma 2NVoAvTtfLnlkjewEoZTtp, "App / Cor (W3 claro)" e "App / Medida").
+ * O claro é o desenho do Figma. O escuro é derivado: papel e tinta invertidos, mesmo laranja.
+ */
+@layer ap {
+  :root {
+    color-scheme: light;
+
+    /* fundo */
+    --ap-bg-page: #f3f1ea;
+    --ap-bg-surface: #fbfaf6;
+    --ap-bg-band: #f3f1ea;
+    --ap-bg-sunken: #e8e5db;
+
+    /* texto e linha */
+    --ap-text-1: #0f0f0d;
+    --ap-text-2: #3a3935;
+    --ap-text-3: #65645d;
+    --ap-text-on-dark: #a9a79e;
+    --ap-line: #d5d1c4;
+    --ap-line-strong: #0f0f0d;
+
+    /* destaque e alerta */
+    --ap-orange: #ff5701;
+    --ap-orange-text: #c24100;
+    --ap-orange-veil: #fdf0e6;
+    --ap-error: #b3261e;
+    --ap-error-veil: #f4e5e0;
+    --ap-on-orange: #0f0f0d;
+
+    /* dados (estado dos anúncios) */
+    --ap-data-published: #0f0f0d;
+    --ap-data-ready: #b9b4a4;
+    --ap-data-draft: #d5d1c4;
+    --ap-data-hatch: #9d978a;
+    --ap-data-dot: #d5d1c4;
+
+    /* barra escura (fila de publicação, seleção) */
+    --ap-bar-bg: #0f0f0d;
+    --ap-bar-fg: #fbfaf6;
+    --ap-bar-dim: #a9a79e;
+
+    /* raio */
+    --ap-r-sm: 6px;
+    --ap-r-md: 12px;
+    --ap-r-lg: 16px;
+    --ap-r-xl: 24px;
+    --ap-r-modal: 28px;
+    --ap-r-pill: 999px;
+
+    /* espaço */
+    --ap-s-4: 4px;
+    --ap-s-8: 8px;
+    --ap-s-12: 12px;
+    --ap-s-16: 16px;
+    --ap-s-24: 24px;
+    --ap-s-32: 32px;
+    --ap-s-48: 48px;
+
+    /* sombra: só no que flutua */
+    --ap-shadow-float: 0 28px 72px -8px rgb(15 15 13 / 0.28);
+
+    /* tipo */
+    --ap-font-display: 'Nunito Variable', 'Nunito', system-ui, sans-serif;
+    --ap-font-text: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --ap-font-mono: var(--font-geist-mono), ui-monospace, Menlo, monospace;
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    --ap-bg-page: #0f0f0d;
+    --ap-bg-surface: #181815;
+    --ap-bg-band: #141412;
+    --ap-bg-sunken: #22211e;
+    --ap-text-1: #f3f1ea;
+    --ap-text-2: #cfcdc3;
+    --ap-text-3: #a9a79e;
+    --ap-text-on-dark: #a9a79e;
+    --ap-line: #2f2e2a;
+    --ap-line-strong: #f3f1ea;
+    --ap-orange: #ff5701;
+    --ap-orange-text: #ff9d70;
+    --ap-orange-veil: #2a1a12;
+    --ap-error: #ff8f86;
+    --ap-error-veil: #2c1816;
+    --ap-on-orange: #0f0f0d;
+    --ap-data-published: #f3f1ea;
+    --ap-data-ready: #6b685d;
+    --ap-data-draft: #3a3933;
+    --ap-data-hatch: #8b8578;
+    --ap-data-dot: #3a3933;
+    --ap-bar-bg: #22211e;
+    --ap-bar-fg: #f3f1ea;
+    --ap-bar-dim: #a9a79e;
+    --ap-shadow-float: 0 28px 72px -8px rgb(0 0 0 / 0.6);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root[data-theme='system'] {
+      color-scheme: dark;
+      --ap-bg-page: #0f0f0d;
+      --ap-bg-surface: #181815;
+      --ap-bg-band: #141412;
+      --ap-bg-sunken: #22211e;
+      --ap-text-1: #f3f1ea;
+      --ap-text-2: #cfcdc3;
+      --ap-text-3: #a9a79e;
+      --ap-text-on-dark: #a9a79e;
+      --ap-line: #2f2e2a;
+      --ap-line-strong: #f3f1ea;
+      --ap-orange: #ff5701;
+      --ap-orange-text: #ff9d70;
+      --ap-orange-veil: #2a1a12;
+      --ap-error: #ff8f86;
+      --ap-error-veil: #2c1816;
+      --ap-on-orange: #0f0f0d;
+      --ap-data-published: #f3f1ea;
+      --ap-data-ready: #6b685d;
+      --ap-data-draft: #3a3933;
+      --ap-data-hatch: #8b8578;
+      --ap-data-dot: #3a3933;
+      --ap-bar-bg: #22211e;
+      --ap-bar-fg: #f3f1ea;
+      --ap-bar-dim: #a9a79e;
+      --ap-shadow-float: 0 28px 72px -8px rgb(0 0 0 / 0.6);
+    }
+  }
+}

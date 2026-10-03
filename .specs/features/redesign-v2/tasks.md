@@ -71,6 +71,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T1: Tokens, fontes e CSS base
 
+**Status**: ✅ Complete
 **What**: Criar `tokens.css` (claro e escuro derivado) e `base.css`, empacotar Nunito e mover o CSS atual para `legacy.css` em camada.
 **Where**: `apps/web/src/styles/tokens.css`, `apps/web/src/styles/base.css`, `apps/web/src/app/globals.css`, `apps/web/package.json`
 **Depends on**: None
@@ -84,12 +85,12 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] `tokens.css` define as 20 cores, os raios (6, 12, 16, 24, 28, 999) e os estilos de texto do Figma
-- [ ] Nunito vem de `@fontsource-variable/nunito` e Geist de `geist`, sem `next/font/google`
-- [ ] O foco visível usa borda de tinta e anel laranja de 3 px a 35%
-- [ ] O CSS antigo continua carregando em `@layer legacy`
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web`
-- [ ] Test count: 3 tests pass (no silent deletions)
+- [x] `tokens.css` define as 20 cores, os raios (6, 12, 16, 24, 28, 999) e os estilos de texto do Figma
+- [x] Nunito vem de `@fontsource-variable/nunito` e Geist de `geist`, sem `next/font/google`
+- [x] O foco visível usa borda de tinta e anel laranja de 3 px a 35%
+- [x] O CSS antigo continua carregando em `@layer legacy`
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web`
+- [x] Test count: 6 tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick

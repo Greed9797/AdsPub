@@ -1,0 +1,123 @@
+/*
+ * Estilos de texto do Figma ("App/…") como classes `ap-t-*`, mais o foco visível.
+ * Letter-spacing do Figma em % vira em.
+ */
+@layer ap {
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--ap-text-1);
+    outline-offset: 0;
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--ap-orange) 35%, transparent);
+  }
+
+  .ap-t-display {
+    font-family: var(--ap-font-display);
+    font-weight: 700;
+    font-size: 60px;
+    line-height: 1.04;
+    letter-spacing: -0.03em;
+  }
+  .ap-t-title {
+    font-family: var(--ap-font-display);
+    font-weight: 700;
+    font-size: 40px;
+    line-height: 1.04;
+    letter-spacing: -0.025em;
+  }
+  .ap-t-title-m {
+    font-family: var(--ap-font-display);
+    font-weight: 700;
+    font-size: 30px;
+    line-height: 1.08;
+    letter-spacing: -0.025em;
+  }
+  .ap-t-section {
+    font-family: var(--ap-font-display);
+    font-weight: 700;
+    font-size: 24px;
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+  }
+  .ap-t-num-xl {
+    font-family: var(--ap-font-display);
+    font-weight: 700;
+    font-size: 56px;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .ap-t-num-l {
+    font-family: var(--ap-font-display);
+    font-weight: 700;
+    font-size: 30px;
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+  }
+
+  .ap-t-block {
+    font-family: var(--ap-font-text);
+    font-weight: 600;
+    font-size: 17px;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+  }
+  .ap-t-body-l {
+    font-family: var(--ap-font-text);
+    font-size: 17px;
+    line-height: 1.5;
+  }
+  .ap-t-body {
+    font-family: var(--ap-font-text);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .ap-t-body-strong {
+    font-family: var(--ap-font-text);
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .ap-t-small {
+    font-family: var(--ap-font-text);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .ap-t-button {
+    font-family: var(--ap-font-text);
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 1.2;
+  }
+
+  .ap-t-label {
+    font-family: var(--ap-font-mono);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .ap-t-label-m {
+    font-family: var(--ap-font-mono);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .ap-t-num {
+    font-family: var(--ap-font-mono);
+    font-weight: 500;
+    font-size: 15px;
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+  }
+  .ap-t-num-s {
+    font-family: var(--ap-font-mono);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .ap-t-ref {
+    font-family: var(--ap-font-mono);
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 1.3;
+  }
+  .ap-t-stamp {
+    font-family: var(--ap-font-mono);
+    font-size: 11px;
+    line-height: 1.2;
+  }
+}

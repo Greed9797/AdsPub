@@ -6,8 +6,10 @@ const pkg = (name: string, entry = 'index.ts') =>
 
 /** Testes rodam contra o código-fonte dos pacotes, sem depender do build. */
 export default defineConfig({
+  oxc: { jsx: { runtime: 'automatic' } },
   resolve: {
     alias: {
+      '@': fileURLToPath(new URL('./apps/web/src', import.meta.url)),
       '@adpub/meta-client/write': pkg('meta-client', 'write/index.ts'),
       '@adpub/config': pkg('config'),
       '@adpub/shared': pkg('shared'),
@@ -31,6 +33,7 @@ export default defineConfig({
       'apps/worker/test/**/*.test.ts',
       'apps/mcp/test/**/*.test.ts',
       'scripts/test/**/*.test.ts',
+      'apps/web/test/**/*.test.{ts,tsx}',
     ],
     exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
     testTimeout: 20_000,
