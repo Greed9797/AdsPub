@@ -6,6 +6,7 @@ import '@fontsource-variable/nunito';
 import './globals.css';
 import '../styles/tokens.css';
 import '../styles/base.css';
+import '../styles/components.css';
 import { currentSession } from '@/lib/session';
 import { AppSideNav, AppTopNav, type NavGroup, type NavItem } from '@/components/app-nav';
 import type { SessionUser } from '@adpub/shared';

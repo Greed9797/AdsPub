@@ -131,6 +131,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T3: Primitivos de UI
 
+**Status**: ✅ Complete
 **What**: Criar `components/ui/` com Button, ButtonLink, Selo, Table, Dialog, Field, Input, Select, Textarea, Checkbox, Chip, Callout, Card e Empty, com a API do Astryx usada hoje.
 **Where**: `apps/web/src/components/ui/`, `apps/web/src/lib/labels.ts`
 **Depends on**: T2
@@ -144,12 +145,12 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] Button aceita `variant`, `label`, `isDisabled`, `onClick`, `type`, `href`, `as`
-- [ ] Selo renderiza as 13 variantes com texto e papel acessível
-- [ ] Dialog usa `<dialog>` com `role="dialog"` e fecha com Esc
-- [ ] Field associa `label` e `aria-describedby` ao controle
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web`
-- [ ] Test count: 10 tests pass (no silent deletions)
+- [x] Button aceita `variant`, `label`, `isDisabled`, `onClick`, `type`, `href`, `as`
+- [x] Selo renderiza as 13 variantes com texto e papel acessível
+- [x] Dialog usa `<dialog>` com `role="dialog"` e fecha com Esc
+- [x] Field associa `label` e `aria-describedby` ao controle
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web`
+- [x] Test count: 28 tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick

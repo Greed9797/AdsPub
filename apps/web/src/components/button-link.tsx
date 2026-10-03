@@ -1,9 +1,6 @@
-'use client';
+import { Button } from '@/components/ui/button';
 
-import Link from 'next/link';
-import { Button } from '@astryxdesign/core/Button';
-
-/** Botão Astryx que navega via Next Link (as={Link} não cruza server→client). */
+/** Botão que navega por link. Mantido para os usos que já importam `ButtonLink`. */
 export function ButtonLink({
   variant,
   label,
@@ -13,5 +10,5 @@ export function ButtonLink({
   label: string;
   href: string;
 }) {
-  return <Button variant={variant} label={label} href={href} as={Link} />;
+  return <Button variant={variant} label={label} href={href} />;
 }
