@@ -1,8 +1,7 @@
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
-import { Badge, Card, Empty, PageHead, statusLabel } from '@/components/ui';
-import { ButtonLink } from '@/components/button-link';
+import { Button, Card, Empty, PageHead, Selo } from '@/components/ui';
 import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
 import type { AdAccount, AdsetRef, Asset, Batch, CampaignRef } from '@/lib/types';
@@ -11,6 +10,7 @@ import { BatchItemsTable } from './batch-items-table';
 import { ManualBuilder } from './manual-builder';
 import { PublishPanel } from './publish-panel';
 import { ReconciliationPanel } from './reconciliation-panel';
+import { SharedStructure } from './shared-structure';
 import {
   duplicarLote,
   publicarLote,
@@ -22,13 +22,6 @@ import {
   salvarPlanoManual,
   validarLote,
 } from '../actions';
-
-function statusTone(status: string): 'ok' | 'warn' | 'danger' | 'info' {
-  if (status === 'done') return 'ok';
-  if (status === 'partial' || status === 'failed' || status === 'blocked') return 'danger';
-  if (status === 'publishing' || status === 'queued') return 'warn';
-  return 'info';
-}
 
 export default async function LotePage({
   params,
@@ -67,14 +60,14 @@ export default async function LotePage({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="ap-lotes">
       <PageHead
         title={batch.name}
         description={`${account.name} · ${batch.mode === 'ai' ? 'Planejamento com IA' : 'Criação manual'}`}
         action={
           <>
-            <Badge tone={statusTone(batch.status)}>{statusLabel(batch.status)}</Badge>
-            <ButtonLink variant="secondary" label="Voltar aos lotes" href="/" />
+            <Selo status={batch.status} />
+            <Button variant="secondary" label="Voltar aos lotes" href="/" />
           </>
         }
       />
@@ -150,6 +143,7 @@ export default async function LotePage({
               reprocessarItemAction={reprocessarItem}
             />
           )}
+          <SharedStructure batch={batch} />
           {batch.mode === 'manual' && canEdit ? (
             <details open={batch.items.length === 0} className="min-w-0">
               <summary className="mb-3 text-sm font-semibold">

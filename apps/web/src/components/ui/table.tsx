@@ -24,6 +24,18 @@ export function TableRow({ children, className }: { children: ReactNode; classNa
   return <tr className={className ? `ap-tr ${className}` : 'ap-tr'}>{children}</tr>;
 }
 
-export function TableCell({ children, className }: { children?: ReactNode; className?: string }) {
-  return <td className={className ? `ap-td ${className}` : 'ap-td'}>{children}</td>;
+export function TableCell({
+  children,
+  className,
+  colSpan,
+}: {
+  children?: ReactNode;
+  className?: string;
+  colSpan?: number;
+}) {
+  return (
+    <td className={className ? `ap-td ${className}` : 'ap-td'} colSpan={colSpan}>
+      {children}
+    </td>
+  );
 }

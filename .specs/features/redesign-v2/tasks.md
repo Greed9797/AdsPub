@@ -278,6 +278,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T8: Lote aberto (lista e estrutura)
 
+**Status**: ✅ Complete
 **What**: Lista de anúncios com miniatura, etapas na Meta e selo, e o cartão de estrutura compartilhada.
 **Where**: `apps/web/src/app/lotes/[id]/page.tsx`, `apps/web/src/app/lotes/[id]/batch-items-table.tsx`
 **Depends on**: T7
@@ -291,11 +292,11 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] Cada anúncio mostra 5 segmentos de etapa e o selo de estado
-- [ ] A estrutura lista campanha e conjuntos com o estado de cada ref
-- [ ] Com papel `viewer` nenhuma ação de edição ou publicação aparece
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-lote.spec.ts`
-- [ ] Test count: 4 tests pass (no silent deletions)
+- [x] Cada anúncio mostra 5 segmentos de etapa e o selo de estado
+- [x] A estrutura lista campanha e conjuntos com o estado de cada ref
+- [x] Com papel `viewer` nenhuma ação de edição ou publicação aparece
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-lote.spec.ts`
+- [x] Test count: 4 e2e + 12 unit new (suíte e2e 40, vitest 505) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full

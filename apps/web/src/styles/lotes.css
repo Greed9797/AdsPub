@@ -278,4 +278,99 @@
       max-width: 100%;
     }
   }
+
+  /* ---------- lote aberto: anúncios e estrutura ---------- */
+  .ap-item {
+    display: flex;
+    align-items: center;
+    gap: var(--ap-s-12);
+    min-width: 0;
+  }
+  .ap-item__text {
+    min-width: 0;
+  }
+  .ap-item__text p {
+    margin: 0;
+  }
+  .ap-item__ref,
+  .ap-item__detail {
+    color: var(--ap-text-2);
+  }
+  .ap-item__copy {
+    max-width: 320px;
+    overflow: hidden;
+    color: var(--ap-text-2);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ap-thumb {
+    flex: none;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--ap-r-md);
+    background: var(--ap-bg-sunken);
+    object-fit: cover;
+  }
+  .ap-etapas {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 150px;
+  }
+  .ap-etapas__bar {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 3px;
+  }
+  .ap-etapas__bar i {
+    height: 4px;
+    border-radius: var(--ap-r-pill);
+    background: var(--ap-line);
+  }
+  .ap-etapas__bar i[data-estado='done'] {
+    background: var(--ap-text-1);
+  }
+  .ap-etapas__bar i[data-estado='current'] {
+    background: var(--ap-orange);
+  }
+  .ap-etapas__bar i[data-estado='failed'] {
+    background: var(--ap-error);
+  }
+  .ap-etapas__legenda {
+    color: var(--ap-text-2);
+  }
+  .ap-estrutura {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ap-estrutura__linha {
+    display: grid;
+    grid-template-columns: 110px 1fr auto;
+    align-items: center;
+    gap: var(--ap-s-16);
+    padding: 14px 0;
+  }
+  .ap-estrutura__linha + .ap-estrutura__linha {
+    border-top: 1px solid var(--ap-line);
+  }
+  .ap-estrutura__linha[data-tipo='conjunto'] {
+    padding-left: var(--ap-s-24);
+  }
+  .ap-estrutura__tipo {
+    color: var(--ap-text-2);
+  }
+  .ap-estrutura__texto {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .ap-estrutura__detalhe {
+    color: var(--ap-text-2);
+  }
+  .ap-estrutura__erro {
+    color: var(--ap-error);
+  }
 }
