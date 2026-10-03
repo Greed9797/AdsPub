@@ -161,7 +161,8 @@ T22 → T23 → T24 → T25 → T26
 
 ### T4: Casca desktop
 
-**What**: Barra superior com 5 abas e menus por papel, busca, sincronização e Sair; rodapé; provedor de tema sem Astryx.
+**Status**: ✅ Complete
+**What**: Barra superior com 5 abas e menus por papel, busca, sincronização e Sair; rodapé com o seletor de tema. O provedor com `Theme` do Astryx fica até o T23.
 **Where**: `apps/web/src/components/shell/`, `apps/web/src/lib/nav.ts`, `apps/web/src/app/layout.tsx`, `apps/web/src/components/providers.tsx`
 **Depends on**: T3
 **Reuses**: `visibleNav()` atual, cookie `adpub_theme`
@@ -174,12 +175,12 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] As abas Lotes, Criativos, Performance, Contas e Gestão aparecem em toda rota autenticada
-- [ ] Contas e Gestão abrem menus filtrados por papel e flag
-- [ ] Escolher Claro, Escuro ou Sistema grava o cookie e aplica `data-theme`
-- [ ] Com `GET /ad-accounts` falhando a página renderiza sem o rótulo de sincronização
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-shell.spec.ts`
-- [ ] Test count: 5 tests pass (no silent deletions)
+- [x] As abas Lotes, Criativos, Performance, Contas e Gestão aparecem em toda rota autenticada
+- [x] Contas e Gestão abrem menus filtrados por papel e flag
+- [x] Escolher Claro, Escuro ou Sistema grava o cookie e aplica `data-theme`
+- [x] Com `GET /ad-accounts` falhando a página renderiza sem o rótulo de sincronização
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-shell.spec.ts`
+- [x] Test count: 39 tests pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full

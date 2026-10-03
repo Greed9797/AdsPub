@@ -19,6 +19,8 @@ const paths = {
   display: 'M4 5h16v12H4zM8 21h8M12 17v4',
   'panel-left': 'M4 5h16v14H4zM9 5v14',
   'panel-right': 'M4 5h16v14H4zM15 5v14',
+  'chevron-down': 'm6 9 6 6 6-6',
+  logout: 'M9 4H5v16h4M16 8l4 4-4 4M20 12H9',
 } as const;
 
 export function Icon({ name, size = 18 }: { name: keyof typeof paths; size?: number }) {
