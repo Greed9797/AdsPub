@@ -454,6 +454,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T14: Contas Meta
 
+**Status**: ✅ Complete
 **What**: Conexões, tabela de contas e ficha de padrões da conta.
 **Where**: `apps/web/src/app/contas/page.tsx`, `apps/web/src/app/contas/connection-form.tsx`, `apps/web/src/app/contas/account-defaults-form.tsx`
 **Depends on**: T13
@@ -467,11 +468,11 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] Criar, testar, sincronizar e trocar token continuam disponíveis
-- [ ] A ficha edita os padrões da conta e salva
-- [ ] O token nunca volta para a tela
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-contas.spec.ts`
-- [ ] Test count: 4 tests pass (no silent deletions)
+- [x] Criar, testar, sincronizar e trocar token continuam disponíveis
+- [x] A ficha edita os padrões da conta e salva
+- [x] O token nunca volta para a tela
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-contas.spec.ts`
+- [x] Test count: 4 e2e new (suíte e2e 67) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full

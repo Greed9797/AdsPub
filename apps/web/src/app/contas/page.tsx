@@ -1,4 +1,4 @@
-import { Card, Empty, fusoLabel, moedaLabel, PageHead, Table } from '@/components/ui';
+import { Card, Empty, PageHead, Table, TableCell, TableRow, fusoLabel, moedaLabel } from '@/components/ui';
 import type { AdAccount, Client, Connection } from '@/lib/types';
 import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
@@ -11,7 +11,6 @@ import {
   sincronizarConexao,
   testarConexao,
 } from './actions';
-import { TableCell, TableRow } from '@astryxdesign/core/Table';
 
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'short',
@@ -51,7 +50,7 @@ export default async function ContasPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="ap-lotes">
       <PageHead
         title="Conexões Meta"
         description="Conecte empresas, sincronize contas e defina a identidade padrão dos anúncios."
@@ -59,7 +58,7 @@ export default async function ContasPage() {
 
       {isAdmin && !passosCompletos ? (
         <Card title="Primeiros passos">
-          <ol className="space-y-3">
+          <ol className="ap-passos">
             {[
               {
                 feito: temConexao,
@@ -77,34 +76,13 @@ export default async function ContasPage() {
                 dica: 'Em Clientes, cadastre e volte aqui para definir os padrões da conta.',
               },
             ].map((passo, index) => (
-              <li key={passo.titulo} className="flex items-start gap-3">
-                <span
-                  aria-hidden="true"
-                  className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums ${
-                    passo.feito
-                      ? 'border-[var(--color-ok)] bg-[var(--color-ok)]/15 text-[var(--color-ok)]'
-                      : 'border-[var(--color-border)] text-[var(--color-muted)]'
-                  }`}
-                >
-                  {passo.feito ? (
-                    <svg
-                      viewBox="0 0 12 12"
-                      className="h-3 w-3"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.4"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M2.5 6.5 5 9l4.5-6" />
-                    </svg>
-                  ) : (
-                    index + 1
-                  )}
+              <li key={passo.titulo} data-feito={passo.feito ? 'true' : undefined}>
+                <span aria-hidden="true" className="ap-passos__n ap-t-num-s">
+                  {passo.feito ? '✓' : index + 1}
                 </span>
                 <div>
-                  <p className="text-sm font-semibold">{passo.titulo}</p>
-                  <p className="text-sm text-[var(--color-muted)]">{passo.dica}</p>
+                  <p className="ap-t-body-strong">{passo.titulo}</p>
+                  <p className="ap-t-small ap-passos__dica">{passo.dica}</p>
                 </div>
               </li>
             ))}
@@ -116,9 +94,7 @@ export default async function ContasPage() {
         title="Contas de anúncio"
         action={
           accounts.length > 0 ? (
-            <span className="text-xs tabular-nums text-[var(--color-muted)]">
-              {accounts.length}
-            </span>
+            <span className="ap-t-num-s ap-passos__dica">{accounts.length}</span>
           ) : undefined
         }
       >
@@ -134,10 +110,10 @@ export default async function ContasPage() {
               const lastSyncedAt = account.last_synced_at;
 
               return (
-                <TableRow key={account.id} className="align-top">
+                <TableRow key={account.id}>
                   <TableCell>
                     {account.name}
-                    <span className="block text-xs text-[var(--color-muted)]">ID {account.id}</span>
+                    <span className="ap-t-ref ap-conta__id">ID {account.id}</span>
                   </TableCell>
                   <TableCell>
                     {moedaLabel(account.currency)} / {fusoLabel(account.timezone_name)}
@@ -160,12 +136,7 @@ export default async function ContasPage() {
                     {lastSyncedAt === null ? '—' : dateFormatter.format(new Date(lastSyncedAt))}
                   </TableCell>
                   <TableCell>
-                    <a
-                      href={account.ads_manager_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[var(--color-brand)] underline"
-                    >
+                    <a href={account.ads_manager_url} target="_blank" rel="noreferrer">
                       Abrir
                     </a>
                   </TableCell>

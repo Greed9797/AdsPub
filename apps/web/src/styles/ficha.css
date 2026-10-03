@@ -15,6 +15,13 @@
   .ap-ficha__name {
     margin: 4px 0 0;
   }
+  .ap-ficha__h {
+    margin: 0;
+  }
+  .ap-ficha__sub {
+    margin: 4px 0 0;
+    color: var(--ap-text-2);
+  }
   .ap-ficha__ref {
     display: flex;
     align-items: center;

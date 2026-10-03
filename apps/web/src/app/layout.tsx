@@ -14,6 +14,7 @@ import '../styles/publish.css';
 import '../styles/novo-lote.css';
 import '../styles/acesso.css';
 import '../styles/criativos.css';
+import '../styles/contas.css';
 import { currentSession } from '@/lib/session';
 import { BottomNav } from '@/components/shell/bottom-nav';
 import { Footer } from '@/components/shell/footer';

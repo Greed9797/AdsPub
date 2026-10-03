@@ -1,0 +1,82 @@
+/* Contas Meta, clientes e demais telas de gestão. */
+@layer ap {
+  .ap-passos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-16);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ap-passos li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--ap-s-12);
+  }
+  .ap-passos p {
+    margin: 0;
+  }
+  .ap-passos__n {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--ap-line-strong);
+    border-radius: 50%;
+    color: var(--ap-text-2);
+  }
+  .ap-passos li[data-feito='true'] .ap-passos__n {
+    border-color: var(--ap-text-1);
+    background: var(--ap-text-1);
+    color: var(--ap-bg-surface);
+  }
+  .ap-passos__dica {
+    color: var(--ap-text-2);
+  }
+  .ap-conta__id {
+    display: block;
+    color: var(--ap-text-2);
+  }
+  .ap-conexoes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-24);
+  }
+  .ap-conexoes__form {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--ap-s-16);
+    align-items: start;
+  }
+  .ap-conexoes__submit,
+  .ap-conexoes__msg {
+    grid-column: 1 / -1;
+  }
+  .ap-conexoes__acoes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ap-s-8);
+    min-width: 280px;
+  }
+  .ap-conexoes__acoes .ap-input {
+    min-height: 32px;
+    max-width: 200px;
+  }
+  .ap-conexoes__erro {
+    color: var(--ap-error);
+    font-size: 13px;
+  }
+  .ap-conexoes__resultado {
+    min-width: 180px;
+    color: var(--ap-text-2);
+    font-size: 13px;
+  }
+
+  @media (max-width: 768px) {
+    .ap-conexoes__form {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}

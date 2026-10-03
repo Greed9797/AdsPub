@@ -3,10 +3,8 @@
 import { useState, useTransition } from 'react';
 import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { inputClass, Badge, Table, Field } from '@/components/ui';
+import { Button, Field, Selo, Table, TableCell, TableRow, inputClass } from '@/components/ui';
 import type { Connection } from '@/lib/types';
-import { Button } from '@astryxdesign/core/Button';
-import { TableCell, TableRow } from '@astryxdesign/core/Table';
 import type {
   ActionResult,
   ConnectionInput,
@@ -22,10 +20,10 @@ interface ConnectionPanelProps {
   girarToken: (connectionId: string, token: string) => Promise<TestConnectionResult>;
 }
 
-const STATUS_TONE: Record<Connection['status'], string> = {
-  active: 'ok',
-  needs_attention: 'warn',
-  revoked: 'danger',
+const STATUS_TONE: Record<Connection['status'], 'ativa' | 'conferir' | 'falhou'> = {
+  active: 'ativa',
+  needs_attention: 'conferir',
+  revoked: 'falhou',
 };
 
 const CONN_STATUS_PT: Record<Connection['status'], string> = {
@@ -145,8 +143,8 @@ export default function ConnectionForm({
   };
 
   return (
-    <div className="space-y-6">
-      <form onSubmit={handleCreate} className="grid gap-3 sm:grid-cols-3">
+    <div className="ap-conexoes">
+      <form onSubmit={handleCreate} className="ap-conexoes__form">
         <Field label="ID da empresa">
           <input
             value={businessId}
@@ -175,16 +173,16 @@ export default function ConnectionForm({
           />
         </Field>
 
-        <div className="sm:col-span-3">
+        <div className="ap-conexoes__submit">
           <Button variant="primary" label={isCreatePending ? 'Salvando...' : 'Criar conexão'} type="submit" isDisabled={isCreatePending} />
         </div>
 
-        {erro ? <p className="text-sm text-[var(--color-danger)] sm:col-span-3">{erro}</p> : null}
-        {sucesso ? <p className="text-sm text-[var(--color-ok)] sm:col-span-3">{sucesso}</p> : null}
+        {erro ? <p role="alert" className="ap-note ap-conexoes__msg" data-tone="danger">{erro}</p> : null}
+        {sucesso ? <p role="status" className="ap-note ap-conexoes__msg">{sucesso}</p> : null}
       </form>
 
       {connections.length === 0 ? (
-        <p className="text-sm text-[var(--color-muted)]">Nenhuma conexão cadastrada.</p>
+        <p className="ap-t-small ap-passos__dica">Nenhuma conexão cadastrada.</p>
       ) : (
         <Table
           head={['Rótulo', 'ID da empresa', 'Situação', 'Nível', 'Último check', 'Último erro', 'Ações', 'Resultado']}
@@ -194,23 +192,23 @@ export default function ConnectionForm({
             const lastChecked = connection.last_checked_at;
 
             return (
-              <TableRow key={connection.id} className="align-top">
+              <TableRow key={connection.id}>
                 <TableCell>{connection.label}</TableCell>
                 <TableCell>{connection.business_id}</TableCell>
                 <TableCell>
-                  <Badge tone={STATUS_TONE[connection.status]}>{CONN_STATUS_PT[connection.status]}</Badge>
+                  <Selo tone={STATUS_TONE[connection.status]} label={CONN_STATUS_PT[connection.status]} />
                 </TableCell>
                 <TableCell>{TIER_PT[connection.api_tier] ?? connection.api_tier}</TableCell>
                 <TableCell>
                   {lastChecked === null ? '—' : dateFormatter.format(new Date(lastChecked))}
                 </TableCell>
-                <TableCell className="text-xs text-[var(--color-danger)]">
+                <TableCell className="ap-conexoes__erro">
                   {connection.last_error ?? '—'}
                 </TableCell>
                 <TableCell>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="secondary" label={isBusy ? 'Aguarde...' : 'Testar'} isDisabled={isBusy} onClick={() => handleTest(connection.id)} />
-                    <Button variant="primary" label={isBusy ? 'Aguarde...' : 'Sincronizar'} isDisabled={isBusy} onClick={() => handleSync(connection.id)} />
+                  <div className="ap-conexoes__acoes">
+                    <Button variant="secondary" size="sm" label={isBusy ? 'Aguarde...' : 'Testar'} isDisabled={isBusy} onClick={() => handleTest(connection.id)} />
+                    <Button variant="primary" size="sm" label={isBusy ? 'Aguarde...' : 'Sincronizar'} isDisabled={isBusy} onClick={() => handleSync(connection.id)} />
                     <input
                       type="password"
                       value={rotateTokens[connection.id] ?? ''}
@@ -221,10 +219,10 @@ export default function ConnectionForm({
                       placeholder="Novo token (EAA...)"
                       aria-label={`Novo token para ${connection.label}`}
                     />
-                    <Button variant="secondary" label={isBusy ? 'Aguarde...' : 'Trocar token'} isDisabled={isBusy} onClick={() => handleRotate(connection.id)} />
+                    <Button variant="secondary" size="sm" label={isBusy ? 'Aguarde...' : 'Trocar token'} isDisabled={isBusy} onClick={() => handleRotate(connection.id)} />
                   </div>
                 </TableCell>
-                <TableCell className="text-xs text-[var(--color-muted)]">
+                <TableCell className="ap-conexoes__resultado">
                   {rowMessages[connection.id] ?? '—'}
                 </TableCell>
               </TableRow>

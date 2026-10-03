@@ -169,3 +169,13 @@ export async function semearBiblioteca(nome: string, midias: readonly MidiaSemea
     await sql.end();
   }
 }
+
+/** Devolve o teto diário da conta ao valor do seed (a spec de contas o altera pela ficha). */
+export async function definirTetoDaConta(contaId: string, teto: number): Promise<void> {
+  const { sql } = createDb(`${POSTGRES_BASE_URL}/${E2E_DATABASE}`, { max: 1, onNotice: () => {} });
+  try {
+    await sql`update ad_accounts set daily_ad_cap = ${teto} where id = ${contaId}`;
+  } finally {
+    await sql.end();
+  }
+}
