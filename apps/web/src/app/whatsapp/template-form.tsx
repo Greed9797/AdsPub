@@ -2,8 +2,7 @@
 
 import { useState, useTransition, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@astryxdesign/core/Button';
-import { Field, inputClass } from '@/components/ui';
+import { Button, Field, inputClass } from '@/components/ui';
 import { criarTemplateWhatsapp } from './actions';
 
 export function TemplateForm({ accountId }: { accountId: string }) {
@@ -34,8 +33,8 @@ export function TemplateForm({ accountId }: { accountId: string }) {
   };
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-3">
-      <div className="grid gap-3 sm:grid-cols-3">
+    <form onSubmit={onSubmit} className="ap-wa__tpl">
+      <div className="ap-wa__tpl-row">
         <Field label="Nome">
           <input name="name" className={inputClass} required placeholder="pedido_pronto" />
         </Field>
@@ -54,7 +53,7 @@ export function TemplateForm({ accountId }: { accountId: string }) {
         <textarea name="body" className={inputClass} required rows={3} maxLength={1024} />
       </Field>
       {erro ? (
-        <p role="alert" className="notice notice-error">
+        <p role="alert" className="ap-note" data-tone="danger">
           {erro}
         </p>
       ) : null}

@@ -125,4 +125,43 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
+
+  /* ---------- whatsapp ---------- */
+  .ap-wa__conta,
+  .ap-wa__forms {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-24);
+  }
+  .ap-wa__bloco {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-12);
+  }
+  .ap-wa__form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ap-s-16);
+    align-items: start;
+  }
+  .ap-wa__wide {
+    grid-column: 1 / -1;
+  }
+  .ap-wa__tpl {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-16);
+  }
+  .ap-wa__tpl-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--ap-s-16);
+  }
+
+  @media (max-width: 768px) {
+    .ap-wa__form,
+    .ap-wa__tpl-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
 }

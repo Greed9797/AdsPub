@@ -1,6 +1,5 @@
 import Link from 'next/link';
-import { TableCell, TableRow } from '@astryxdesign/core/Table';
-import { Badge, Card, Empty, PageHead, Table } from '@/components/ui';
+import { Card, Empty, PageHead, Selo, Table, TableCell, TableRow } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import type { Client } from '@/lib/types';
 import { requireSession } from '@/lib/session';
@@ -45,7 +44,7 @@ export default async function WhatsappPage({
   const graphError = phones.erro ?? templates.erro;
 
   return (
-    <div className="space-y-6">
+    <div className="ap-lotes">
       <PageHead
         title="WhatsApp"
         description="Conta, modelos e envio de modelo. Cadastro de número, webhook, pagamento, verificação do negócio e texto livre na janela de 24 horas continuam no Gerenciador da Meta."
@@ -65,11 +64,10 @@ export default async function WhatsappPage({
                 <TableCell>{account.display_phone || account.phone_number_id}</TableCell>
                 <TableCell>{account.waba_id}</TableCell>
                 <TableCell>
-                  <Badge
-                    tone={account.last_error || (selected?.id === account.id && graphError) ? 'warn' : 'ok'}
-                  >
-                    {account.last_error || (selected?.id === account.id && graphError) ? 'Erro' : 'Ativa'}
-                  </Badge>
+                  <Selo
+                    tone={account.last_error || (selected?.id === account.id && graphError) ? 'bloqueado' : 'ativa'}
+                    label={account.last_error || (selected?.id === account.id && graphError) ? 'Erro' : 'Ativa'}
+                  />
                 </TableCell>
               </TableRow>
             ))}
@@ -82,18 +80,19 @@ export default async function WhatsappPage({
           <ConnectForm clients={clients} />
         </Card>
       ) : (
-        <p className="text-sm">Leitor consulta contas e modelos. Não conecta nem envia.</p>
+        <p className="ap-note">Leitor consulta contas e modelos. Não conecta nem envia.</p>
       )}
 
       {selected ? (
         <Card title={selected.display_name || selected.display_phone || 'Conta'}>
+          <div className="ap-wa__conta">
           {graphError ? (
-            <p role="alert" className="notice notice-error mb-4">
+            <p role="alert" className="ap-note" data-tone="danger">
               {graphError}
             </p>
           ) : null}
           {selected.last_error && !graphError ? (
-            <p role="alert" className="notice notice-error mb-4">
+            <p role="alert" className="ap-note" data-tone="danger">
               {selected.last_error}
             </p>
           ) : null}
@@ -107,10 +106,10 @@ export default async function WhatsappPage({
             ))}
           </Table>
           {(phones.data ?? []).length === 0 && !phones.erro ? (
-            <p className="mt-3 text-sm">Nenhum número devolvido pela Meta.</p>
+            <p className="ap-t-small ap-passos__dica">Nenhum número devolvido pela Meta.</p>
           ) : null}
 
-          <div className="mt-6">
+          <div className="ap-wa__bloco">
             <Table head={['Modelo', 'Idioma', 'Categoria', 'Estado']}>
               {(templates.data ?? []).map((template) => (
                 <TableRow key={template.id}>
@@ -122,12 +121,12 @@ export default async function WhatsappPage({
               ))}
             </Table>
             {(templates.data ?? []).length === 0 && !templates.erro ? (
-              <p className="mt-3 text-sm">Nenhum modelo nesta conta.</p>
+              <p className="ap-t-small ap-passos__dica">Nenhum modelo nesta conta.</p>
             ) : null}
           </div>
 
           {canWrite ? (
-            <div className="mt-6 space-y-6">
+            <div className="ap-wa__forms">
               <TemplateForm accountId={selected.id} />
               <SendForm
                 accountId={selected.id}
@@ -136,6 +135,7 @@ export default async function WhatsappPage({
               />
             </div>
           ) : null}
+          </div>
         </Card>
       ) : null}
     </div>

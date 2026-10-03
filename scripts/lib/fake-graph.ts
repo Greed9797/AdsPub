@@ -80,6 +80,10 @@ export function createFakeGraph(options: FakeGraphOptions = {}): FakeGraph {
   let review: { effective_status: string; ad_review_feedback?: Record<string, unknown> } = {
     effective_status: 'PENDING_REVIEW',
   };
+  /** WhatsApp Cloud API falsa: um número conectado e os modelos criados durante a execução. */
+  const whatsappTemplates: Array<{ id: string; name: string; status: string; language: string; category: string }> = [
+    { id: 'wa-tpl-1', name: 'pedido_pronto', status: 'APPROVED', language: 'pt_BR', category: 'UTILITY' },
+  ];
   /** Falhas transientes pendentes por endpoint, alimentadas por `failNext`. */
   const failuresLeft = new Map<string, number>();
 
@@ -190,6 +194,32 @@ export function createFakeGraph(options: FakeGraphOptions = {}): FakeGraph {
           },
         ],
       });
+    }
+
+    if (method === 'GET' && path.endsWith('/phone_numbers')) {
+      return json({
+        data: [{ id: '600100200300400', display_phone_number: '+55 11 99999-0000', verified_name: 'Loja Teste', status: 'CONNECTED' }],
+      });
+    }
+
+    if (method === 'GET' && path.endsWith('/message_templates')) {
+      return json({ data: whatsappTemplates });
+    }
+
+    if (method === 'POST' && path.endsWith('/message_templates')) {
+      const modelo = {
+        id: `wa-tpl-${whatsappTemplates.length + 1}`,
+        name: String(body['name'] ?? ''),
+        status: 'PENDING',
+        language: String(body['language'] ?? 'pt_BR'),
+        category: String(body['category'] ?? 'UTILITY'),
+      };
+      whatsappTemplates.push(modelo);
+      return json({ id: modelo.id, status: modelo.status, category: modelo.category });
+    }
+
+    if (method === 'POST' && path.endsWith('/messages')) {
+      return json({ messaging_product: 'whatsapp', messages: [{ id: 'wamid.FAKE0001' }] });
     }
 
     if (method === 'POST' && path.endsWith('/adimages')) {

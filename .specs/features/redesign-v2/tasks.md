@@ -539,6 +539,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T17: WhatsApp
 
+**Status**: ✅ Complete
 **What**: Números, modelos e envio de teste, com conectar e criar modelo.
 **Where**: `apps/web/src/app/whatsapp/page.tsx`, `apps/web/src/app/whatsapp/connect-form.tsx`, `apps/web/src/app/whatsapp/send-form.tsx`, `apps/web/src/app/whatsapp/template-form.tsx`
 **Depends on**: T16
@@ -552,10 +553,10 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] Conectar número, criar modelo e enviar teste continuam funcionando
-- [ ] O token nunca volta para a tela
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-whatsapp.spec.ts`
-- [ ] Test count: 3 tests pass (no silent deletions)
+- [x] Conectar número, criar modelo e enviar teste continuam funcionando
+- [x] O token nunca volta para a tela
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-whatsapp.spec.ts`
+- [x] Test count: 3 e2e new (suíte e2e 76; a Graph falsa passa a responder números, modelos e envio do WhatsApp) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full
