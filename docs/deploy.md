@@ -3,8 +3,14 @@
 Tudo o que a produção precisa está em `infra/`: `docker-compose.prod.yml` (o stack),
 `Caddyfile.snippet` (as rotas no proxy que já existe no host), `.env.prod.example` (segredos) e
 `backup.sh` (dump diário). O deploy é feito pelo workflow [`Deploy`](../.github/workflows/deploy.yml),
-que publica as três imagens no GHCR e aplica no servidor por SSH. O runner do CI é amd64: o host
-precisa ser amd64 (ou trocar `platforms` no workflow e usar buildx).
+que publica as três imagens no GHCR e aplica no servidor por SSH. O runner do CI é amd64; o host
+precisa ter a mesma arquitetura das imagens (ou trocar `platforms` no workflow e usar buildx).
+
+**MinIO:** `quay.io/minio` e o Docker Hub não servem mais a imagem. Usamos o espelho
+`ghcr.io/greed9797/minio:RELEASE.2025-09-07T16-13-09Z`: a variante **linux/amd64** (manifest
+`sha256:a1a8bd4a…`) da mesma imagem que roda no host. Ela embute o `mc`, usado pelo `minio-init` e pelo
+`backup.sh`. O pacote precisa estar **público** (o host não tem login no GHCR). Para republicar: `docker save`
+no host → `docker load` → `docker push`, conferindo o digest do manifest amd64.
 
 ## 1. Topologia
 

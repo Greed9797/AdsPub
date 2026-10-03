@@ -66,8 +66,10 @@ services:
 
   minio:
     <<: *app
-    # O Docker Hub aposentou `minio/minio`; o registro oficial agora é o Quay.
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    # O MinIO tirou as imagens públicas do Docker Hub e do Quay. Esta é a cópia
+    # espelhada (linux/amd64) da RELEASE.2025-09-07T16-13-09Z; ver docs/deploy.md.
+    image: ghcr.io/greed9797/minio:RELEASE.2025-09-07T16-13-09Z
+    platform: linux/amd64
     container_name: adpub-minio
     command: ['server', '/data', '--console-address', ':9001']
     environment:
@@ -90,7 +92,9 @@ services:
   # MinIO nasce vazio, então o bucket é criado uma vez, de forma idempotente.
   minio-init:
     <<: *app
-    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    # A imagem do servidor já embute o mc (mesma RELEASE de 2025-08-13).
+    image: ghcr.io/greed9797/minio:RELEASE.2025-09-07T16-13-09Z
+    platform: linux/amd64
     container_name: adpub-minio-init
     restart: 'no'
     networks: [internal]

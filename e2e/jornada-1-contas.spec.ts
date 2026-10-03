@@ -84,10 +84,10 @@ test('contas em 390px: rolagem contida na tabela e ações alcançáveis', async
   await expect(page.getByRole('heading', { name: 'Padrões de publicação' })).not.toBeVisible();
 
   await page.screenshot({ path: 'e2e/.artifacts/jornada-1-contas-390.png' });
-  await page.getByLabel('Tema').selectOption('dark');
+  await page.getByRole('button', { name: 'Escuro' }).click();
   await expect(conta).toContainText(seed.account.name);
   await page.screenshot({ path: 'e2e/.artifacts/jornada-1-contas-390-escuro.png' });
-  await page.getByLabel('Tema').selectOption('system');
+  await page.getByRole('button', { name: 'Sistema' }).click();
 });
 
 test('contas nos dois temas: alteração não salva não persiste e tema persiste', async ({
@@ -114,17 +114,17 @@ test('contas nos dois temas: alteração não salva não persiste e tema persist
   await page.getByRole('button', { name: 'Fechar' }).click();
 
   // Escuro primeiro (diferença visual máxima contra o padrão do harness).
-  await page.getByLabel('Tema').selectOption('dark');
+  await page.getByRole('button', { name: 'Escuro' }).click();
   await expect(conta).toContainText(seed.account.name);
   await page.screenshot({ path: 'e2e/.artifacts/jornada-1-contas-escuro.png' });
 
-  await page.getByLabel('Tema').selectOption('light');
+  await page.getByRole('button', { name: 'Claro' }).click();
   await expect(conta).toContainText(seed.account.name);
   await page.screenshot({ path: 'e2e/.artifacts/jornada-1-contas-claro.png' });
 
   // Tema persiste após reload (cookie adpub_theme).
   await page.reload();
-  await expect(page.getByLabel('Tema')).toHaveValue('light');
+  await expect(page.getByRole('button', { name: 'Claro' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('row').filter({ hasText: seed.account.id })).toContainText(
     seed.account.name,
   );

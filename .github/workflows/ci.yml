@@ -38,6 +38,7 @@ jobs:
       # fluxo OAuth do MCP). No runner os serviços ficam nas portas canônicas.
       E2E_POSTGRES_BASE_URL: postgres://adpub:adpub@127.0.0.1:5432
       REDIS_URL: redis://localhost:6379
+      TEST_REDIS_URL: redis://127.0.0.1:6379/14
       MASTER_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
       META_APP_ID: '000000000000000'
       META_APP_SECRET: ci-app-secret
@@ -53,6 +54,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Scan de segredos (gitleaks)
         uses: gitleaks/gitleaks-action@v2
@@ -60,8 +63,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
 
       - uses: actions/setup-node@v6
         with:
@@ -95,7 +96,7 @@ jobs:
         run: |
           docker run -d --name minio -p 9000:9000 \
             -e MINIO_ROOT_USER=adpubminio -e MINIO_ROOT_PASSWORD=adpubminio123 \
-            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
+            ghcr.io/greed9797/minio:RELEASE.2025-09-07T16-13-09Z server /data
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:9000/minio/health/live; then break; fi
             sleep 2

@@ -8,7 +8,7 @@
 @import 'tailwindcss/utilities.css' layer(utilities);
 
 @theme {
-  --font-sans: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, Menlo, monospace;
   --color-brand-solid: #ff5701;
   --color-ink-on-brand: #1a1005;

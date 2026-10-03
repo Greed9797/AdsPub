@@ -353,7 +353,7 @@ describe('gestão de usuários (admin)', () => {
 
 describe('redisLoginThrottle', () => {
   it('conta, expira e limpa por chave', async () => {
-    const redis = new Redis('redis://127.0.0.1:56379/14', { maxRetriesPerRequest: 1 });
+    const redis = new Redis(process.env.TEST_REDIS_URL ?? 'redis://127.0.0.1:56379/14', { maxRetriesPerRequest: 1 });
     try {
       const throttle = redisLoginThrottle(redis);
       const key = `teste:${Date.now()}:a@empresa.com.br:127.0.0.1`;
