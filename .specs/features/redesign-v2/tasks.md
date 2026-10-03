@@ -595,6 +595,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T19: Inteligência e Relatórios
 
+**Status**: ✅ Complete
 **What**: Relatório de hipóteses e revisão de importação com mapeamento e observações.
 **Where**: `apps/web/src/app/inteligencia/page.tsx`, `apps/web/src/app/inteligencia/inteligencia-form.tsx`, `apps/web/src/app/relatorios/page.tsx`, `apps/web/src/app/relatorios/relatorio-form.tsx`
 **Depends on**: T18
@@ -608,10 +609,10 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] Gerar relatório, importar arquivo e confirmar observações continuam funcionando
-- [ ] A importação mostra o mapeamento e exige confirmar antes de valer
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-analise.spec.ts`
-- [ ] Test count: 4 tests pass (no silent deletions)
+- [x] Gerar relatório, importar arquivo e confirmar observações continuam funcionando
+- [x] A importação mostra o mapeamento e exige confirmar antes de valer
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-analise.spec.ts`
+- [x] Test count: 4 e2e new (suíte e2e 83) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full

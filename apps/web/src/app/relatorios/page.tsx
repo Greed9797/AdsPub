@@ -1,10 +1,9 @@
 import { z } from 'zod';
-import { Card, Empty, Field, PageHead, inputClass } from '@/components/ui';
+import { Button, Card, Empty, Field, PageHead, inputClass } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { Client } from '@/lib/types';
 import { RelatorioForm } from './relatorio-form';
-import { Button } from '@astryxdesign/core/Button';
 
 type SearchParams = { client_id?: string | string[] };
 
@@ -25,13 +24,13 @@ export default async function RelatoriosPage({
   const clients = await api<Client[]>('/clients');
 
   return (
-    <div className="space-y-6">
+    <div className="ap-lotes">
       <PageHead
         title="Relatórios"
         description="Importe dados de desempenho em CSV ou Excel para analisar junto aos dados da Meta."
       />
-      <form method="get" action="/relatorios" className="toolbar">
-        <Field label="Cliente" className="w-full sm:w-64">
+      <form method="get" action="/relatorios" className="ap-lotes__filters">
+        <Field label="Cliente">
           <select name="client_id" defaultValue={clientId ?? ''} className={inputClass}>
             <option value="">Selecione</option>
             {clients.map((client) => (

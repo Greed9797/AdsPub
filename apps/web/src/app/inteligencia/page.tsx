@@ -1,9 +1,8 @@
-import { Card, Empty, Field, PageHead, inputClass } from '@/components/ui';
+import { Button, Card, Empty, Field, PageHead, inputClass } from '@/components/ui';
 import { api } from '@/lib/api';
 import { requireSession } from '@/lib/session';
 import type { AdAccount } from '@/lib/types';
 import { InteligenciaForm } from './inteligencia-form';
-import { Button } from '@astryxdesign/core/Button';
 
 type SearchParams = { ad_account_id?: string | string[] };
 
@@ -25,13 +24,13 @@ export default async function InteligenciaPage({
   const selected = accounts.find((a) => a.id === accountId);
 
   return (
-    <div className="space-y-6">
+    <div className="ap-lotes">
       <PageHead
         title="Inteligência"
         description="Transforme dados de desempenho e análises de criativos em hipóteses para os próximos anúncios."
       />
-      <form method="get" action="/inteligencia" className="toolbar">
-        <Field label="Conta" className="w-full sm:w-64">
+      <form method="get" action="/inteligencia" className="ap-lotes__filters">
+        <Field label="Conta">
           <select name="ad_account_id" defaultValue={accountId ?? ''} className={inputClass}>
             <option value="">Selecione</option>
             {accounts.map((account) => (
