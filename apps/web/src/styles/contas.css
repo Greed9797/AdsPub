@@ -314,4 +314,31 @@
       flex-direction: column;
     }
   }
+
+  /* ---------- auditoria ---------- */
+  .ap-audit summary {
+    color: var(--ap-orange-text);
+    cursor: pointer;
+  }
+  .ap-audit__lados {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+    gap: var(--ap-s-12);
+    min-width: 480px;
+    margin-top: var(--ap-s-8);
+  }
+  .ap-audit__lados h3 {
+    margin: 0 0 4px;
+    color: var(--ap-text-2);
+  }
+  .ap-audit__pre {
+    max-height: 220px;
+    margin: 0;
+    padding: 10px 12px;
+    overflow: auto;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-md);
+    background: var(--ap-bg-sunken);
+    font: 400 12px/1.5 var(--ap-font-mono);
+  }
 }

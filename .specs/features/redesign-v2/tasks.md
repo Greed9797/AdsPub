@@ -623,6 +623,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T20: Auditoria
 
+**Status**: ✅ Complete
 **What**: Filtros e tabela com "Ver alterações" expansível por evento.
 **Where**: `apps/web/src/app/auditoria/page.tsx`
 **Depends on**: T19
@@ -636,10 +637,10 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] Cada evento expande o antes e o depois
-- [ ] Os filtros atuais continuam funcionando
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-auditoria.spec.ts`
-- [ ] Test count: 3 tests pass (no silent deletions)
+- [x] Cada evento expande o antes e o depois
+- [x] Os filtros atuais continuam funcionando
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-auditoria.spec.ts`
+- [x] Test count: 3 e2e + 4 unit new (suíte e2e 86, vitest 536) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full

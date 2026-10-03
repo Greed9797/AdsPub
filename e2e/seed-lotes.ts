@@ -5,7 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import { adDrafts, assets, batchRefs, batches, clients, createDb, metricObservations, userAdAccounts, users } from '@adpub/db';
+import { adDrafts, assets, auditLog, batchRefs, batches, clients, createDb, metricObservations, userAdAccounts, users } from '@adpub/db';
 import type { AdDraftStatus } from '@adpub/shared';
 
 import { approvalFingerprint } from '../apps/api/src/services/approval.js';
@@ -213,6 +213,33 @@ export async function semearObservacoes(contaId: string, clienteId: string, linh
           primary_event_type: 'purchase',
         },
         source: 'file',
+      });
+    }
+  } finally {
+    await sql.end();
+  }
+}
+
+export interface EventoSemeado {
+  action: string;
+  entityType: string;
+  entityId: string;
+  before?: unknown;
+  after?: unknown;
+}
+
+/** Eventos de auditoria prontos, para a tela de auditoria não depender do que outras jornadas gravaram. */
+export async function semearAuditoria(eventos: readonly EventoSemeado[]): Promise<void> {
+  const { db, sql } = createDb(`${POSTGRES_BASE_URL}/${E2E_DATABASE}`, { max: 1, onNotice: () => {} });
+  try {
+    for (const evento of eventos) {
+      await db.insert(auditLog).values({
+        actorEmail: 'rds20@empresa.com.br',
+        action: evento.action,
+        entityType: evento.entityType,
+        entityId: evento.entityId,
+        before: evento.before ?? null,
+        after: evento.after ?? null,
       });
     }
   } finally {

@@ -1,10 +1,9 @@
 import { z } from 'zod';
-import { Card, Empty, Field, inputClass, PageHead, Table } from '@/components/ui';
+import { Button, Card, Empty, Field, PageHead, Table, TableCell, TableRow, inputClass } from '@/components/ui';
+import { ladosDaAlteracao, temAlteracao } from '@/lib/auditoria-view';
 import { api } from '@/lib/api';
 import { requireRole } from '@/lib/session';
 import type { AuditEntry } from '@/lib/types';
-import { Button } from '@astryxdesign/core/Button';
-import { TableCell, TableRow } from '@astryxdesign/core/Table';
 
 type SearchParams = {
   entity_type?: string | string[];
@@ -26,9 +25,10 @@ const filtersSchema = z.object({
 
 type Filtros = z.infer<typeof filtersSchema>;
 
+/** Campo de formulário vazio chega como `""`: tratar como ausente, senão um Limite em branco derruba todos os filtros. */
 function first(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) return value[0];
-  return value;
+  const bruto = Array.isArray(value) ? value[0] : value;
+  return bruto === undefined || bruto.trim() === '' ? undefined : bruto;
 }
 
 function formatDate(value: string): string {
@@ -67,10 +67,10 @@ export default async function AuditoriaPage({
   const rows = await api<AuditEntry[]>(`/audit${query.toString() ? `?${query.toString()}` : ''}`);
 
   return (
-    <div className="space-y-6">
+    <div className="ap-lotes">
       <PageHead title="Auditoria" description="Quem fez o quê, em qual entidade e quando." />
 
-      <form method="get" className="toolbar" action="/auditoria">
+      <form method="get" className="ap-lotes__filters" action="/auditoria">
         <Field label="Entidade">
           <input
             type="text"
@@ -130,7 +130,7 @@ export default async function AuditoriaPage({
           />
         </Field>
 
-        <div className="sm:col-span-2 xl:col-span-1">
+        <div>
           <Button variant="secondary" label="Aplicar filtros" type="submit" />
         </div>
       </form>
@@ -139,7 +139,7 @@ export default async function AuditoriaPage({
         title="Eventos"
         action={
           rows.length > 0 ? (
-            <span className="text-xs tabular-nums text-[var(--color-muted)]">{rows.length}</span>
+            <span className="ap-t-num-s ap-passos__dica">{rows.length}</span>
           ) : undefined
         }
       >
@@ -159,21 +159,23 @@ export default async function AuditoriaPage({
                   {entry.entity_type} · {entry.entity_id}
                 </TableCell>
                 <TableCell>
-                  <details>
-                    <summary className="cursor-pointer text-sm text-[var(--color-brand)]">
-                      Ver alterações
-                    </summary>
-                    <pre className="mt-2 max-h-48 max-w-lg overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface-2)] p-2 text-xs">
-                      {JSON.stringify(
-                        {
-                          before: entry.before,
-                          after: entry.after,
-                        },
-                        null,
-                        2,
-                      )}
-                    </pre>
-                  </details>
+                  {temAlteracao(entry) ? (
+                    <details className="ap-audit">
+                      <summary className="ap-t-body">Ver alterações</summary>
+                      <div className="ap-audit__lados">
+                        {ladosDaAlteracao(entry).map((lado) =>
+                          lado.texto === null ? null : (
+                            <section key={lado.rotulo} aria-label={lado.rotulo}>
+                              <h3 className="ap-t-label">{lado.rotulo}</h3>
+                              <pre className="ap-audit__pre">{lado.texto}</pre>
+                            </section>
+                          ),
+                        )}
+                      </div>
+                    </details>
+                  ) : (
+                    <span className="ap-passos__dica">—</span>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
