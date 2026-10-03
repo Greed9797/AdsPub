@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { Card, Field, inputClass } from '@/components/ui';
+import { Button, Card, Field, inputClass } from '@/components/ui';
 import {
   acompanharImportacaoDrive,
   importarDoDrive,
   type DriveImportJobView,
   type ImportarDriveResult,
 } from './actions';
-import { Button } from '@astryxdesign/core/Button';
 
 /** Enquanto o worker roda, a tela mostra em que pé está o job — mesmo padrão do botão de análise. */
 const STATUS_LABEL: Record<DriveImportJobView['status'], string> = {
@@ -69,7 +68,7 @@ export function DriveImportForm({ clientId }: DriveImportFormProps) {
 
   return (
     <Card title="Importar do Google Drive">
-      <form onSubmit={onSubmit} className="space-y-3">
+      <form onSubmit={onSubmit} className="ap-side-form">
         <input type="hidden" name="client_id" value={clientId} />
 
         <Field label="URL da pasta">
@@ -83,9 +82,10 @@ export function DriveImportForm({ clientId }: DriveImportFormProps) {
           />
         </Field>
 
-        <label className="flex items-center gap-2 text-sm text-[var(--color-muted)]">
+        <label className="ap-side-form__check ap-t-body">
           <input
             type="checkbox"
+            className="ap-check"
             name="recursive"
             defaultChecked
             value="on"
@@ -94,7 +94,7 @@ export function DriveImportForm({ clientId }: DriveImportFormProps) {
           <span>Importar subpastas também</span>
         </label>
 
-        <div className="flex items-center gap-2">
+        <div className="ap-side-form__actions">
           <Button
             variant="primary"
             label={saving ? 'Iniciando...' : running ? STATUS_LABEL[job!.status] : 'Iniciar importação'}
@@ -114,22 +114,22 @@ export function DriveImportForm({ clientId }: DriveImportFormProps) {
       </form>
 
       {erro ? (
-        <p className="mt-3 rounded border border-[var(--color-danger)] bg-[var(--color-danger)]/10 p-2 text-sm text-[var(--color-danger)]">
+        <p role="alert" className="ap-note" data-tone="danger">
           {erro}
         </p>
       ) : null}
 
       {job ? (
-        <div className="mt-4 space-y-1 rounded border border-[var(--color-border)] p-3 text-sm">
+        <div className="ap-side-form__file">
           <p role="status">
             {STATUS_LABEL[job.status]} {job.imported} novos · {job.reused} reaproveitados
             {job.rejected.length > 0 ? ` · ${job.rejected.length} rejeitados` : ''}.
           </p>
           {job.status === 'failed' && job.error ? (
-            <p className="text-sm text-[var(--color-danger)]">{job.error}</p>
+            <p className="ap-t-small ap-side-form__err">{job.error}</p>
           ) : null}
           {job.rejected.length > 0 ? (
-            <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--color-muted)]">
+            <ul className="ap-t-small ap-side-form__muted ap-side-form__ul">
               {job.rejected.slice(0, 5).map((item) => (
                 <li key={`${job.job_id}-${item.filename}`}>
                   {item.filename}: {item.reason}
@@ -141,7 +141,7 @@ export function DriveImportForm({ clientId }: DriveImportFormProps) {
             </ul>
           ) : null}
           {job.status === 'done' ? (
-            <p className="text-xs text-[var(--color-muted)]">
+            <p className="ap-t-small ap-side-form__muted">
               A biblioteca recarrega sozinha — os criativos já estão validados acima.
             </p>
           ) : null}

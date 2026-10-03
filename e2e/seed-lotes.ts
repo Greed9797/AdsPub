@@ -5,7 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import { adDrafts, batchRefs, batches, createDb, userAdAccounts, users } from '@adpub/db';
+import { adDrafts, assets, batchRefs, batches, clients, createDb, userAdAccounts, users } from '@adpub/db';
 import type { AdDraftStatus } from '@adpub/shared';
 
 import { approvalFingerprint } from '../apps/api/src/services/approval.js';
@@ -129,4 +129,43 @@ export async function desligarSenhas(): Promise<() => Promise<void>> {
     }
     await volta.end();
   };
+}
+
+export interface MidiaSemeada {
+  filename: string;
+  kind: 'image' | 'video';
+  status: 'ok' | 'rejected';
+  warnings?: string[];
+  errors?: string[];
+}
+
+/** Cria um cliente só da spec, com a biblioteca pedida, para não mexer na do seed. */
+export async function semearBiblioteca(nome: string, midias: readonly MidiaSemeada[]): Promise<{ clientId: string }> {
+  const { db, sql } = createDb(`${POSTGRES_BASE_URL}/${E2E_DATABASE}`, { max: 1, onNotice: () => {} });
+  try {
+    const [cliente] = await db
+      .insert(clients)
+      .values({ name: nome, voiceProfile: { tone: '', audience: '', forbidden_terms: [], allowed_claims: [], examples: [] } })
+      .returning();
+    for (const [i, midia] of midias.entries()) {
+      await db.insert(assets).values({
+        clientId: cliente!.id,
+        sha256: `rds13-${cliente!.id}-${i}`,
+        kind: midia.kind,
+        storageKey: `rds13/${i}`,
+        filename: midia.filename,
+        mime: midia.kind === 'image' ? 'image/jpeg' : 'video/mp4',
+        width: 1080,
+        height: 1080,
+        aspectRatio: '1:1',
+        durationMs: midia.kind === 'video' ? 15000 : null,
+        sizeBytes: 400_000,
+        source: 'upload',
+        validation: { status: midia.status, errors: midia.errors ?? [], warnings: midia.warnings ?? [] },
+      });
+    }
+    return { clientId: cliente!.id };
+  } finally {
+    await sql.end();
+  }
 }

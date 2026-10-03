@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { Badge } from '@/components/ui';
+import { Badge, Button } from '@/components/ui';
 import { acompanharAnalise, analisarCriativo, type AnalysisView } from './actions';
-import { Button } from '@astryxdesign/core/Button';
 
 /** A9: enquanto o worker roda, a tela mostra em que pé está o job. */
 const STATUS_LABEL: Record<string, string> = {
@@ -62,24 +61,25 @@ export function AnalysisButton({ assetId }: { assetId: string }) {
   const running = status === 'queued' || status === 'running';
 
   return (
-    <div className="space-y-2">
+    <div className="ap-analise">
       <Button
         variant="secondary"
+        size="sm"
         label={busy ? 'Enviando…' : running ? (STATUS_LABEL[status!] ?? 'Analisando…') : 'Analisar conteúdo'}
         isDisabled={busy || running}
         onClick={onAnalyze}
       />
-      {erro ? <p className="text-xs text-[var(--color-danger)]">{erro}</p> : null}
+      {erro ? <p className="ap-t-small ap-analise__erro">{erro}</p> : null}
       {analysis ? (
-        <div className="space-y-1">
-          <p className="text-xs text-[var(--color-muted)]">
+        <div className="ap-analise__out">
+          <p className="ap-t-small ap-analise__muted">
             {analysis.model_id} · revisão {analysis.revision}
           </p>
-          <ul className="space-y-1">
+          <ul className="ap-analise__list">
             {analysis.findings.observations.map((obs, i) => (
-              <li key={i} className="text-xs">
+              <li key={i} className="ap-t-small">
                 <Badge tone="info">{obs.tipo}</Badge>{' '}
-                <span className="text-[var(--color-muted)]">{obs.texto}</span>
+                <span className="ap-analise__muted">{obs.texto}</span>
               </li>
             ))}
           </ul>

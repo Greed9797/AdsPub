@@ -17,6 +17,8 @@ type NewBatchFormProps = {
   clientId: string;
   /** Quantos anúncios cada conta ainda aceita hoje, pelo painel de saúde. Conta ausente = sem aviso. */
   saldos: Record<string, number>;
+  /** Mídias já marcadas (vindas da biblioteca de criativos). */
+  initialAssetIds?: string[];
   criarLoteAction: (formData: FormData) => Promise<ActionResult<{ id: string }>>;
 };
 
@@ -42,11 +44,11 @@ const ETAPAS = [
   { id: 'midias', rotulo: 'Fotos e vídeos' },
 ] as const;
 
-export function NewBatchForm({ clients, accounts, assets, clientId, saldos, criarLoteAction }: NewBatchFormProps) {
+export function NewBatchForm({ clients, accounts, assets, clientId, saldos, initialAssetIds = [], criarLoteAction }: NewBatchFormProps) {
   const router = useRouter();
   const [isSwitchingClient, startClientSwitch] = useTransition();
   const [mode, setMode] = useState<Modo>('ai');
-  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>(initialAssetIds);
   const [filtro, setFiltro] = useState<FiltroMidia>('todas');
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [midiaErro, setMidiaErro] = useState<string | undefined>();

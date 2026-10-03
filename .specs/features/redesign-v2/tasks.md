@@ -425,6 +425,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T13: Criativos
 
+**Status**: ✅ Complete
 **What**: Quadro de validação, filtros, grade de mídias com selo e barra de seleção.
 **Where**: `apps/web/src/app/criativos/page.tsx`, `apps/web/src/app/criativos/upload-form.tsx`, `apps/web/src/app/criativos/drive-import-form.tsx`
 **Depends on**: T12
@@ -438,11 +439,11 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] A grade mostra selo de estado e o motivo quando a mídia é recusada
-- [ ] Upload e importação do Drive continuam funcionando
-- [ ] Valor sem dado na API é omitido, nunca inventado
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-criativos.spec.ts`
-- [ ] Test count: 4 tests pass (no silent deletions)
+- [x] A grade mostra selo de estado e o motivo quando a mídia é recusada
+- [x] Upload e importação do Drive continuam funcionando
+- [x] Valor sem dado na API é omitido, nunca inventado
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-criativos.spec.ts`
+- [x] Test count: 4 e2e + 5 unit new (suíte e2e 63, vitest 520) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full
