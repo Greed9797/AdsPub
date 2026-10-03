@@ -511,6 +511,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T16: Saúde das contas
 
+**Status**: ✅ Complete
 **What**: Resumo, tabela por conta com teto diário e limite da Meta, e alerta da conta em atenção.
 **Where**: `apps/web/src/app/saude/page.tsx`
 **Depends on**: T15
@@ -524,10 +525,10 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] O resumo e a tabela usam só campos que a API devolve
-- [ ] Conta em atenção sobe para o topo com o alerta
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-saude.spec.ts`
-- [ ] Test count: 3 tests pass (no silent deletions)
+- [x] O resumo e a tabela usam só campos que a API devolve
+- [x] Conta em atenção sobe para o topo com o alerta
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-saude.spec.ts`
+- [x] Test count: 3 e2e + 6 unit new (suíte e2e 73, vitest 526) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full

@@ -92,4 +92,37 @@
   .ap-conta__name {
     display: block;
   }
+
+  /* ---------- saúde das contas ---------- */
+  .ap-saude__resumo {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--ap-s-16);
+  }
+  .ap-saude__rotulo,
+  .ap-saude__valor,
+  .ap-saude__p {
+    margin: 0;
+  }
+  .ap-saude__rotulo,
+  .ap-saude__id {
+    color: var(--ap-text-2);
+  }
+  .ap-saude__valor[data-alerta='true'],
+  .ap-saude__erro {
+    color: var(--ap-error);
+  }
+  .ap-saude__alertas {
+    margin: 4px 0 0;
+    padding-left: 18px;
+  }
+  .ap-saude__atencao .ap-td {
+    background: var(--ap-error-veil);
+  }
+
+  @media (max-width: 768px) {
+    .ap-saude__resumo {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
 }
