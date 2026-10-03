@@ -3,11 +3,9 @@
 import { useId, useState, useTransition } from 'react';
 import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { inputClass, Field } from '@/components/ui';
+import { Button, Dialog, Field, inputClass } from '@/components/ui';
 import type { Client } from '@/lib/types';
 import type { ActionResult, CreateClientInput, UpdateClientInput } from './actions';
-import { Button } from '@astryxdesign/core/Button';
-import { Dialog } from '@astryxdesign/core/Dialog';
 
 interface CreateClientFormProps {
   mode: 'create';
@@ -164,7 +162,7 @@ export default function ClientForm(props: ClientFormProps) {
         onClick={() => setOpen(true)}
       />
       {sucesso ? (
-        <p role="status" className="mt-2 text-xs text-[var(--color-ok)]">
+        <p role="status" className="ap-t-small ap-clientes__ok">
           {sucesso}
         </p>
       ) : null}
@@ -173,20 +171,18 @@ export default function ClientForm(props: ClientFormProps) {
         onOpenChange={(next) => {
           if (!isPending) setOpen(next);
         }}
-        purpose="form"
-        width={760}
-        padding={5}
-        maxHeight="90dvh"
+        placement="side"
+        width={640}
         aria-labelledby={titleId}
       >
-        <h2 id={titleId} className="text-lg font-semibold">
+        <h2 id={titleId} className="ap-t-title-m ap-ficha__h">
           {isCreate ? 'Novo cliente' : `Editar ${client?.name}`}
         </h2>
-        <p className="mt-1 mb-5 text-sm text-[var(--color-muted)]">
+        <p className="ap-t-small ap-ficha__sub">
           Identidade, linguagem e padrões usados na criação dos anúncios.
         </p>
-        <form onSubmit={submit} className="space-y-5">
-          <fieldset disabled={isPending} className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={submit} className="ap-ficha">
+          <fieldset disabled={isPending} className="ap-ficha__fields">
             <Field label="Nome">
               <input
                 value={nome}
@@ -209,7 +205,7 @@ export default function ClientForm(props: ClientFormProps) {
               </select>
             </Field>
 
-            <div className="sm:col-span-2">
+            <div>
               <Field
                 label="Padrão dos nomes"
                 hint="Variáveis entre chaves são preenchidas automaticamente."
@@ -223,7 +219,7 @@ export default function ClientForm(props: ClientFormProps) {
               </Field>
             </div>
 
-            <div className="sm:col-span-2">
+            <div>
               <Field label="Tom de voz">
                 <input
                   value={tone}
@@ -234,7 +230,7 @@ export default function ClientForm(props: ClientFormProps) {
               </Field>
             </div>
 
-            <div className="sm:col-span-2">
+            <div>
               <Field label="Público">
                 <input
                   value={audience}
@@ -272,7 +268,7 @@ export default function ClientForm(props: ClientFormProps) {
               />
             </Field>
 
-            <div className="sm:col-span-2">
+            <div>
               <Field
                 label="UTMs padrão"
                 hint="Uma chave=valor por linha. Ex.: utm_source=instagram."
@@ -286,7 +282,7 @@ export default function ClientForm(props: ClientFormProps) {
               </Field>
             </div>
 
-            <div className="sm:col-span-2">
+            <div>
               <Field label="Domínios (um por linha)">
                 <textarea
                   value={landingDomains}
@@ -297,9 +293,10 @@ export default function ClientForm(props: ClientFormProps) {
               </Field>
             </div>
 
-            <label className="flex items-center gap-2 sm:col-span-2 text-sm">
+            <label className="ap-clientes__check ap-t-body">
               <input
                 type="checkbox"
+                className="ap-check"
                 checked={advantageOptOut}
                 onChange={(event) => setAdvantageOptOut(event.target.checked)}
               />
@@ -307,7 +304,9 @@ export default function ClientForm(props: ClientFormProps) {
             </label>
           </fieldset>
 
-          <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--color-border)] pt-4">
+          <div className="ap-ficha__foot">
+            <span />
+            <div className="ap-ficha__actions">
             <Button
               variant="secondary"
               label="Fechar"
@@ -320,9 +319,10 @@ export default function ClientForm(props: ClientFormProps) {
               type="submit"
               isDisabled={isPending}
             />
+            </div>
           </div>
           {erro ? (
-            <p role="alert" className="notice notice-error">
+            <p role="alert" className="ap-note" data-tone="danger">
               {erro}
             </p>
           ) : null}

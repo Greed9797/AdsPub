@@ -483,6 +483,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T15: Clientes
 
+**Status**: ✅ Complete
 **What**: Tabela de clientes e ficha com criar e editar.
 **Where**: `apps/web/src/app/clientes/page.tsx`, `apps/web/src/app/clientes/client-form.tsx`
 **Depends on**: T14
@@ -496,10 +497,10 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] A tabela lista os clientes e a ficha abre ao escolher um
-- [ ] Criar e editar cliente funcionam
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-clientes.spec.ts`
-- [ ] Test count: 3 tests pass (no silent deletions)
+- [x] A tabela lista os clientes e a ficha abre ao escolher um
+- [x] Criar e editar cliente funcionam
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-clientes.spec.ts`
+- [x] Test count: 3 e2e new (suíte e2e 70) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full

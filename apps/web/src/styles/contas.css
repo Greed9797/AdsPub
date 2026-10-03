@@ -79,4 +79,17 @@
       grid-template-columns: minmax(0, 1fr);
     }
   }
+
+  .ap-clientes__ok {
+    margin: 4px 0 0;
+    color: var(--ap-text-2);
+  }
+  .ap-clientes__check {
+    display: flex;
+    align-items: center;
+    gap: var(--ap-s-8);
+  }
+  .ap-conta__name {
+    display: block;
+  }
 }
