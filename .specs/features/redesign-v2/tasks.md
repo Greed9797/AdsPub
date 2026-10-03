@@ -737,6 +737,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T24: Atualizar o e2e e passar a suíte inteira
 
+**Status**: ✅ Complete
 **What**: Ajustar os rótulos que o Figma muda de propósito e rodar as 16 jornadas mais as novas.
 **Where**: `e2e/*.spec.ts`
 **Depends on**: T23
@@ -750,10 +751,10 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] Só mudam testes cujo texto o Figma troca por decisão, cada um anotado no commit
-- [ ] As 16 jornadas e as novas passam
-- [ ] Gate check passes: `pnpm build && pnpm lint && pnpm typecheck && pnpm test && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e`
-- [ ] Test count: nenhum teste removido nem pulado
+- [x] Só mudam testes cujo texto o Figma troca por decisão, cada um anotado no commit
+- [x] As 16 jornadas e as novas passam
+- [x] Gate check passes: `pnpm build && pnpm lint && pnpm typecheck && pnpm test && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e`
+- [x] Test count: nenhum teste removido nem pulado
 
 **Tests**: e2e
 **Gate**: build
