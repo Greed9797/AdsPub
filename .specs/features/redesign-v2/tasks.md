@@ -336,6 +336,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T10: Revisão final, andamento e conferência
 
+**Status**: ✅ Complete
 **What**: Janela de revisão final com aviso de pausa e saldo diário, andamento por lote e painel de conferência.
 **Where**: `apps/web/src/app/lotes/[id]/publish-panel.tsx`, `apps/web/src/app/lotes/[id]/reconciliation-panel.tsx`
 **Depends on**: T9
@@ -349,12 +350,12 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] A revisão mostra lotes, conta, anúncios, orçamento, saldo diário e o aviso "pausados"
-- [ ] Acima do saldo avisa quantos não entram hoje e oferece publicar só o que cabe
-- [ ] O andamento aparece por lote e continua fora da janela
-- [ ] Item em `needs_reconciliation` mostra a conferência e nunca recria sozinho
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-publicar.spec.ts`
-- [ ] Test count: 5 tests pass (no silent deletions)
+- [x] A revisão mostra lotes, conta, anúncios, orçamento, saldo diário e o aviso "pausados"
+- [x] Acima do saldo avisa quantos não entram hoje e oferece publicar só o que cabe
+- [x] O andamento aparece por lote e continua fora da janela
+- [x] Item em `needs_reconciliation` mostra a conferência e nunca recria sozinho
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-publicar.spec.ts`
+- [x] Test count: 5 e2e + 4 unit new (suíte e2e 49, vitest 509) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full

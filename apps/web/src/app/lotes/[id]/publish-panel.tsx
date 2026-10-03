@@ -1,17 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Badge, Card, Field, inputClass, plural, statusLabel } from '@/components/ui';
-import { ConfirmDialog } from '@/components/confirm-dialog';
+import { Badge, Button, Card, Dialog, Field, Table, TableCell, TableRow, inputClass, plural, statusLabel } from '@/components/ui';
 import { Icon } from '@/components/icons';
+import { revisaoFinal } from '@/lib/publicacao';
 import type { AdAccount, AdDraft, Batch, PublishResult, ValidationReport } from '@/lib/types';
 import type { ActionResult } from '../actions';
-import { Button } from '@astryxdesign/core/Button';
 
 type PublishPanelProps = {
   batchId: string;
+  batchName: string;
+  /** Quantos anúncios a conta ainda aceita hoje; `undefined` quando o painel de saúde não respondeu. */
+  dailyRemaining?: number;
   items: AdDraft[];
   accounts: AdAccount[];
   currentAccountId: string;
@@ -33,6 +35,8 @@ type PublishPanelProps = {
 
 export function PublishPanel({
   batchId,
+  batchName,
+  dailyRemaining,
   items,
   accounts,
   currentAccountId,
@@ -53,6 +57,8 @@ export function PublishPanel({
   const [confirmation, setConfirmation] = useState<{ count: number; onlyFailed: boolean } | null>(
     null,
   );
+  const [aceitouSaldo, setAceitouSaldo] = useState(false);
+  const reviewId = useId();
 
   const otherAccounts = accounts.filter((account) => account.id !== currentAccountId);
   const [targetAccountId, setTargetAccountId] = useState(otherAccounts[0]?.id ?? '');
@@ -77,6 +83,8 @@ export function PublishPanel({
     : blockedCount > 0
       ? 'Corrija os itens bloqueados e valide de novo para liberar a publicação.'
       : 'O lote mudou depois da validação. Valide de novo para liberar a publicação.';
+
+  const previa = revisaoFinal(confirmation?.count ?? 0, dailyRemaining);
 
   const validate = async () => {
     setIsValidating(true);
@@ -107,6 +115,7 @@ export function PublishPanel({
       );
       return;
     }
+    setAceitouSaldo(false);
     setConfirmation({ count: eligibleCount, onlyFailed });
   };
 
@@ -161,24 +170,22 @@ export function PublishPanel({
 
   return (
     <Card title="Revisar e publicar">
-      <div className="space-y-4">
-        <p className="text-xs text-[var(--color-muted)]">
+      <div className="ap-publish">
+        <p className="ap-t-small ap-publish__muted">
           Conta de destino{' '}
-          <strong className="mt-1 block text-sm text-[var(--color-text)]">{accountName}</strong>
+          <strong className="ap-t-body-strong ap-publish__account">{accountName}</strong>
         </p>
-        <div className="publish-summary">
+        <div className="ap-publish__summary">
           <div>
             <strong>{eligibleCount}</strong>
             <span>aptos para publicar</span>
           </div>
           <div>
-            <strong className={blockedCount ? 'text-[var(--color-danger)]' : ''}>
-              {blockedCount}
-            </strong>
+            <strong data-alert={blockedCount ? 'true' : undefined}>{blockedCount}</strong>
             <span>bloqueados</span>
           </div>
         </div>
-        <div className="notice">
+        <div className="ap-note">
           <Icon name="shield" />
           <span>
             Revise o destino, os textos e o orçamento. Nada é publicado sem sua confirmação.
@@ -186,11 +193,11 @@ export function PublishPanel({
         </div>
         {items.length > 0 ? (
           precisaValidar ? (
-            <p role="status" className="notice notice-warning">
+            <p role="status" className="ap-note" data-tone="warn">
               {avisoDeValidacao}
             </p>
           ) : (
-            <p role="status" className="notice">
+            <p role="status" className="ap-note">
               Validado em{' '}
               {approval.validated_at
                 ? new Date(approval.validated_at).toLocaleString('pt-BR')
@@ -201,7 +208,7 @@ export function PublishPanel({
         ) : null}
         {canEdit ? (
           <>
-            <div className="publish-actions">
+            <div className="ap-publish__actions">
               <Button
                 variant="secondary"
                 label={isValidating ? 'Validando...' : 'Validar lote'}
@@ -219,7 +226,7 @@ export function PublishPanel({
                 onClick={requestPublication}
               />
             </div>
-            <label className="inline-flex items-center gap-2 text-xs">
+            <label className="ap-publish__only ap-t-small">
               <input
                 type="checkbox"
                 checked={onlyFailed}
@@ -230,48 +237,102 @@ export function PublishPanel({
             </label>
           </>
         ) : (
-          <p className="notice">Visualização somente leitura: publicação restrita a gestor.</p>
+          <p className="ap-note">Visualização somente leitura: publicação restrita a gestor.</p>
         )}
         {teto ? (
-          <p className="text-xs text-[var(--color-muted)]">
+          <p className="ap-t-small ap-publish__muted">
             Limite da conta: {plural(teto, 'anúncio', 'anúncios')} por dia.
           </p>
         ) : null}
         {message ? (
-          <p role="alert" className="notice notice-error">
+          <p role="alert" className="ap-note" data-tone="danger">
             {message}
           </p>
         ) : null}
-        <ConfirmDialog
+        <Dialog
           isOpen={confirmation !== null}
-          title={`Publicar ${plural(confirmation?.count ?? 0, 'anúncio', 'anúncios')}?`}
-          confirmLabel="Confirmar publicação"
-          onCancel={() => setConfirmation(null)}
-          onConfirm={() => void publish()}
+          onOpenChange={(open) => {
+            if (!open) setConfirmation(null);
+          }}
+          width={640}
+          aria-labelledby={reviewId}
         >
-          <p>
-            Conta de destino: <strong>{accountName}</strong>.
+          <p className="ap-t-ref ap-review__eyebrow">Revisão final antes de criar na Meta</p>
+          <h2 id={reviewId} className="ap-t-title-m">
+            Publicar {plural(confirmation?.count ?? 0, 'anúncio', 'anúncios')}?
+          </h2>
+          <p className="ap-t-body ap-review__lead">
+            Isso cria campanha, conjuntos e anúncios <strong>pausados</strong> na conta{' '}
+            <strong>{accountName}</strong>. Nada fica no ar até você ativar no Gerenciador de Anúncios.
           </p>
-          <p>
-            Você está autorizando a publicação de{' '}
-            <strong>{plural(confirmation?.count ?? 0, 'anúncio', 'anúncios')}</strong> na Meta.
+          <Table head={['Lote', 'Conta', 'Anúncios', 'Validação']}>
+            <TableRow>
+              <TableCell>{batchName}</TableCell>
+              <TableCell>{accountName}</TableCell>
+              <TableCell className="numeric">{confirmation?.count ?? 0}</TableCell>
+              <TableCell>
+                {approval.validated_at
+                  ? new Date(approval.validated_at).toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      timeZone: 'America/Sao_Paulo',
+                    })
+                  : 'agora'}
+              </TableCell>
+            </TableRow>
+          </Table>
+          <ul className="ap-review__checks">
+            <li data-tone="ok">
+              <span className="ap-t-body-strong">A validação ainda vale</span>
+              <span className="ap-t-small">Qualquer edição depois dela derruba a aprovação.</span>
+            </li>
+            {previa.excede ? (
+              <li data-tone="warn">
+                <span className="ap-t-body-strong">Limite diário da conta {accountName}</span>
+                <span className="ap-t-small">
+                  A conta aceita mais {plural(previa.entram, 'anúncio', 'anúncios')} hoje e este lote tem{' '}
+                  {confirmation?.count ?? 0}. Os outros {previa.ficamDeFora} não entram na fila hoje.
+                </span>
+              </li>
+            ) : null}
+          </ul>
+          {previa.excede ? (
+            <label className="ap-review__accept ap-t-body">
+              <input
+                type="checkbox"
+                className="ap-check"
+                checked={aceitouSaldo}
+                onChange={(event) => setAceitouSaldo(event.target.checked)}
+              />
+              Publicar só o que cabe hoje ({previa.entram} de {confirmation?.count ?? 0}) e deixar{' '}
+              {previa.ficamDeFora} como pronto
+            </label>
+          ) : null}
+          <p className="ap-review__billing ap-t-small">
+            A veiculação gera cobrança na sua conta de anúncios depois que você ativar. Confira o
+            orçamento e o destino antes de continuar.
           </p>
-          <p className="notice notice-warning">
-            A veiculação gera cobrança na sua conta de anúncios. Confira o orçamento e o destino
-            antes de continuar.
-          </p>
-        </ConfirmDialog>
+          <div className="ap-review__actions">
+            <Button variant="ghost" label="Cancelar" onClick={() => setConfirmation(null)} />
+            <Button
+              variant="primary"
+              label="Confirmar publicação"
+              isDisabled={previa.excede && !aceitouSaldo}
+              onClick={() => void publish()}
+            />
+          </div>
+        </Dialog>
 
         {report ? (
-          <div className="space-y-2">
-            <p className="text-sm">
+          <div className="ap-publish__report">
+            <p className="ap-t-body">
               {report.can_publish ? (
                 <Badge tone="ok">lote liberado para publicar</Badge>
               ) : (
                 <Badge tone="danger">lote com itens bloqueados</Badge>
               )}
             </p>
-            <ul className="space-y-1">
+            <ul className="ap-publish__items">
               {report.items
                 .filter(
                   (item) => item.errors.length + item.warnings.length + item.policy.length > 0,
@@ -279,14 +340,14 @@ export function PublishPanel({
                 .map((item, index) => (
                   <li
                     key={item.item_id}
-                    className="rounded-lg border border-[var(--color-border)] p-2 text-sm"
+                    className="ap-publish__item"
                   >
-                    <p className="font-medium">
+                    <p className="ap-t-body-strong">
                       {items.find((draft) => draft.id === item.item_id)?.name ??
                         `Anúncio ${index + 1}`}{' '}
                       — {statusLabel(item.status)}
                     </p>
-                    <ul className="mt-1 list-disc pl-5 text-xs text-[var(--color-muted)]">
+                    <ul className="ap-publish__issues ap-t-small">
                       {item.errors.map((issue) => (
                         <li key={`erro-${issue.code}-${issue.field}`}>
                           {issue.message}
@@ -309,10 +370,7 @@ export function PublishPanel({
         ) : null}
 
         {publishResult ? (
-          <div
-            role="status"
-            className="flex flex-wrap gap-2 rounded-lg border border-[var(--color-border)] p-3 text-sm"
-          >
+          <div role="status" className="ap-publish__result">
             <Badge tone="ok">enfileirados: {publishResult.queued}</Badge>
             <Badge tone="warn">adiados pelo teto: {publishResult.skipped}</Badge>
             <Badge tone="info">saldo diário: {publishResult.daily_remaining}</Badge>
@@ -320,15 +378,15 @@ export function PublishPanel({
         ) : null}
 
         {canEdit ? (
-          <details className="border-t border-[var(--color-border)] pt-4">
-            <summary className="cursor-pointer text-sm font-semibold">Duplicar lote</summary>
+          <details className="ap-publish__dup">
+            <summary className="ap-t-body-strong">Duplicar lote</summary>
           {otherAccounts.length === 0 ? (
-            <p className="text-sm text-[var(--color-muted)]">
+            <p className="ap-t-small ap-publish__muted">
               Não há outra conta do mesmo cliente disponível para duplicar.
             </p>
           ) : (
-            <div className="space-y-3">
-              <div className="grid gap-3">
+            <div className="ap-publish__dupform">
+              <div className="ap-publish__dupfields">
                 <Field label="Conta de destino">
                   <select
                     className={inputClass}
@@ -362,7 +420,7 @@ export function PublishPanel({
               />
 
               {duplicateMessage ? (
-                <p role="alert" className="text-sm text-[var(--color-danger)]">
+                <p role="alert" className="ap-note" data-tone="danger">
                   {duplicateMessage}
                 </p>
               ) : null}

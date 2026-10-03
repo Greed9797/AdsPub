@@ -10,6 +10,7 @@ import '../styles/components.css';
 import '../styles/shell.css';
 import '../styles/lotes.css';
 import '../styles/ficha.css';
+import '../styles/publish.css';
 import { currentSession } from '@/lib/session';
 import { BottomNav } from '@/components/shell/bottom-nav';
 import { Footer } from '@/components/shell/footer';

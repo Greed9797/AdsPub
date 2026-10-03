@@ -371,4 +371,24 @@
       line-height: 1.08;
     }
   }
+
+  /* ---------- nota (aviso curto em linha) ---------- */
+  .ap-note {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--ap-s-8);
+    margin: 0;
+    padding: 12px 16px;
+    border-radius: var(--ap-r-lg);
+    background: var(--ap-bg-band);
+    color: var(--ap-text-1);
+    font: 400 14px/1.5 var(--ap-font-text);
+  }
+  .ap-note[data-tone='warn'] {
+    background: var(--ap-orange-veil);
+  }
+  .ap-note[data-tone='danger'] {
+    background: var(--ap-error-veil);
+    color: var(--ap-error);
+  }
 }

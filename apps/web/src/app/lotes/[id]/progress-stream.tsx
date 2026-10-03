@@ -13,6 +13,8 @@ const NON_TERMINAL: AdDraftStatus[] = [
   'creating_ad',
 ];
 
+const CONCLUIDOS: AdDraftStatus[] = ['published', 'in_review', 'approved', 'disapproved'];
+
 type ProgressStreamProps = {
   items: {
     id: string;
@@ -54,5 +56,14 @@ export function ProgressStream({ items }: ProgressStreamProps) {
     return null;
   }
 
-  return <p className="text-sm text-[var(--color-muted)]">Lote em processamento. Atualizando automaticamente...</p>;
+  const concluidos = items.filter((item) => CONCLUIDOS.includes(item.status)).length;
+  return (
+    <div role="status" className="ap-andamento">
+      <p className="ap-t-body-strong">Lote em processamento. Atualizando automaticamente...</p>
+      <p className="ap-t-small">
+        {concluidos} de {items.length} {items.length === 1 ? 'anúncio' : 'anúncios'} na Meta
+      </p>
+      <progress className="ap-andamento__bar" max={items.length} value={concluidos} aria-label="Anúncios já criados na Meta" />
+    </div>
+  );
 }

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { Button, Card, Empty, PageHead, Selo } from '@/components/ui';
 import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
-import type { AdAccount, AdsetRef, Asset, Batch, CampaignRef } from '@/lib/types';
+import type { AccountHealth, AdAccount, AdsetRef, Asset, Batch, CampaignRef } from '@/lib/types';
 import { ProgressStream } from './progress-stream';
 import { BatchItemsTable } from './batch-items-table';
 import { ManualBuilder } from './manual-builder';
@@ -42,11 +42,14 @@ export default async function LotePage({
   const errorMessage = Array.isArray(query.erro) ? query.erro[0] : query.erro;
 
   const batch = await api<Batch>(`/batches/${id}`);
-  const [account, clientAccounts, assets] = await Promise.all([
+  const [account, clientAccounts, assets, health] = await Promise.all([
     api<AdAccount>(`/ad-accounts/${batch.ad_account_id}`),
     api<AdAccount[]>(`/ad-accounts?client_id=${encodeURIComponent(batch.client_id)}`),
     api<Asset[]>(`/assets?client_id=${encodeURIComponent(batch.client_id)}&status=ok`),
+    // O saldo diário só enfeita a revisão final; a API aplica o teto de qualquer jeito.
+    api<AccountHealth>(`/ad-accounts/${encodeURIComponent(batch.ad_account_id)}/health`).catch(() => undefined),
   ]);
+  const dailyRemaining = health ? Math.max(0, health.daily_cap - health.published_today) : undefined;
 
   // Modo manual: o construtor precisa dos criativos aprovados e do cache de campanhas/conjuntos.
   let campaigns: CampaignRef[] = [];
@@ -165,6 +168,8 @@ export default async function LotePage({
         <aside className="editor-aside" aria-label="Publicação do lote">
           <PublishPanel
             batchId={batch.id}
+            batchName={batch.name}
+            dailyRemaining={dailyRemaining}
             items={batch.items}
             accounts={clientAccounts}
             currentAccountId={batch.ad_account_id}
