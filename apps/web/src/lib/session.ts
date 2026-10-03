@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { forbidden, redirect } from 'next/navigation';
 import { SESSION_COOKIE, mintSessionToken } from '@adpub/auth';
 import type { Role, SessionUser } from '@adpub/shared';
 import { webEnv } from './env';
@@ -58,6 +58,7 @@ export async function requireSession(): Promise<SessionUser> {
 
 export async function requireRole(roles: readonly Role[]): Promise<SessionUser> {
   const user = await requireSession();
-  if (!roles.includes(user.role)) redirect('/');
+  // 403 com a página de permissão (app/forbidden.tsx), em vez de mandar a pessoa para a home sem explicar.
+  if (!roles.includes(user.role)) forbidden();
   return user;
 }

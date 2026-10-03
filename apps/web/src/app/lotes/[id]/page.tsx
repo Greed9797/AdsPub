@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { Button, Card, Empty, PageHead, Selo } from '@/components/ui';
 import { requireSession } from '@/lib/session';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
 import type { AccountHealth, AdAccount, AdsetRef, Asset, Batch, CampaignRef } from '@/lib/types';
 import { ProgressStream } from './progress-stream';
 import { BatchItemsTable } from './batch-items-table';
@@ -41,7 +41,10 @@ export default async function LotePage({
 
   const errorMessage = Array.isArray(query.erro) ? query.erro[0] : query.erro;
 
-  const batch = await api<Batch>(`/batches/${id}`);
+  const batch = await api<Batch>(`/batches/${id}`).catch((error: unknown) => {
+    if (error instanceof ApiError && error.status === 404) notFound();
+    throw error;
+  });
   const [account, clientAccounts, assets, health] = await Promise.all([
     api<AdAccount>(`/ad-accounts/${batch.ad_account_id}`),
     api<AdAccount[]>(`/ad-accounts?client_id=${encodeURIComponent(batch.client_id)}`),

@@ -13,7 +13,7 @@ const config: NextConfig = {
   output: process.env.NEXT_STANDALONE === '1' ? 'standalone' : undefined,
   outputFileTracingRoot: path.resolve(import.meta.dirname, '../..'),
   transpilePackages: ['@adpub/auth', '@adpub/config', '@adpub/shared'],
-  experimental: { typedRoutes: false },
+  experimental: { typedRoutes: false, authInterrupts: true },
   async headers() {
     return [
       {

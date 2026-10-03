@@ -679,6 +679,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T22: Estados de erro, vazio, carregando e permissão
 
+**Status**: ✅ Complete
 **What**: `error.tsx`, `not-found.tsx`, esqueleto de carregamento e página de permissão.
 **Where**: `apps/web/src/app/error.tsx`, `apps/web/src/app/not-found.tsx`, `apps/web/src/app/loading.tsx`, `apps/web/src/components/forbidden.tsx`
 **Depends on**: T21
@@ -692,12 +693,12 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] API fora do ar mostra o erro com código de requisição e "Tentar de novo"
-- [ ] Rota inexistente mostra não encontrado com o caminho de volta
-- [ ] A rota carregando mostra o esqueleto da lista
-- [ ] Papel `viewer` em rota restrita mostra o motivo
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-estados.spec.ts`
-- [ ] Test count: 4 tests pass (no silent deletions)
+- [x] API fora do ar mostra o erro com código de requisição e "Tentar de novo"
+- [x] Rota inexistente mostra não encontrado com o caminho de volta
+- [x] A rota carregando mostra o esqueleto da lista
+- [x] Papel `viewer` em rota restrita mostra o motivo
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-estados.spec.ts`
+- [x] Test count: 3 e2e + 3 unit new (o esqueleto de carregamento é coberto por render, pois o servidor de teste responde rápido demais para o e2e; suíte e2e 93, vitest 544) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: build

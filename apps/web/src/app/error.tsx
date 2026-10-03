@@ -1,11 +1,8 @@
 'use client';
 
-import Link from 'next/link';
+import { Button, Callout, PageHead } from '@/components/ui';
 
-import { PageHead } from '@/components/ui';
-import { Button } from '@astryxdesign/core/Button';
-
-/** Falha de rota (ex.: API fora): explica, tenta de novo, oferece saída. */
+/** Falha de rota (ex.: API fora ou recusando): diz o que houve, dá o código e tenta de novo. */
 export default function RouteError({
   error,
   reset,
@@ -14,20 +11,21 @@ export default function RouteError({
   reset: () => void;
 }) {
   return (
-    <div className="error-state space-y-6" role="alert">
+    <div className="ap-estado" role="alert">
       <PageHead
         title="Algo falhou ao carregar"
-        description="Não foi possível carregar os dados desta página. Tente novamente; se continuar, confira sua sessão e a conexão com o serviço."
+        description="Não foi possível carregar os dados desta página. Tente de novo; se continuar, confira sua sessão e a conexão com o serviço."
         action={
-          <div className="flex gap-2">
+          <>
             <Button variant="primary" label="Tentar de novo" onClick={reset} />
-            <Button variant="secondary" label="Voltar aos anúncios" href="/" as={Link} />
-          </div>
+            <Button variant="secondary" label="Voltar aos lotes" href="/" />
+          </>
         }
       />
-      {error.digest ? (
-        <p className="text-xs tabular-nums text-[var(--color-muted)]">ref {error.digest}</p>
-      ) : null}
+      <Callout tone="danger" title="O que aconteceu">
+        <p className="ap-estado__p">Código da requisição: {error.digest ? <span className="ap-t-ref">{error.digest}</span> : 'não informado'}</p>
+        <p className="ap-estado__p">Informe esse código a quem mantém o AdPub se o problema voltar.</p>
+      </Callout>
     </div>
   );
 }
