@@ -281,6 +281,15 @@
   .ap-dialog__body {
     padding: 32px;
   }
+  .ap-dialog--side {
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0 0 0 auto;
+    border-radius: var(--ap-r-modal) 0 0 var(--ap-r-modal);
+  }
+  .ap-dialog--side .ap-dialog__body {
+    padding: 24px 28px;
+  }
 
   /* ---------- aviso ---------- */
   .ap-callout {

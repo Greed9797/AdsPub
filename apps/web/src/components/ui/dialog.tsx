@@ -11,6 +11,7 @@ export function Dialog({
   onOpenChange,
   width = 480,
   maxHeight,
+  placement = 'center',
   'aria-labelledby': labelledBy,
   children,
 }: {
@@ -18,6 +19,8 @@ export function Dialog({
   onOpenChange: (open: boolean) => void;
   width?: number;
   maxHeight?: string;
+  /** `side` ancora a janela à direita, em altura total (ficha do anúncio). */
+  placement?: 'center' | 'side';
   'aria-labelledby'?: string;
   children: ReactNode;
 }) {
@@ -33,7 +36,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      className="ap-dialog"
+      className={placement === 'side' ? 'ap-dialog ap-dialog--side' : 'ap-dialog'}
       aria-labelledby={labelledBy}
       style={{ width: `min(${width}px, calc(100vw - 32px))`, maxHeight }}
       onCancel={(event) => {

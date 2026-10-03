@@ -5,12 +5,10 @@ import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { ctaSchema } from '@adpub/shared';
 
-import { inputClass, Field, ctaLabel } from '@/components/ui';
+import { Button, Dialog, Field, Selo, ctaLabel, formatLabel, inputClass } from '@/components/ui';
 import { AdPreview } from '@/components/ad-preview';
-import { Dialog } from '@astryxdesign/core/Dialog';
 import type { AdDraft, Asset, Copy } from '@/lib/types';
 import type { ActionResult } from '../actions';
-import { Button } from '@astryxdesign/core/Button';
 
 export type SalvarItemPayload = {
   batch_id: string;
@@ -30,6 +28,10 @@ type ItemEditorProps = {
   onSaved: () => void;
 };
 
+function descreverRef(ref: AdDraft['campaign_ref']): string {
+  return ref.kind === 'new' ? `${ref.key} · nova neste lote` : `${ref.id} · já existe na Meta`;
+}
+
 export function ItemEditor({ batchId, item, assets, salvarItemAction, onSaved }: ItemEditorProps) {
   const router = useRouter();
 
@@ -46,22 +48,29 @@ export function ItemEditor({ batchId, item, assets, salvarItemAction, onSaved }:
   const [isSaving, setIsSaving] = useState(false);
   const [showDiscard, setShowDiscard] = useState(false);
   const titleId = useId();
+  const referencia = `AD-${String(item.position + 1).padStart(2, '0')}`;
   // Erros, avisos e política do próprio item: a validação já vem no item, só
   // não era mostrada onde a correção acontece.
   const pendencias = [
     ...(item.validation?.errors ?? []).map((issue) => ({
       chave: `erro-${issue.code}-${issue.field}`,
+      tipo: 'erro' as const,
       message: issue.message,
+      campo: issue.field,
       fix: issue.fix,
     })),
     ...(item.validation?.policy ?? []).map((issue, index) => ({
       chave: `politica-${issue.category}-${index}`,
-      message: `${issue.category}: ${issue.excerpt}`,
+      tipo: (issue.severity === 'error' ? 'erro' : 'aviso') as 'erro' | 'aviso',
+      message: `Política: ${issue.category}: ${issue.excerpt}`,
+      campo: '',
       fix: '',
     })),
     ...(item.validation?.warnings ?? []).map((issue) => ({
       chave: `aviso-${issue.code}-${issue.field}`,
+      tipo: 'aviso' as const,
       message: issue.message,
+      campo: issue.field,
       fix: '',
     })),
   ];
@@ -130,178 +139,145 @@ export function ItemEditor({ batchId, item, assets, salvarItemAction, onSaved }:
       onOpenChange={(open) => {
         if (!open) requestClose();
       }}
-      purpose="form"
-      width={1080}
-      maxHeight="90dvh"
-      padding={5}
+      placement="side"
+      width={640}
       aria-labelledby={titleId}
     >
-      <form onSubmit={handleSubmit}>
-        <div className="mb-5 flex items-start justify-between gap-4 border-b border-[var(--color-border)] pb-4">
+      <form onSubmit={handleSubmit} className="ap-ficha">
+        <header className="ap-ficha__head">
           <div>
-            <h2 id={titleId} className="text-lg font-semibold">
+            <p className="ap-t-ref ap-ficha__ref">
+              Ficha do anúncio · {referencia} <Selo status={item.status} />
+            </p>
+            <h2 id={titleId} className="ap-t-title-m">
               Editar anúncio
             </h2>
-            <p className="mt-1 text-xs text-[var(--color-muted)]">{item.name}</p>
+            <p className="ap-t-small ap-ficha__name">{item.name}</p>
           </div>
-          <Button variant="secondary" label="Fechar" onClick={requestClose} isDisabled={isSaving} />
-        </div>
-        {/* O problema fica ao lado do campo que o resolve: sem isso o gestor
-            vê "2 erros" na tabela e precisa adivinhar o que corrigir. */}
-        {pendencias.length > 0 ? (
-          <div className="notice notice-warning mb-5">
-            <ul className="list-disc space-y-1 pl-5 text-xs">
-              {pendencias.map((issue) => (
-                <li key={issue.chave}>
-                  {issue.message}
-                  {issue.fix ? ` — Como resolver: ${issue.fix}` : ''}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        <div className="ad-editor-layout">
-          <fieldset disabled={isSaving} className="min-w-0 space-y-5">
-            <section className="space-y-3">
-              <h3 className="text-sm font-semibold">Identidade do anúncio</h3>
-              <Field label="Nome do anúncio">
-                <input
-                  className={inputClass}
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  required
-                />
-              </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Página do Facebook" hint="ID da página responsável pelo anúncio.">
-                  <input
-                    className={inputClass}
-                    value={pageId}
-                    onChange={(event) => setPageId(event.target.value)}
-                    required
-                  />
-                </Field>
-                <Field label="Instagram" hint="Opcional. Vazio publica apenas no Facebook.">
-                  <input
-                    className={inputClass}
-                    value={igUserId}
-                    onChange={(event) => setIgUserId(event.target.value)}
-                  />
-                </Field>
-              </div>
-            </section>
-            <section className="space-y-3 border-t border-[var(--color-border)] pt-4">
-              <h3 className="text-sm font-semibold">Conteúdo do anúncio</h3>
-              <Field label="Texto principal" hint={`${primaryText.length} de 2.000 caracteres`}>
-                <textarea
-                  className={`${inputClass} h-32`}
-                  value={primaryText}
-                  maxLength={2000}
-                  onChange={(event) => setPrimaryText(event.target.value)}
-                  required
-                />
-              </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Título">
-                  <input
-                    className={inputClass}
-                    value={headline}
-                    maxLength={255}
-                    onChange={(event) => setHeadline(event.target.value)}
-                  />
-                </Field>
-                <Field label="Descrição">
-                  <input
-                    className={inputClass}
-                    value={description}
-                    maxLength={255}
-                    onChange={(event) => setDescription(event.target.value)}
-                  />
-                </Field>
-              </div>
-            </section>
-            <section className="space-y-3 border-t border-[var(--color-border)] pt-4">
-              <h3 className="text-sm font-semibold">Destino e rastreamento</h3>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Botão do anúncio">
-                  <select
-                    className={inputClass}
-                    value={cta}
-                    onChange={(event) => setCta(event.target.value)}
-                  >
-                    {ctaSchema.options.map((option) => (
-                      <option key={option} value={option}>
-                        {ctaLabel(option)}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Link de destino" hint="Obrigatório para liberar a publicação.">
-                  <input
-                    className={inputClass}
-                    value={link}
-                    onChange={(event) => setLink(event.target.value)}
-                  />
-                </Field>
-              </div>
-              <Field
-                label="Rastreio do link (UTMs)"
-                hint="Ex.: utm_source=instagram. Vazio usa o padrão do cliente."
-              >
-                <input
-                  className={inputClass}
-                  value={urlTags}
-                  onChange={(event) => setUrlTags(event.target.value)}
-                />
-              </Field>
-            </section>
-          </fieldset>
+          <Button variant="secondary" size="sm" label="Fechar" onClick={requestClose} isDisabled={isSaving} />
+        </header>
+
+        <div className="ap-ficha__preview-row">
           <AdPreview
             pageLabel={pageId ? `Página ${pageId}` : ''}
             copy={{ primary_text: primaryText, headline, description, cta, link }}
             asset={assets.find((asset) => asset.id === item.asset_ids[0])}
             mediaCount={item.asset_ids.length}
           />
+          <dl className="ap-ficha__facts" aria-label="Campanha e conjunto">
+            <div>
+              <dt className="ap-t-ref">Formato</dt>
+              <dd className="ap-t-body-strong">{formatLabel(item.format)}</dd>
+            </div>
+            <div>
+              <dt className="ap-t-ref">Campanha</dt>
+              <dd className="ap-t-body-strong">{descreverRef(item.campaign_ref)}</dd>
+            </div>
+            <div>
+              <dt className="ap-t-ref">Conjunto</dt>
+              <dd className="ap-t-body-strong">{descreverRef(item.adset_ref)}</dd>
+            </div>
+          </dl>
         </div>
+
+        <fieldset disabled={isSaving} className="ap-ficha__fields">
+          <legend className="ap-t-section">Textos do anúncio</legend>
+          <Field label="Nome do anúncio">
+            <input className={inputClass} value={name} onChange={(event) => setName(event.target.value)} required />
+          </Field>
+          <div className="ap-ficha__pair">
+            <Field label="Página do Facebook" hint="ID da página responsável pelo anúncio.">
+              <input className={inputClass} value={pageId} onChange={(event) => setPageId(event.target.value)} required />
+            </Field>
+            <Field label="Instagram" hint="Opcional. Vazio publica apenas no Facebook.">
+              <input className={inputClass} value={igUserId} onChange={(event) => setIgUserId(event.target.value)} />
+            </Field>
+          </div>
+          <Field label="Texto principal" hint={`${primaryText.length} de 2.000 caracteres`}>
+            <textarea
+              className={inputClass}
+              value={primaryText}
+              maxLength={2000}
+              onChange={(event) => setPrimaryText(event.target.value)}
+              required
+            />
+          </Field>
+          <div className="ap-ficha__pair">
+            <Field label="Título">
+              <input className={inputClass} value={headline} maxLength={255} onChange={(event) => setHeadline(event.target.value)} />
+            </Field>
+            <Field label="Descrição">
+              <input className={inputClass} value={description} maxLength={255} onChange={(event) => setDescription(event.target.value)} />
+            </Field>
+          </div>
+          <div className="ap-ficha__pair">
+            <Field label="Botão do anúncio">
+              <select className={inputClass} value={cta} onChange={(event) => setCta(event.target.value)}>
+                {ctaSchema.options.map((option) => (
+                  <option key={option} value={option}>
+                    {ctaLabel(option)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Link de destino" hint="Obrigatório para liberar a publicação.">
+              <input className={inputClass} value={link} onChange={(event) => setLink(event.target.value)} />
+            </Field>
+          </div>
+          <Field label="Rastreio do link (UTMs)" hint="Ex.: utm_source=instagram. Vazio usa o padrão do cliente.">
+            <input className={inputClass} value={urlTags} onChange={(event) => setUrlTags(event.target.value)} />
+          </Field>
+        </fieldset>
+
+        <section className="ap-ficha__checks" aria-labelledby={`${titleId}-val`}>
+          <h3 id={`${titleId}-val`} className="ap-t-section">
+            Validação do anúncio
+          </h3>
+          {!item.validation ? (
+            <p className="ap-t-small ap-ficha__muted">Aguardando validação do lote.</p>
+          ) : pendencias.length === 0 ? (
+            <p className="ap-t-small ap-ficha__muted">Sem erros nem avisos neste anúncio.</p>
+          ) : (
+            <ul className="ap-ficha__issues">
+              {pendencias.map((issue) => (
+                <li key={issue.chave} data-tipo={issue.tipo}>
+                  <span className="ap-t-body-strong">{issue.message}</span>
+                  <span className="ap-t-small ap-ficha__muted">
+                    {referencia}
+                    {issue.campo ? ` · campo ${issue.campo}` : ''}
+                    {issue.fix ? ` · Como resolver: ${issue.fix}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         {errorMessage ? (
-          <p role="alert" className="notice notice-error mt-4">
+          <p role="alert" className="ap-ficha__alert" data-tone="danger">
             {errorMessage}
           </p>
         ) : null}
         {showDiscard ? (
-          <div className="notice notice-warning mt-4" role="alert">
-            <div className="space-y-3">
-              <p>Você tem alterações não salvas. Descartar e fechar o editor?</p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="secondary"
-                  label="Continuar editando"
-                  onClick={() => setShowDiscard(false)}
-                />
-                <Button variant="destructive" label="Descartar alterações" onClick={onSaved} />
-              </div>
+          <div className="ap-ficha__alert" data-tone="warn" role="alert">
+            <p>Você tem alterações não salvas. Descartar e fechar o editor?</p>
+            <div className="ap-ficha__actions">
+              <Button variant="secondary" size="sm" label="Continuar editando" onClick={() => setShowDiscard(false)} />
+              <Button variant="destructive" size="sm" label="Descartar alterações" onClick={onSaved} />
             </div>
           </div>
         ) : null}
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] pt-4">
-          <p className="text-xs text-[var(--color-muted)]">
-            {dirty ? 'Alterações ainda não salvas' : 'Nenhuma alteração pendente'}
+
+        <footer className="ap-ficha__foot">
+          <p className="ap-t-small ap-ficha__muted">
+            Salvar derruba a aprovação do lote: você valida de novo antes de publicar.
+            {dirty ? ' Há alterações ainda não salvas.' : ''}
           </p>
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              label="Cancelar"
-              onClick={requestClose}
-              isDisabled={isSaving}
-            />
-            <Button
-              variant="primary"
-              label={isSaving ? 'Salvando...' : 'Salvar item'}
-              type="submit"
-              isDisabled={isSaving}
-            />
+          <div className="ap-ficha__actions">
+            <Button variant="ghost" label="Cancelar" onClick={requestClose} isDisabled={isSaving} />
+            <Button variant="primary" label={isSaving ? 'Salvando...' : 'Salvar item'} type="submit" isDisabled={isSaving} />
           </div>
-        </div>
+        </footer>
       </form>
     </Dialog>
   );

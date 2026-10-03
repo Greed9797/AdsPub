@@ -9,6 +9,7 @@ import '../styles/base.css';
 import '../styles/components.css';
 import '../styles/shell.css';
 import '../styles/lotes.css';
+import '../styles/ficha.css';
 import { currentSession } from '@/lib/session';
 import { BottomNav } from '@/components/shell/bottom-nav';
 import { Footer } from '@/components/shell/footer';

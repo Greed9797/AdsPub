@@ -20,6 +20,10 @@ export interface LoteSemeado {
   aprovado?: boolean;
   /** Campanha `c1` e conjunto `a1` do lote, no estado pedido. */
   refs?: { campanha: 'pending' | 'created' | 'failed' | 'needs_reconciliation'; conjunto: 'pending' | 'created' | 'failed' | 'needs_reconciliation' };
+  /** Anúncios apontam para campanha e conjunto que já existem na Meta (salvar um item não exige plano). */
+  refsExistentes?: boolean;
+  /** Grava um erro de validação (link ausente) em cada anúncio. */
+  comErro?: boolean;
   /** Etapa gravada em cada anúncio (padrão: a primeira). */
   etapa?: 'upload_media' | 'ensure_campaign' | 'ensure_adset' | 'create_creative' | 'create_ad' | 'done';
 }
@@ -55,8 +59,8 @@ export async function semearLotes(seed: SeedData, lotes: readonly LoteSemeado[])
         id: randomUUID(),
         batchId,
         position,
-        campaignRef: { kind: 'new' as const, key: 'c1' },
-        adsetRef: { kind: 'new' as const, key: 'a1' },
+        campaignRef: lote.refsExistentes ? { kind: 'existing' as const, id: '23850000000000101' } : { kind: 'new' as const, key: 'c1' },
+        adsetRef: lote.refsExistentes ? { kind: 'existing' as const, id: '23850000000000202' } : { kind: 'new' as const, key: 'a1' },
         format: 'single_image' as const,
         assetIds: [seed.asset.id],
         copy: { primary_text: 'Texto', headline: '', description: '', cta: 'SHOP_NOW' as const, link: '', display_link: '', url_tags: '' },
@@ -64,6 +68,14 @@ export async function semearLotes(seed: SeedData, lotes: readonly LoteSemeado[])
         pageId: seed.account.pageId,
         status,
         step: lote.etapa ?? ('upload_media' as const),
+        validation: lote.comErro
+          ? {
+              status: 'blocked' as const,
+              errors: [{ code: 'link_missing', field: 'copy.link', message: 'Link de destino ausente', fix: 'Cole o link da página de destino.' }],
+              warnings: [],
+              policy: [],
+            }
+          : null,
         metaIds: { image_hashes: {}, video_ids: {}, thumbnail_hashes: {} },
         idempotencyKey: `${batchId}:${position}`,
       }));

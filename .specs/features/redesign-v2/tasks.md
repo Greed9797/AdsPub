@@ -307,6 +307,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T9: Ficha do anúncio
 
+**Status**: ✅ Complete
 **What**: Ficha lateral com prévia, textos editáveis, checklist de validação e dados de campanha e conjunto.
 **Where**: `apps/web/src/app/lotes/[id]/item-editor.tsx`, `apps/web/src/components/ad-preview.tsx`
 **Depends on**: T8
@@ -320,11 +321,11 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] Abrir um anúncio mostra a ficha sem sair da lista
-- [ ] Salvar avisa que a aprovação do lote caiu
-- [ ] Cada erro de validação lista o item e o que corrigir
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-ficha.spec.ts`
-- [ ] Test count: 4 tests pass (no silent deletions)
+- [x] Abrir um anúncio mostra a ficha sem sair da lista
+- [x] Salvar avisa que a aprovação do lote caiu
+- [x] Cada erro de validação lista o item e o que corrigir
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-ficha.spec.ts`
+- [x] Test count: 4 e2e new (suíte e2e 44, vitest 505) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full
