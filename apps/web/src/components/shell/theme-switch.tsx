@@ -30,3 +30,18 @@ export function ThemeSwitch() {
     </div>
   );
 }
+
+/** Versão larga da página Mais: ícone e nome em cada opção. */
+export function ThemeSegments() {
+  const { mode, setMode } = useThemePreference();
+  return (
+    <div className="ap-segments" role="group" aria-label="Aparência">
+      {OPCOES.map(([value, icon, label]) => (
+        <button key={value} type="button" className="ap-segments__btn ap-t-button" aria-pressed={mode === value} onClick={() => setMode(value)}>
+          <Icon name={icon} size={15} />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}

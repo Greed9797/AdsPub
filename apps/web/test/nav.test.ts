@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { activeTabId, screenLabel, visibleTabs } from '../src/lib/nav';
+import { activeTabId, mobileGroups, screenLabel, visibleTabs } from '../src/lib/nav';
 
 const labels = (tabs: ReturnType<typeof visibleTabs>, id: string) =>
   tabs.find((tab) => tab.id === id)?.items?.map((item) => item.label);
@@ -99,5 +99,39 @@ describe('nav: aba ativa e rótulo da tela', () => {
     ['/usuarios', 'Usuários'],
   ])('o rótulo da tela %s é %s', (pathname, label) => {
     expect(screenLabel(pathname)).toBe(label);
+  });
+});
+
+describe('nav: página Mais no mobile (RDS-06)', () => {
+  const nomes = (role: string, env: Record<string, string> = {}) =>
+    mobileGroups(role, env).map((grupo) => [grupo.title, grupo.items.map((item) => item.label)]);
+
+  it('o admin vê os 3 grupos do Figma com os 8 destinos', () => {
+    expect(nomes('admin')).toEqual([
+      ['Analisar', ['Inteligência', 'Relatórios']],
+      ['Contas e canais', ['Conexões Meta', 'WhatsApp']],
+      ['Gerenciar', ['Clientes', 'Saúde das contas', 'Auditoria', 'Usuários']],
+    ]);
+  });
+
+  it('cada destino traz a descrição curta do Figma', () => {
+    const itens = mobileGroups('admin', {}).flatMap((grupo) => grupo.items);
+    expect(itens.find((item) => item.href === '/saude')?.description).toBe('fila, erros e limite diário');
+    expect(itens.find((item) => item.href === '/whatsapp')?.description).toBe('números e modelos');
+  });
+
+  it('o viewer não vê Auditoria nem Usuários, como no desktop', () => {
+    const gerenciar = mobileGroups('viewer', {}).find((grupo) => grupo.title === 'Gerenciar');
+    expect(gerenciar?.items.map((item) => item.label)).toEqual(['Clientes', 'Saúde das contas']);
+  });
+
+  it('flag desligada tira o destino e, sem destinos, o grupo some', () => {
+    const grupos = mobileGroups('admin', { FEATURE_AI_ANALYSIS: '0', FEATURE_REPORTS: '0' });
+    expect(grupos.map((grupo) => grupo.title)).toEqual(['Contas e canais', 'Gerenciar']);
+  });
+
+  it('a página Mais marca a aba Mais no mobile', () => {
+    expect(activeTabId('/mais')).toBe('mais');
+    expect(activeTabId('/clientes')).toBe('gestao');
   });
 });

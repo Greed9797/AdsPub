@@ -9,6 +9,7 @@ import '../styles/base.css';
 import '../styles/components.css';
 import '../styles/shell.css';
 import { currentSession } from '@/lib/session';
+import { BottomNav } from '@/components/shell/bottom-nav';
 import { Footer } from '@/components/shell/footer';
 import { TopBar } from '@/components/shell/top-bar';
 import { api } from '@/lib/api';
@@ -38,7 +39,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="pt-BR" className={`${GeistSans.variable} ${GeistMono.variable}`} data-theme={mode}>
       <body>
-        <a className="skip-link" href="#conteudo">
+        <a className="ap-skip" href="#conteudo">
           Ir para o conteúdo
         </a>
         <Providers initialMode={mode}>
@@ -49,6 +50,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 {children}
               </main>
               <Footer />
+              <BottomNav />
             </div>
           ) : (
             <main className="auth-layout" id="conteudo">

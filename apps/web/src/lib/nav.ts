@@ -1,4 +1,4 @@
-export type TabId = 'lotes' | 'criativos' | 'performance' | 'contas' | 'gestao';
+export type TabId = 'lotes' | 'criativos' | 'performance' | 'contas' | 'gestao' | 'mais';
 
 export interface NavLink {
   href: string;
@@ -21,20 +21,20 @@ interface Rule {
   flag?: string;
 }
 
-type RawLink = NavLink & Rule;
+type RawLink = NavLink & Rule & { description?: string };
 
 const MENUS: Record<'contas' | 'gestao', RawLink[]> = {
   contas: [
-    { href: '/contas', label: 'Conexões Meta' },
-    { href: '/whatsapp', label: 'WhatsApp' },
-    { href: '/saude', label: 'Saúde das contas' },
+    { href: '/contas', label: 'Conexões Meta', description: 'BM, contas e padrões' },
+    { href: '/whatsapp', label: 'WhatsApp', description: 'números e modelos' },
+    { href: '/saude', label: 'Saúde das contas', description: 'fila, erros e limite diário' },
   ],
   gestao: [
-    { href: '/inteligencia', label: 'Inteligência', flag: 'FEATURE_AI_ANALYSIS' },
-    { href: '/relatorios', label: 'Relatórios', flag: 'FEATURE_REPORTS' },
-    { href: '/clientes', label: 'Clientes' },
-    { href: '/auditoria', label: 'Auditoria', roles: ['admin', 'coordinator'] },
-    { href: '/usuarios', label: 'Usuários', roles: ['admin'] },
+    { href: '/inteligencia', label: 'Inteligência', description: 'hipóteses para os próximos anúncios', flag: 'FEATURE_AI_ANALYSIS' },
+    { href: '/relatorios', label: 'Relatórios', description: 'importar CSV ou Excel', flag: 'FEATURE_REPORTS' },
+    { href: '/clientes', label: 'Clientes', description: 'contas e regras de cada cliente' },
+    { href: '/auditoria', label: 'Auditoria', description: 'quem fez o quê', roles: ['admin', 'coordinator'] },
+    { href: '/usuarios', label: 'Usuários', description: 'papéis e contas', roles: ['admin'] },
   ],
 };
 
@@ -77,6 +77,7 @@ export function visibleTabs(role: string | undefined, env: Readonly<Record<strin
 
 export function activeTabId(pathname: string): TabId | undefined {
   if (pathname === '/' || pathname.startsWith('/lotes')) return 'lotes';
+  if (pathname === '/mais') return 'mais';
   const direct = DIRECT.find((tab) => tab.href !== '/' && pathname === tab.href);
   if (direct) return direct.id;
   for (const id of ['contas', 'gestao'] as const) {
@@ -95,4 +96,31 @@ export function screenLabel(pathname: string): string {
   if (direct) return direct.label;
   const link = [...MENUS.contas, ...MENUS.gestao].find((item) => item.href === pathname);
   return link?.label ?? 'AdPub';
+}
+
+export interface MobileLink extends NavLink {
+  description: string;
+}
+
+export interface MobileGroup {
+  title: string;
+  items: MobileLink[];
+}
+
+/** Agrupamento da página "Mais" (Figma M6). Mesma regra de papel e flag das abas do desktop. */
+const MOBILE_GROUPS: ReadonlyArray<{ title: string; hrefs: readonly string[] }> = [
+  { title: 'Analisar', hrefs: ['/inteligencia', '/relatorios'] },
+  { title: 'Contas e canais', hrefs: ['/contas', '/whatsapp'] },
+  { title: 'Gerenciar', hrefs: ['/clientes', '/saude', '/auditoria', '/usuarios'] },
+];
+
+export function mobileGroups(role: string | undefined, env: Readonly<Record<string, string | undefined>>): MobileGroup[] {
+  const todos = [...MENUS.contas, ...MENUS.gestao];
+  return MOBILE_GROUPS.map(({ title, hrefs }) => ({
+    title,
+    items: hrefs
+      .map((href) => todos.find((link) => link.href === href))
+      .filter((link): link is RawLink => link !== undefined && permitted(link, role, env))
+      .map((link) => ({ href: link.href, label: link.label, description: link.description ?? '' })),
+  })).filter((grupo) => grupo.items.length > 0);
 }

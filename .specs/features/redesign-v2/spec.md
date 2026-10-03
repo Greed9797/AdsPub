@@ -213,7 +213,7 @@ Each requirement gets a unique ID for tracking across design, tasks, and validat
 | RDS-03 | P1: Sistema visual e casca | Design | Implementing |
 | RDS-04 | P1: Sistema visual e casca | Design | Implementing |
 | RDS-05 | P1: Sistema visual e casca | Design | Implementing |
-| RDS-06 | P1: Sistema visual e casca | Design | Pending |
+| RDS-06 | P1: Sistema visual e casca | Design | Implementing |
 | RDS-07 | P1: Sistema visual e casca | Design | Implementing |
 | RDS-08 | P1: Sistema visual e casca | Design | Implementing |
 | RDS-09 | P1: Sistema visual e casca | Design | Implementing |

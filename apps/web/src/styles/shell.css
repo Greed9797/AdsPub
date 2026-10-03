@@ -16,7 +16,7 @@
   }
 
   /* ---------- link de pular ao conteúdo ---------- */
-  .skip-link {
+  .ap-skip {
     position: absolute;
     top: -64px;
     left: 16px;
@@ -27,7 +27,7 @@
     color: var(--ap-bg-surface);
     font: 500 14px/1.2 var(--ap-font-text);
   }
-  .skip-link:focus {
+  .ap-skip:focus {
     top: 12px;
   }
 
@@ -274,8 +274,153 @@
       padding: 20px 16px 40px;
     }
     .ap-footer {
-      padding: 4px 16px;
-      gap: 12px;
+      display: none;
+    }
+  }
+
+  /* ---------- barra inferior (mobile) ---------- */
+  .ap-bottomnav {
+    display: none;
+    position: sticky;
+    bottom: 0;
+    z-index: 30;
+    justify-content: space-between;
+    padding: 8px 8px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--ap-line);
+    background: var(--ap-bg-surface);
+  }
+  .ap-bottomnav__item {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    min-height: 50px;
+    color: var(--ap-text-3);
+    text-decoration: none;
+  }
+  .ap-bottomnav__pill {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 28px;
+    border-radius: var(--ap-r-pill);
+  }
+  .ap-bottomnav__item[aria-current='page'] {
+    color: var(--ap-text-1);
+  }
+  .ap-bottomnav__item[aria-current='page'] .ap-bottomnav__pill {
+    background: var(--ap-text-1);
+    color: var(--ap-bg-surface);
+  }
+
+  /* ---------- página Mais ---------- */
+  .ap-more {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    max-width: 560px;
+  }
+  .ap-more h1 {
+    margin: 0;
+  }
+  .ap-more__user {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-xl);
+    background: var(--ap-bg-surface);
+  }
+  .ap-more__avatar {
+    width: 44px;
+    height: 44px;
+  }
+  .ap-more__who {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .ap-more__role {
+    padding: 2px 10px;
+    border: 1px solid var(--ap-line-strong);
+    border-radius: var(--ap-r-pill);
+  }
+  .ap-more__group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .ap-more__title {
+    margin: 0;
+    color: var(--ap-text-3);
+    font-weight: 400;
+  }
+  .ap-more__list {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-xl);
+    background: var(--ap-bg-surface);
+    list-style: none;
+  }
+  .ap-more__list li + li {
+    border-top: 1px solid var(--ap-line);
+  }
+  .ap-more__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 10px 16px;
+    color: var(--ap-text-1);
+    text-decoration: none;
+  }
+  .ap-more__icon {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--ap-r-md);
+    background: var(--ap-bg-sunken);
+  }
+  .ap-more__text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .ap-segments {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: var(--ap-r-pill);
+    background: var(--ap-bg-sunken);
+  }
+  .ap-segments__btn {
+    display: inline-flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 40px;
+    border: 0;
+    border-radius: var(--ap-r-pill);
+    background: transparent;
+    color: var(--ap-text-1);
+    cursor: pointer;
+  }
+  .ap-segments__btn[aria-pressed='true'] {
+    background: var(--ap-bg-surface);
+  }
+
+  /* Por último: a regra base acima esconde a barra, e aqui ela volta no mobile. */
+  @media (max-width: 768px) {
+    .ap-bottomnav {
+      display: flex;
     }
   }
 }

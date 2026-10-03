@@ -191,6 +191,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T5: Casca mobile
 
+**Status**: ✅ Complete
 **What**: Barra inferior, topo compacto e a rota `/mais` com os demais destinos e a aparência.
 **Where**: `apps/web/src/components/shell/bottom-nav.tsx`, `apps/web/src/app/mais/page.tsx`
 **Depends on**: T4
@@ -204,11 +205,11 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] Em 390 px a barra inferior mostra Lotes, Criativos, Performance, Contas e Mais
-- [ ] `/mais` lista Inteligência, Relatórios, Clientes, Saúde, Auditoria, Usuários e WhatsApp conforme o papel
-- [ ] Nenhuma rota principal rola na horizontal em 390 px
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-shell-mobile.spec.ts`
-- [ ] Test count: 3 tests pass (no silent deletions)
+- [x] Em 390 px a barra inferior mostra Lotes, Criativos, Performance, Contas e Mais
+- [x] `/mais` lista Inteligência, Relatórios, Clientes, Saúde, Auditoria, Usuários e WhatsApp conforme o papel
+- [x] A casca e `/mais` não rolam na horizontal em 390 px (as demais rotas entram com T6 a T22 e fecham em T25)
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-shell-mobile.spec.ts`
+- [x] Test count: 8 tests pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: build
