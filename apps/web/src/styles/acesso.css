@@ -1,0 +1,158 @@
+/* Login e primeiro acesso. */
+@layer ap {
+  .ap-auth-layout {
+    min-height: 100dvh;
+    background: var(--ap-bg-page);
+  }
+  .ap-auth {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 420px;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      'brand brand'
+      'hero card'
+      'steps steps';
+    gap: var(--ap-s-24) 96px;
+    min-height: 100dvh;
+    padding: 48px clamp(24px, 4vw, 64px);
+    box-sizing: border-box;
+  }
+  .ap-auth__brand {
+    grid-area: brand;
+    display: flex;
+    align-items: center;
+    gap: var(--ap-s-12);
+  }
+  .ap-auth__mark {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--ap-r-md);
+    background: var(--ap-text-1);
+    color: var(--ap-bg-surface);
+  }
+  .ap-auth__name,
+  .ap-auth__tag {
+    display: block;
+  }
+  .ap-auth__tag {
+    color: var(--ap-text-2);
+  }
+  .ap-auth__hero {
+    grid-area: hero;
+    align-self: center;
+  }
+  .ap-auth__title {
+    margin: 0;
+  }
+  .ap-auth__title--soft {
+    color: var(--ap-text-2);
+  }
+  .ap-auth__lead {
+    max-width: 480px;
+    margin: var(--ap-s-24) 0 0;
+    color: var(--ap-text-1);
+  }
+  .ap-auth__card {
+    grid-area: card;
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-16);
+    padding: 28px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-xl);
+    background: var(--ap-bg-surface);
+    box-shadow: var(--ap-shadow-float);
+  }
+  .ap-auth__tabs {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 4px;
+    padding: 4px;
+    border-radius: var(--ap-r-pill);
+    background: var(--ap-bg-sunken);
+  }
+  .ap-auth__tab {
+    display: grid;
+    place-items: center;
+    height: 38px;
+    border-radius: var(--ap-r-pill);
+    color: var(--ap-text-1);
+    text-decoration: none;
+  }
+  .ap-auth__tab[aria-current='page'] {
+    background: var(--ap-bg-surface);
+    font-weight: 500;
+  }
+  .ap-auth__h,
+  .ap-auth__desc,
+  .ap-auth__foot {
+    margin: 0;
+  }
+  .ap-auth__desc,
+  .ap-auth__foot {
+    color: var(--ap-text-2);
+  }
+  .ap-auth__foot {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--ap-s-8);
+  }
+  .ap-auth__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-16);
+  }
+  .ap-auth__steps {
+    grid-area: steps;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ap-s-24);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--ap-text-2);
+  }
+  .ap-auth__steps li {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ap-s-8);
+  }
+  .ap-auth__n {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--ap-bg-sunken);
+    color: var(--ap-text-1);
+  }
+  .ap-auth__steps li:last-child .ap-auth__n {
+    background: var(--ap-orange);
+    color: var(--ap-on-orange);
+  }
+
+  @media (max-width: 960px) {
+    .ap-auth {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto;
+      grid-template-areas:
+        'brand'
+        'hero'
+        'card'
+        'steps';
+      gap: var(--ap-s-32);
+      padding: 24px 16px 32px;
+    }
+    .ap-auth__title {
+      font-size: 40px;
+      line-height: 1.05;
+    }
+    .ap-auth__card {
+      padding: 20px;
+    }
+  }
+}

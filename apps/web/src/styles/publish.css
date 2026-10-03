@@ -1,0 +1,190 @@
+/* Revisão final, painel de publicação, andamento e conferência. */
+@layer ap {
+  .ap-publish {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-16);
+  }
+  .ap-publish p {
+    margin: 0;
+  }
+  .ap-publish__muted {
+    color: var(--ap-text-2);
+  }
+  .ap-publish__account {
+    display: block;
+    margin-top: 2px;
+    color: var(--ap-text-1);
+  }
+  .ap-publish__summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--ap-s-12);
+  }
+  .ap-publish__summary div {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 14px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-lg);
+  }
+  .ap-publish__summary strong {
+    font: 600 24px/1.1 var(--ap-font-mono);
+  }
+  .ap-publish__summary strong[data-alert='true'] {
+    color: var(--ap-error);
+  }
+  .ap-publish__summary span {
+    color: var(--ap-text-2);
+    font: 400 13px/1.4 var(--ap-font-text);
+  }
+  .ap-publish__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ap-s-8);
+  }
+  .ap-publish__only {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ap-s-8);
+  }
+  .ap-publish__report,
+  .ap-publish__dupform {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-12);
+  }
+  .ap-publish__items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-8);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ap-publish__item {
+    padding: 10px 12px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-md);
+  }
+  .ap-publish__issues {
+    margin: 4px 0 0;
+    padding-left: 18px;
+    color: var(--ap-text-2);
+  }
+  .ap-publish__result {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ap-s-8);
+    padding: 12px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-md);
+  }
+  .ap-publish__dup {
+    padding-top: var(--ap-s-16);
+    border-top: 1px solid var(--ap-line);
+  }
+  .ap-publish__dup summary {
+    cursor: pointer;
+  }
+  .ap-publish__dupfields {
+    display: grid;
+    gap: var(--ap-s-12);
+    margin-top: var(--ap-s-12);
+  }
+
+  /* ---------- revisão final ---------- */
+  .ap-review__eyebrow {
+    margin: 0 0 var(--ap-s-8);
+    color: var(--ap-text-2);
+  }
+  .ap-dialog h2.ap-t-title-m {
+    margin: 0;
+  }
+  .ap-review__lead {
+    margin: var(--ap-s-12) 0 var(--ap-s-16);
+    color: var(--ap-text-2);
+  }
+  .ap-review__checks {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-12);
+    margin: var(--ap-s-16) 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ap-review__checks li {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-left: 12px;
+    border-left: 3px solid var(--ap-line-strong);
+  }
+  .ap-review__checks li[data-tone='warn'] {
+    border-left-color: var(--ap-error);
+  }
+  .ap-review__checks li[data-tone='warn'] .ap-t-body-strong {
+    color: var(--ap-error);
+  }
+  .ap-review__checks .ap-t-small {
+    color: var(--ap-text-2);
+  }
+  .ap-review__accept {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--ap-s-12);
+    margin-bottom: var(--ap-s-12);
+  }
+  .ap-review__billing {
+    margin: 0 0 var(--ap-s-16);
+    color: var(--ap-text-2);
+  }
+  .ap-review__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--ap-s-8);
+  }
+
+  /* ---------- andamento ---------- */
+  .ap-andamento {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 18px;
+    border-radius: var(--ap-r-lg);
+    background: var(--ap-orange-veil);
+  }
+  .ap-andamento p {
+    margin: 0;
+  }
+  .ap-andamento__bar {
+    width: 100%;
+    height: 8px;
+    accent-color: var(--ap-orange);
+  }
+
+  /* ---------- conferência ---------- */
+  .ap-recon__lead {
+    margin: 0 0 var(--ap-s-12);
+    color: var(--ap-text-2);
+  }
+  .ap-recon__block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-8);
+    margin-top: var(--ap-s-16);
+    padding-top: var(--ap-s-16);
+    border-top: 1px solid var(--ap-line);
+  }
+  .ap-recon__block p {
+    margin: 0;
+  }
+  .ap-recon__detail {
+    color: var(--ap-text-2);
+  }
+  .ap-recon__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ap-s-8);
+  }
+}

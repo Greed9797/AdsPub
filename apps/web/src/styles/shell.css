@@ -1,0 +1,486 @@
+/* Casca do redesign v2: barra superior, rodapé e área de conteúdo. */
+@layer ap {
+  .ap-app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    background: var(--ap-bg-page);
+    color: var(--ap-text-1);
+  }
+  .ap-main {
+    flex: 1;
+    width: 100%;
+    max-width: 1520px;
+    margin: 0 auto;
+    padding: 36px 40px 56px;
+  }
+
+  /* ---------- link de pular ao conteúdo ---------- */
+  .ap-skip {
+    position: absolute;
+    top: -64px;
+    left: 16px;
+    z-index: 60;
+    padding: 10px 16px;
+    border-radius: var(--ap-r-pill);
+    background: var(--ap-text-1);
+    color: var(--ap-bg-surface);
+    font: 500 14px/1.2 var(--ap-font-text);
+  }
+  .ap-skip:focus {
+    top: 12px;
+  }
+
+  /* ---------- barra superior ---------- */
+  .ap-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 60px;
+    padding: 0 40px;
+    border-bottom: 1px solid var(--ap-line);
+    background: var(--ap-bg-surface);
+  }
+  .ap-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--ap-text-1);
+    text-decoration: none;
+    flex: none;
+  }
+  .ap-brand__tile {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--ap-r-md);
+    background: var(--ap-text-1);
+    color: var(--ap-bg-surface);
+  }
+  .ap-brand__dot {
+    position: absolute;
+    top: 3px;
+    left: 29px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--ap-orange);
+  }
+  .ap-brand__text,
+  .ap-user__text,
+  .ap-sync {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+  .ap-brand__caption,
+  .ap-user__role,
+  .ap-sync__caption {
+    color: var(--ap-text-3);
+  }
+  .ap-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: none;
+  }
+  .ap-tabmenu {
+    position: relative;
+  }
+  .ap-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: var(--ap-r-pill);
+    background: transparent;
+    color: var(--ap-text-1);
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .ap-tab:hover {
+    background: var(--ap-bg-sunken);
+  }
+  .ap-tab[aria-current='page'] {
+    background: var(--ap-text-1);
+    color: var(--ap-bg-surface);
+  }
+  .ap-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 40;
+    min-width: 224px;
+    padding: 6px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-lg);
+    background: var(--ap-bg-surface);
+    box-shadow: var(--ap-shadow-float);
+  }
+  .ap-menu__item {
+    display: flex;
+    align-items: center;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: var(--ap-r-md);
+    color: var(--ap-text-1);
+    text-decoration: none;
+  }
+  .ap-menu__item:hover {
+    background: var(--ap-bg-band);
+  }
+  .ap-search {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 10px;
+    min-width: 180px;
+    max-width: 440px;
+    height: 40px;
+    padding: 0 16px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-pill);
+    background: var(--ap-bg-band);
+    color: var(--ap-text-3);
+  }
+  .ap-search input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--ap-text-1);
+  }
+  .ap-search input::placeholder {
+    color: var(--ap-text-3);
+  }
+  .ap-search:focus-within {
+    border-color: var(--ap-line-strong);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--ap-orange) 35%, transparent);
+  }
+  .ap-sync {
+    flex: none;
+    margin-left: auto;
+  }
+  .ap-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: none;
+  }
+  .ap-sync + .ap-user {
+    margin-left: 4px;
+  }
+  .ap-topbar > .ap-search + .ap-user {
+    margin-left: auto;
+  }
+  .ap-user__avatar {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--ap-bg-sunken);
+    color: var(--ap-text-1);
+  }
+  .ap-iconbtn {
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ap-text-3);
+    cursor: pointer;
+  }
+  .ap-iconbtn:hover {
+    background: var(--ap-bg-sunken);
+    color: var(--ap-text-1);
+  }
+
+  /* ---------- rodapé ---------- */
+  .ap-footer {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    min-height: 36px;
+    padding: 4px 40px;
+    border-top: 1px solid var(--ap-line);
+    background: var(--ap-bg-band);
+    color: var(--ap-text-3);
+  }
+  .ap-footer__tela {
+    color: var(--ap-text-1);
+    font-weight: 400;
+  }
+  .ap-footer__atalhos {
+    flex: 1;
+  }
+  .ap-theme {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-pill);
+    background: var(--ap-bg-surface);
+  }
+  .ap-theme__btn {
+    display: inline-grid;
+    place-items: center;
+    width: 26px;
+    height: 24px;
+    border: 0;
+    border-radius: var(--ap-r-pill);
+    background: transparent;
+    color: var(--ap-text-3);
+    cursor: pointer;
+  }
+  .ap-theme__btn[aria-pressed='true'] {
+    background: var(--ap-text-1);
+    color: var(--ap-bg-surface);
+  }
+
+  @media (max-width: 1180px) {
+    .ap-sync {
+      display: none;
+    }
+    .ap-topbar > .ap-search {
+      margin-right: auto;
+    }
+  }
+  @media (max-width: 768px) {
+    .ap-tabs,
+    .ap-search,
+    .ap-sync,
+    .ap-user__text,
+    .ap-footer__atalhos {
+      display: none;
+    }
+    .ap-topbar {
+      padding: 0 16px;
+    }
+    .ap-user {
+      margin-left: auto;
+    }
+    .ap-main {
+      padding: 20px 16px 40px;
+    }
+    .ap-footer {
+      display: none;
+    }
+  }
+
+  /* ---------- barra inferior (mobile) ---------- */
+  .ap-bottomnav {
+    display: none;
+    position: sticky;
+    bottom: 0;
+    z-index: 30;
+    justify-content: space-between;
+    padding: 8px 8px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--ap-line);
+    background: var(--ap-bg-surface);
+  }
+  .ap-bottomnav__item {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    min-height: 50px;
+    color: var(--ap-text-3);
+    text-decoration: none;
+  }
+  .ap-bottomnav__pill {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 28px;
+    border-radius: var(--ap-r-pill);
+  }
+  .ap-bottomnav__item[aria-current='page'] {
+    color: var(--ap-text-1);
+  }
+  .ap-bottomnav__item[aria-current='page'] .ap-bottomnav__pill {
+    background: var(--ap-text-1);
+    color: var(--ap-bg-surface);
+  }
+
+  /* ---------- página Mais ---------- */
+  .ap-more {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    max-width: 560px;
+  }
+  .ap-more h1 {
+    margin: 0;
+  }
+  .ap-more__user {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-xl);
+    background: var(--ap-bg-surface);
+  }
+  .ap-more__avatar {
+    width: 44px;
+    height: 44px;
+  }
+  .ap-more__who {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .ap-more__role {
+    padding: 2px 10px;
+    border: 1px solid var(--ap-line-strong);
+    border-radius: var(--ap-r-pill);
+  }
+  .ap-more__group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .ap-more__title {
+    margin: 0;
+    color: var(--ap-text-3);
+    font-weight: 400;
+  }
+  .ap-more__list {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-xl);
+    background: var(--ap-bg-surface);
+    list-style: none;
+  }
+  .ap-more__list li + li {
+    border-top: 1px solid var(--ap-line);
+  }
+  .ap-more__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 10px 16px;
+    color: var(--ap-text-1);
+    text-decoration: none;
+  }
+  .ap-more__icon {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--ap-r-md);
+    background: var(--ap-bg-sunken);
+  }
+  .ap-more__text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .ap-segments {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: var(--ap-r-pill);
+    background: var(--ap-bg-sunken);
+  }
+  .ap-segments__btn {
+    display: inline-flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 40px;
+    border: 0;
+    border-radius: var(--ap-r-pill);
+    background: transparent;
+    color: var(--ap-text-1);
+    cursor: pointer;
+  }
+  .ap-segments__btn[aria-pressed='true'] {
+    background: var(--ap-bg-surface);
+  }
+
+  /* Por último: a regra base acima esconde a barra, e aqui ela volta no mobile. */
+  @media (max-width: 768px) {
+    .ap-bottomnav {
+      display: flex;
+    }
+  }
+
+  /* ---------- estados: erro, não encontrado, permissão e carregando ---------- */
+  .ap-estado {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-24);
+    max-width: 760px;
+  }
+  .ap-estado__p {
+    margin: 0 0 4px;
+  }
+  .ap-skel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-16);
+  }
+  .ap-skel__sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .ap-skel__titulo,
+  .ap-skel__texto,
+  .ap-skel__linha {
+    border-radius: var(--ap-r-md);
+    background: var(--ap-bg-sunken);
+    animation: ap-skel 1.4s ease-in-out infinite;
+  }
+  .ap-skel__titulo {
+    width: 240px;
+    height: 40px;
+  }
+  .ap-skel__texto {
+    width: min(520px, 100%);
+    height: 18px;
+  }
+  .ap-skel__lista {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-12);
+    margin-top: var(--ap-s-16);
+  }
+  .ap-skel__linha {
+    height: 64px;
+    border-radius: var(--ap-r-lg);
+  }
+  @keyframes ap-skel {
+    50% {
+      opacity: 0.55;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ap-skel__titulo,
+    .ap-skel__texto,
+    .ap-skel__linha {
+      animation: none;
+    }
+  }
+}

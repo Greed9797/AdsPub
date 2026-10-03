@@ -57,7 +57,7 @@ export async function criarLoteComIa(
   await page.getByLabel('Cliente').selectOption({ label: seed.client.name });
   await page.getByLabel('Conta de anúncios').selectOption({ label: conta });
   await page.getByLabel('Nome do lote').fill(nome);
-  await page.getByRole('combobox', { name: /^Modo/ }).selectOption('ai');
+  await page.getByRole('radio', { name: /Planejamento com IA/ }).check();
   await page.getByLabel(/Textos diferentes por foto/).fill('2');
   await page
     .getByLabel(/Sobre o que anunciar/)

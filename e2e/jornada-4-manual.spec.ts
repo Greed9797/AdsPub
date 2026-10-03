@@ -18,7 +18,7 @@ async function criarLoteManual(page: Page, seed: SeedData, nome: string): Promis
   await page.getByLabel('Cliente').selectOption({ label: seed.client.name });
   await page.getByLabel('Conta de anúncios').selectOption({ label: seed.account.name });
   await page.getByLabel('Nome do lote').fill(nome);
-  await page.getByRole('combobox', { name: /^Modo/ }).selectOption('manual');
+  await page.getByRole('radio', { name: /Criação manual/ }).check();
   await page.getByRole('button', { name: 'Criar lote' }).click();
 
   await page.waitForURL(/\/lotes\/[0-9a-f-]{36}$/);

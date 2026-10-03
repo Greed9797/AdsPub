@@ -2,9 +2,8 @@
 
 import { useMemo, useState, useTransition, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@astryxdesign/core/Button';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { Field, inputClass } from '@/components/ui';
+import { Button, Field, inputClass } from '@/components/ui';
 import { enviarTemplateWhatsapp } from './actions';
 import type { WhatsappTemplate } from './types';
 
@@ -60,7 +59,7 @@ export function SendForm({
 
   return (
     <>
-      <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
+      <form onSubmit={onSubmit} className="ap-wa__form">
         <Field label="Telefone de destino" hint="DDI + número, só dígitos. Ex.: 5511999990000">
           <input name="to" className={inputClass} inputMode="tel" required />
         </Field>
@@ -82,12 +81,12 @@ export function SendForm({
         </Field>
         <input type="hidden" name="language" value="pt_BR" />
         {erro ? (
-          <p role="alert" className="notice notice-error sm:col-span-2">
+          <p role="alert" className="ap-note ap-wa__wide" data-tone="danger">
             {erro}
           </p>
         ) : null}
-        {ok ? <p className="notice sm:col-span-2">Mensagem aceita pela Meta.</p> : null}
-        <div className="sm:col-span-2">
+        {ok ? <p role="status" className="ap-note ap-wa__wide">Mensagem aceita pela Meta.</p> : null}
+        <div className="ap-wa__wide">
           <Button
             variant="primary"
             label="Revisar envio"

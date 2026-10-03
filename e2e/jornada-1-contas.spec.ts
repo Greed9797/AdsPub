@@ -53,7 +53,7 @@ test('contas em 390px: rolagem contida na tabela e ações alcançáveis', async
     return { scroll: g.document.documentElement.scrollWidth, largura: g.innerWidth };
   });
   expect(pagina.scroll).toBeLessThanOrEqual(pagina.largura);
-  // A rolagem acontece no contêiner efetivo da linha (a tabela Astryx tem o
+  // A rolagem acontece no contêiner efetivo da linha (a tabela tem o
   // próprio wrapper de scroll dentro da região): ele contém a rolagem e a
   // página não vaza.
   interface ScrollBox {
@@ -84,9 +84,13 @@ test('contas em 390px: rolagem contida na tabela e ações alcançáveis', async
   await expect(page.getByRole('heading', { name: 'Padrões de publicação' })).not.toBeVisible();
 
   await page.screenshot({ path: 'e2e/.artifacts/jornada-1-contas-390.png' });
+  // No mobile a aparência fica na página Mais (Figma M6), não mais na barra superior.
+  await page.goto('/mais');
   await page.getByRole('button', { name: 'Escuro' }).click();
+  await page.goto('/contas');
   await expect(conta).toContainText(seed.account.name);
   await page.screenshot({ path: 'e2e/.artifacts/jornada-1-contas-390-escuro.png' });
+  await page.goto('/mais');
   await page.getByRole('button', { name: 'Sistema' }).click();
 });
 

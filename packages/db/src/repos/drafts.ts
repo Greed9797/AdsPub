@@ -143,6 +143,16 @@ export async function listDraftsOfBatch(db: Database, batchId: string): Promise<
   return db.select().from(adDrafts).where(eq(adDrafts.batchId, batchId)).orderBy(adDrafts.position);
 }
 
+/** Anúncios de vários lotes em uma consulta só (a lista de lotes não pode fazer N+1). */
+export async function listDraftsOfBatches(db: Database, batchIds: readonly string[]): Promise<AdDraftRow[]> {
+  if (batchIds.length === 0) return [];
+  return db
+    .select()
+    .from(adDrafts)
+    .where(inArray(adDrafts.batchId, [...batchIds]))
+    .orderBy(adDrafts.batchId, adDrafts.position);
+}
+
 export async function patchDraft(
   db: Database,
   id: string,

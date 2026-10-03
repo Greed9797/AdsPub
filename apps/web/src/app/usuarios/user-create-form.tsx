@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from 'react';
-import { Card, Field, inputClass } from '@/components/ui';
+import { Button, Card, Field, inputClass } from '@/components/ui';
 import { criarUsuario, type SalvarUsuarioResult } from './actions';
 import type { Role } from '@/lib/types';
-import { Button } from '@astryxdesign/core/Button';
 
 const roles: Array<{ value: Role; label: string }> = [
   { value: 'admin', label: 'Admin' },
@@ -30,7 +29,7 @@ export function UserCreateForm() {
 
   return (
     <Card title="Novo usuário">
-      <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
+      <form onSubmit={onSubmit} className="ap-usuarios__novo">
         <Field label="E-mail corporativo">
           <input
             name="email"
@@ -64,7 +63,7 @@ export function UserCreateForm() {
             className={inputClass}
           />
         </Field>
-        <div className="flex items-center gap-2 sm:col-span-2">
+        <div className="ap-usuarios__acoes">
           <Button
             variant="primary"
             label={saving ? 'Criando...' : 'Criar usuário'}
@@ -73,9 +72,9 @@ export function UserCreateForm() {
           />
           {state ? (
             'erro' in state ? (
-              <span className="text-sm text-[var(--color-danger)]">{state.erro}</span>
+              <span role="alert" className="ap-note" data-tone="danger">{state.erro}</span>
             ) : (
-              <span className="text-sm text-[var(--color-ok)]">Usuário criado.</span>
+              <span role="status" className="ap-note">Usuário criado.</span>
             )
           ) : null}
         </div>

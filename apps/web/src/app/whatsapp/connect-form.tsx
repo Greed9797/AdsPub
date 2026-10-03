@@ -2,8 +2,7 @@
 
 import { useState, useTransition, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@astryxdesign/core/Button';
-import { Field, inputClass } from '@/components/ui';
+import { Button, Field, inputClass } from '@/components/ui';
 import type { Client } from '@/lib/types';
 import { conectarWhatsapp } from './actions';
 
@@ -41,11 +40,11 @@ export function ConnectForm({ clients }: { clients: Client[] }) {
   };
 
   if (clients.length === 0) {
-    return <p className="text-sm">Cadastre um cliente antes de conectar o número.</p>;
+    return <p className="ap-note">Cadastre um cliente antes de conectar o número.</p>;
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
+    <form onSubmit={onSubmit} className="ap-wa__form">
       <Field label="Cliente">
         <select name="client_id" className={inputClass} required defaultValue="">
           <option value="" disabled>
@@ -67,7 +66,7 @@ export function ConnectForm({ clients }: { clients: Client[] }) {
       <Field label="Phone number id">
         <input name="phone_number_id" className={inputClass} inputMode="numeric" required />
       </Field>
-      <Field label="Token do system user" hint="Guardado cifrado. Não volta para a tela." className="sm:col-span-2">
+      <Field label="Token do system user" hint="Guardado cifrado. Não volta para a tela." className="ap-wa__wide">
         <input
           name="token"
           className={inputClass}
@@ -80,12 +79,12 @@ export function ConnectForm({ clients }: { clients: Client[] }) {
         />
       </Field>
       {erro ? (
-        <p role="alert" className="notice notice-error sm:col-span-2">
+        <p role="alert" className="ap-note ap-wa__wide" data-tone="danger">
           {erro}
         </p>
       ) : null}
-      {ok ? <p className="notice sm:col-span-2">Conta conectada.</p> : null}
-      <div className="sm:col-span-2">
+      {ok ? <p role="status" className="ap-note ap-wa__wide">Conta conectada.</p> : null}
+      <div className="ap-wa__wide">
         <Button variant="primary" label={pending ? 'Conectando...' : 'Conectar conta'} type="submit" isDisabled={pending} />
       </div>
     </form>

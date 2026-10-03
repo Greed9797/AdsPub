@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from 'react';
-import { Badge, Card, Field, inputClass } from '@/components/ui';
+import { Button, Card, Field, Selo, inputClass } from '@/components/ui';
 import { enviarCriativos, type UploadCriativosResult } from './actions';
 import type { Asset } from '@/lib/types';
-import { Button } from '@astryxdesign/core/Button';
 
 type UploadFormState = UploadCriativosResult | null;
 
@@ -40,7 +39,7 @@ export function UploadForm({ clientId }: UploadFormProps) {
 
   return (
     <Card title="Upload de criativos">
-      <form onSubmit={onSubmit} className="space-y-3" encType="multipart/form-data">
+      <form onSubmit={onSubmit} className="ap-side-form" encType="multipart/form-data">
         <input type="hidden" name="client_id" value={clientId} />
 
         <Field label="Arquivos" hint="Fotos ou vídeos do produto. Depois de enviar, eles aparecem na lista abaixo para validação.">
@@ -55,39 +54,35 @@ export function UploadForm({ clientId }: UploadFormProps) {
           />
         </Field>
 
-        <div className="flex items-center gap-2">
+        <div className="ap-side-form__actions">
           <Button variant="primary" label={saving ? 'Enviando...' : 'Enviar para fila'} type="submit" isDisabled={saving} />
           <Button variant="secondary" label="Limpar resultado" isDisabled={saving} onClick={() => setState(null)} />
         </div>
       </form>
 
       {state && 'erro' in state ? (
-        <p className="mt-3 rounded border border-[var(--color-danger)] bg-[var(--color-danger)]/10 p-2 text-sm text-[var(--color-danger)]">
+        <p role="alert" className="ap-note" data-tone="danger">
           {state.erro}
         </p>
       ) : null}
 
       {state && 'sucesso' in state ? (
-        <div className="mt-4 space-y-2">
-          <p className="text-sm text-[var(--color-muted)]">Resultado por arquivo:</p>
-          <ul className="space-y-2">
+        <div className="ap-side-form__result">
+          <p className="ap-t-small ap-side-form__muted">Resultado por arquivo:</p>
+          <ul className="ap-side-form__list">
             {state.assets.map((asset) => (
-              <li key={asset.id} className="rounded border border-[var(--color-border)] p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm">{asset.filename}</span>
-                  <Badge tone={asset.validation.status === 'ok' ? 'ok' : 'danger'}>
-                    {fileResultLabel(asset)}
-                  </Badge>
+              <li key={asset.id} className="ap-side-form__file">
+                <div className="ap-side-form__row">
+                  <span className="ap-t-ref">{asset.filename}</span>
+                  <Selo tone={asset.validation.status === 'ok' ? 'publicado' : 'bloqueado'} label={fileResultLabel(asset)} />
                 </div>
 
-                <div className="mt-2 text-sm text-[var(--color-muted)]">
-                  <span>{formatMegabytes(asset.size_bytes)} MB</span>
-                </div>
+                <p className="ap-t-small ap-side-form__muted">{formatMegabytes(asset.size_bytes)} MB</p>
 
                 {asset.validation.status === 'rejected' ? (
-                  <div className="mt-2 space-y-2">
-                    <p className="text-xs text-[var(--color-muted)]">Validação:</p>
-                    <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--color-danger)]">
+                  <div className="ap-midia__issues" data-tone="danger">
+                    <p className="ap-t-small">Validação:</p>
+                    <ul className="ap-t-small">
                       {asset.validation.errors.map((error, index) => (
                         <li key={`${asset.id}-error-${index}`}>{error}</li>
                       ))}
@@ -96,9 +91,9 @@ export function UploadForm({ clientId }: UploadFormProps) {
                 ) : null}
 
                 {asset.validation.warnings.length > 0 ? (
-                  <div className="mt-2 space-y-2">
-                    <p className="text-xs text-[var(--color-muted)]">Avisos:</p>
-                    <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--color-warn)]">
+                  <div className="ap-midia__issues" data-tone="warn">
+                    <p className="ap-t-small">Avisos:</p>
+                    <ul className="ap-t-small">
                       {asset.validation.warnings.map((warning, index) => (
                         <li key={`${asset.id}-warning-${index}`}>{warning}</li>
                       ))}

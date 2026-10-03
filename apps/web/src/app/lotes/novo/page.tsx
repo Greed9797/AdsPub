@@ -1,19 +1,21 @@
 import { requireRole } from '@/lib/session';
 import { api } from '@/lib/api';
 import { PageHead } from '@/components/ui';
-import type { AdAccount, Asset, Client } from '@/lib/types';
+import type { AccountHealth, AdAccount, Asset, Client } from '@/lib/types';
 import { NewBatchForm } from './new-batch-form';
 import { criarLote } from '../actions';
 
 export default async function NovoLotePage({
   searchParams,
 }: {
-  searchParams: Promise<{ client_id?: string | string[] }>;
+  searchParams: Promise<{ client_id?: string | string[]; assets?: string | string[] }>;
 }) {
   await requireRole(['admin', 'coordinator', 'manager']);
 
   const query = await searchParams;
   const rawClientId = Array.isArray(query.client_id) ? query.client_id[0] : query.client_id;
+
+  const rawAssets = Array.isArray(query.assets) ? query.assets[0] : query.assets;
 
   const clients = await api<Client[]>('/clients');
   const clientId = clients.some((client) => client.id === rawClientId) ? rawClientId : clients[0]?.id;
@@ -28,14 +30,29 @@ export default async function NovoLotePage({
     ]);
   }
 
+  // Saldo diário por conta: só enfeita o resumo, então falha de uma conta não derruba a tela.
+  const saldos: Record<string, number> = {};
+  await Promise.all(
+    accounts.map(async (account) => {
+      const health = await api<AccountHealth>(`/ad-accounts/${encodeURIComponent(account.id)}/health`).catch(() => undefined);
+      if (health) saldos[account.id] = Math.max(0, health.daily_cap - health.published_today);
+    }),
+  );
+
+  // Vindo da biblioteca: só entram mídias que existem e passaram na validação deste cliente.
+  const pedidas = new Set((rawAssets ?? '').split(',').filter(Boolean));
+  const initialAssetIds = assets.filter((asset) => pedidas.has(asset.id)).map((asset) => asset.id);
+
   return (
-    <div className="space-y-6">
-      <PageHead title="Novo lote" description="Escolha cliente, conta e criativos para montar o lote." />
+    <div className="ap-lotes">
+      <PageHead title="Novo lote" description="Escolha cliente, conta e criativos. A IA monta os anúncios; você revisa tudo antes de qualquer verba ser usada." />
       <NewBatchForm
         clients={clients}
         accounts={accounts}
         assets={assets}
         clientId={clientId ?? ''}
+        saldos={saldos}
+        initialAssetIds={initialAssetIds}
         criarLoteAction={criarLote}
       />
     </div>

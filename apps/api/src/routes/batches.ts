@@ -10,6 +10,7 @@ import {
   listBatches,
   listRefs,
   listDraftsOfBatch,
+  listDraftsOfBatches,
   listVisibleAccounts,
   patchBatch,
   patchDraft,
@@ -123,7 +124,19 @@ export function batchRoutes(app: FastifyInstance, deps: ApiDeps): void {
       ...(query.status ? { status: query.status } : {}),
       ...(query.mine ? { createdBy: user.id } : {}),
     });
-    return rows.map((row) => batchDto(row));
+    // Itens e aprovação vêm junto: o quadro de estados e a fila de publicação
+    // da lista dependem deles, e uma consulta por lote custaria N idas ao banco.
+    const drafts = await listDraftsOfBatches(deps.db, rows.map((row) => row.id));
+    const porLote = new Map<string, typeof drafts>();
+    for (const draft of drafts) porLote.set(draft.batchId, [...(porLote.get(draft.batchId) ?? []), draft]);
+    return rows.map((row) => {
+      const items = porLote.get(row.id) ?? [];
+      const aprovado = !!row.approvalFingerprint && approvalFingerprint(items) === row.approvalFingerprint;
+      return {
+        ...batchDto(row, items),
+        approval: { approved: aprovado, validated_at: row.validatedAt?.toISOString() ?? null },
+      };
+    });
   });
 
   app.post('/batches', async (request, reply) => {

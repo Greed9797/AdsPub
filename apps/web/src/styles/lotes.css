@@ -1,0 +1,456 @@
+/* Lista de lotes: quadro de pontos, barras de pipeline e fila de publicação. */
+@layer ap {
+  .ap-lotes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-24);
+    min-width: 0;
+  }
+
+  /* ---------- quadro de pontos ---------- */
+  .ap-board {
+    padding: 20px 22px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-xl);
+    background: var(--ap-bg-surface);
+  }
+  .ap-board__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--ap-s-16);
+    margin-bottom: var(--ap-s-16);
+  }
+  .ap-board__head p {
+    margin: 0;
+  }
+  .ap-board__attention {
+    color: var(--ap-text-2);
+  }
+  .ap-board__attention[data-alert='true'] {
+    color: var(--ap-error);
+  }
+  .ap-board__groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--ap-s-12);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ap-board__link {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-8);
+    height: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-lg);
+    color: var(--ap-text-1);
+    text-decoration: none;
+  }
+  .ap-board__link:hover {
+    background: var(--ap-bg-band);
+  }
+  .ap-board__link[aria-current='true'] {
+    border-color: var(--ap-text-1);
+    background: var(--ap-bg-sunken);
+  }
+  .ap-board__group[data-empty='true'] .ap-board__n {
+    color: var(--ap-text-3);
+  }
+  .ap-board__dots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-height: 8px;
+  }
+  .ap-board__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ap-text-1);
+  }
+  .ap-board__group[data-grupo='rascunho'] .ap-board__dot,
+  .ap-board__group[data-grupo='publicando'] .ap-board__dot {
+    background: var(--ap-orange);
+  }
+  .ap-board__group[data-grupo='bloqueado'] .ap-board__dot,
+  .ap-board__group[data-grupo='reprovado'] .ap-board__dot,
+  .ap-board__group[data-grupo='falhou'] .ap-board__dot,
+  .ap-board__group[data-grupo='conferir'] .ap-board__dot {
+    background: var(--ap-error);
+  }
+  .ap-board__group[data-grupo='pronto'] .ap-board__dot,
+  .ap-board__group[data-grupo='aprovado'] .ap-board__dot,
+  .ap-board__group[data-grupo='fila'] .ap-board__dot,
+  .ap-board__group[data-grupo='analise'] .ap-board__dot {
+    background: var(--ap-line-strong);
+  }
+
+  /* ---------- filtros ---------- */
+  .ap-lotes__filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--ap-s-12);
+  }
+  .ap-lotes__filters .ap-field {
+    min-width: 180px;
+  }
+  .ap-lotes__search {
+    flex: 1 1 260px;
+  }
+  .ap-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ap-s-8);
+  }
+
+  /* ---------- fila de publicação ---------- */
+  .ap-fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ap-s-16);
+    padding: 16px 22px;
+    border-radius: var(--ap-r-xl);
+    background: var(--ap-orange-veil);
+  }
+  .ap-fila p {
+    margin: 0;
+  }
+
+  /* ---------- barra de pipeline ---------- */
+  .ap-pipeline {
+    display: inline-flex;
+    height: 10px;
+    overflow: hidden;
+    border-radius: var(--ap-r-pill);
+    background: var(--ap-bg-sunken);
+    vertical-align: middle;
+  }
+  .ap-pipeline__seg {
+    display: block;
+    height: 100%;
+    background: var(--ap-text-1);
+  }
+  .ap-pipeline__seg[data-grupo='rascunho'],
+  .ap-pipeline__seg[data-grupo='publicando'] {
+    background: var(--ap-orange);
+  }
+  .ap-pipeline__seg[data-grupo='bloqueado'],
+  .ap-pipeline__seg[data-grupo='reprovado'],
+  .ap-pipeline__seg[data-grupo='falhou'],
+  .ap-pipeline__seg[data-grupo='conferir'] {
+    background: var(--ap-error);
+  }
+  .ap-pipeline__seg[data-grupo='pronto'],
+  .ap-pipeline__seg[data-grupo='aprovado'],
+  .ap-pipeline__seg[data-grupo='fila'],
+  .ap-pipeline__seg[data-grupo='analise'] {
+    background: var(--ap-line-strong);
+  }
+  .ap-pipeline__none {
+    color: var(--ap-text-3);
+  }
+  .ap-lotes__name {
+    color: var(--ap-text-1);
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .ap-lotes__name:hover {
+    text-decoration: underline;
+  }
+  .ap-lotes__detail {
+    margin: 2px 0 0;
+    color: var(--ap-text-3);
+  }
+
+  /* ---------- resumo e cartões (mobile) ---------- */
+  .ap-board__summary,
+  .ap-lotes__cards {
+    display: none;
+  }
+  .ap-board__summary {
+    flex-direction: column;
+    gap: var(--ap-s-12);
+  }
+  .ap-board__big {
+    margin: 0;
+  }
+  .ap-board__stack {
+    display: flex;
+    height: 12px;
+    overflow: hidden;
+    border-radius: var(--ap-r-pill);
+    background: var(--ap-bg-sunken);
+  }
+  .ap-board__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ap-board__legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ap-board__legend li[data-grupo='rascunho'] .ap-board__dot,
+  .ap-board__legend li[data-grupo='publicando'] .ap-board__dot { background: var(--ap-orange); }
+  .ap-board__legend li[data-grupo='bloqueado'] .ap-board__dot,
+  .ap-board__legend li[data-grupo='reprovado'] .ap-board__dot,
+  .ap-board__legend li[data-grupo='falhou'] .ap-board__dot,
+  .ap-board__legend li[data-grupo='conferir'] .ap-board__dot { background: var(--ap-error); }
+  .ap-board__legend li[data-grupo='pronto'] .ap-board__dot,
+  .ap-board__legend li[data-grupo='aprovado'] .ap-board__dot,
+  .ap-board__legend li[data-grupo='fila'] .ap-board__dot,
+  .ap-board__legend li[data-grupo='analise'] .ap-board__dot { background: var(--ap-line-strong); }
+  .ap-board__stack .ap-pipeline__seg { min-width: 4px; }
+
+  .ap-lote-card {
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-xl);
+    background: var(--ap-bg-surface);
+  }
+  .ap-lote-card[data-fila='true'] {
+    border: 2px solid var(--ap-orange);
+    background: var(--ap-orange-veil);
+  }
+  .ap-lote-card__link {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--ap-s-8);
+    padding: 18px 20px;
+    color: var(--ap-text-1);
+    text-decoration: none;
+  }
+  .ap-lote-card__mode,
+  .ap-lote-card__meta {
+    color: var(--ap-text-2);
+  }
+  .ap-lote-card__alert {
+    color: var(--ap-error);
+  }
+  .ap-lote-card__foot {
+    align-self: stretch;
+    padding-top: var(--ap-s-12);
+    border-top: 1px solid var(--ap-line);
+  }
+  .ap-lotes__cards {
+    flex-direction: column;
+    gap: var(--ap-s-12);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  @media (max-width: 768px) {
+    .ap-board__groups,
+    .ap-lotes__table {
+      display: none;
+    }
+    .ap-board__summary,
+    .ap-lotes__cards {
+      display: flex;
+    }
+    .ap-board__head {
+      display: none;
+    }
+    .ap-chips {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .ap-fila {
+      border-radius: var(--ap-r-xl);
+      background: var(--ap-text-1);
+      color: var(--ap-bg-surface);
+    }
+    .ap-lotes__filters .ap-field {
+      flex: 1 1 100%;
+    }
+    .ap-pipeline {
+      max-width: 100%;
+    }
+  }
+
+  /* ---------- lote aberto: anúncios e estrutura ---------- */
+  .ap-item {
+    display: flex;
+    align-items: center;
+    gap: var(--ap-s-12);
+    min-width: 0;
+  }
+  .ap-item__text {
+    min-width: 0;
+  }
+  .ap-item__text p {
+    margin: 0;
+  }
+  .ap-item__ref,
+  .ap-item__detail {
+    color: var(--ap-text-2);
+  }
+  .ap-item__copy {
+    max-width: 320px;
+    overflow: hidden;
+    color: var(--ap-text-2);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ap-thumb {
+    flex: none;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--ap-r-md);
+    background: var(--ap-bg-sunken);
+    object-fit: cover;
+  }
+  .ap-etapas {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 150px;
+  }
+  .ap-etapas__bar {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 3px;
+  }
+  .ap-etapas__bar i {
+    height: 4px;
+    border-radius: var(--ap-r-pill);
+    background: var(--ap-line);
+  }
+  .ap-etapas__bar i[data-estado='done'] {
+    background: var(--ap-text-1);
+  }
+  .ap-etapas__bar i[data-estado='current'] {
+    background: var(--ap-orange);
+  }
+  .ap-etapas__bar i[data-estado='failed'] {
+    background: var(--ap-error);
+  }
+  .ap-etapas__legenda {
+    color: var(--ap-text-2);
+  }
+  .ap-estrutura {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ap-estrutura__linha {
+    display: grid;
+    grid-template-columns: 110px 1fr auto;
+    align-items: center;
+    gap: var(--ap-s-16);
+    padding: 14px 0;
+  }
+  .ap-estrutura__linha + .ap-estrutura__linha {
+    border-top: 1px solid var(--ap-line);
+  }
+  .ap-estrutura__linha[data-tipo='conjunto'] {
+    padding-left: var(--ap-s-24);
+  }
+  .ap-estrutura__tipo {
+    color: var(--ap-text-2);
+  }
+  .ap-estrutura__texto {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .ap-estrutura__detalhe {
+    color: var(--ap-text-2);
+  }
+  .ap-estrutura__erro {
+    color: var(--ap-error);
+  }
+
+  /* ---------- lote aberto: layout e construtor manual ---------- */
+  .ap-lote__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: var(--ap-s-24);
+    align-items: start;
+  }
+  .ap-lote__main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-24);
+    min-width: 0;
+  }
+  .ap-lote__aside {
+    position: sticky;
+    top: var(--ap-s-16);
+    min-width: 0;
+  }
+  .ap-lote__detalhes {
+    margin-top: var(--ap-s-16);
+  }
+  .ap-choice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-lg);
+    background: var(--ap-bg-surface);
+    cursor: pointer;
+  }
+  .ap-choice:has(input:checked) {
+    border: 2px solid var(--ap-text-1);
+    padding: 9px;
+    background: var(--ap-orange-veil);
+  }
+  .ap-choice img {
+    flex-shrink: 0;
+    border-radius: var(--ap-r-sm);
+    object-fit: cover;
+  }
+  .ap-builder__foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ap-s-12);
+    padding: 12px 16px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-lg);
+    background: var(--ap-bg-surface);
+  }
+  .ap-builder__foot p {
+    margin: 0;
+    color: var(--ap-text-2);
+    font-size: 13px;
+  }
+
+  @media (max-width: 960px) {
+    .ap-lote__layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .ap-lote__aside {
+      position: static;
+    }
+  }
+
+  /* Tabela de anúncios do lote: a coluna do nome não pode espremer; a rolagem fica dentro da tabela. */
+  .ap-tabela-lote .ap-td:first-child,
+  .ap-tabela-lote .ap-th:first-child {
+    min-width: 280px;
+  }
+  .ap-tabela-lote .ap-td:last-child {
+    white-space: nowrap;
+  }
+}

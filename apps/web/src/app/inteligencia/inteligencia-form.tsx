@@ -2,9 +2,8 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { Badge, Field, inputClass } from '@/components/ui';
+import { Button, Field, Selo, inputClass } from '@/components/ui';
 import { comentarRelatorio, gerarRascunho, gerarRelatorio, registrarResultado, salvarAprendizado, type ReportView } from './actions';
-import { Button } from '@astryxdesign/core/Button';
 
 type Props = { accountId: string; clientId: string };
 
@@ -38,8 +37,8 @@ export function InteligenciaForm({ accountId, clientId }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      <form onSubmit={onGenerate} className="grid gap-3 md:grid-cols-4">
+    <div className="ap-intel">
+      <form onSubmit={onGenerate} className="ap-intel__form">
         <input type="hidden" name="ad_account_id" value={accountId} />
         <Field label="De">
           <input type="date" name="from" required disabled={busy} className={inputClass} />
@@ -54,15 +53,15 @@ export function InteligenciaForm({ accountId, clientId }: Props) {
             <option value="api">API</option>
           </select>
         </Field>
-        <div className="flex items-end">
+        <div className="ap-intel__go">
           <Button variant="primary" label={busy ? 'Gerando...' : 'Gerar relatório'} type="submit" isDisabled={busy} />
         </div>
-        {erro ? <p className="text-sm text-[var(--color-danger)] md:col-span-4">{erro}</p> : null}
+        {erro ? <p role="alert" className="ap-note ap-intel__wide" data-tone="danger">{erro}</p> : null}
       </form>
 
       {report ? (
-        <div className="space-y-4">
-          <p className="text-xs text-[var(--color-muted)]">
+        <div className="ap-intel">
+          <p className="ap-t-small ap-passos__dica">
             Baseado em{' '}
             {report.input_snapshot.totals.spend.toLocaleString('pt-BR', {
               style: 'currency',
@@ -71,27 +70,27 @@ export function InteligenciaForm({ accountId, clientId }: Props) {
             investidos no período.
           </p>
           <section>
-            <h3 className="font-semibold">Fatos</h3>
-            <ul className="list-disc space-y-1 pl-5 text-sm">
+            <h3 className="ap-t-body-strong">Fatos</h3>
+            <ul className="ap-intel__list">
               {report.output.performance_findings.map((f, i) => (
                 <li key={i}>{f.text}</li>
               ))}
             </ul>
           </section>
           <section>
-            <h3 className="font-semibold">Hipóteses</h3>
-            <ul className="space-y-2">
+            <h3 className="ap-t-body-strong">Hipóteses</h3>
+            <ul className="ap-intel__hyp">
               {report.output.hypotheses.map((h, i) => (
-                <li key={i} className="text-sm">
-                  <p>{h.text}</p>
-                  <p className="text-xs text-[var(--color-muted)]">Teste: {h.test}</p>
+                <li key={i}>
+                  <p className="ap-intel__p">{h.text}</p>
+                  <p className="ap-t-small ap-passos__dica ap-intel__p">Teste: {h.test}</p>
                 </li>
               ))}
             </ul>
           </section>
           <section>
-            <h3 className="font-semibold">Próximos testes</h3>
-            <ul className="list-disc space-y-1 pl-5 text-sm">
+            <h3 className="ap-t-body-strong">Próximos testes</h3>
+            <ul className="ap-intel__list">
               {report.output.recommended_tests.map((t, i) => (
                 <li key={i}>
                   {t.variable} → {t.goal} ({t.metric})
@@ -100,16 +99,16 @@ export function InteligenciaForm({ accountId, clientId }: Props) {
             </ul>
           </section>
           <section>
-            <h3 className="font-semibold">Limitações</h3>
-            <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--color-muted)]">
+            <h3 className="ap-t-body-strong">Limitações</h3>
+            <ul className="ap-intel__list ap-passos__dica">
               {report.output.limitations.map((l, i) => (
                 <li key={i}>{l}</li>
               ))}
             </ul>
           </section>
-          <section className="space-y-2">
-            <h3 className="font-semibold">Comentar</h3>
-            <div className="flex gap-2">
+          <section className="ap-intel__sec">
+            <h3 className="ap-t-body-strong">Comentar</h3>
+            <div className="ap-intel__row">
               <input
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
@@ -126,14 +125,14 @@ export function InteligenciaForm({ accountId, clientId }: Props) {
                 }} />
             </div>
             {report.feedbacks.map((f) => (
-              <p key={f.id} className="text-sm text-[var(--color-muted)]">
-                <Badge tone="info">nota</Badge> {f.text}
+              <p key={f.id} className="ap-t-small ap-passos__dica ap-intel__p">
+                <Selo tone="neutro" label="nota" /> {f.text}
               </p>
             ))}
           </section>
-          <section className="space-y-2">
-            <h3 className="font-semibold">Gerar rascunho de teste</h3>
-            <div className="flex gap-2">
+          <section className="ap-intel__sec">
+            <h3 className="ap-t-body-strong">Gerar rascunho de teste</h3>
+            <div className="ap-intel__row">
               <input
                 value={briefing}
                 onChange={(e) => setBriefing(e.target.value)}
@@ -150,17 +149,17 @@ export function InteligenciaForm({ accountId, clientId }: Props) {
                 }} />
             </div>
             {rascunho ? (
-              <p className="text-sm text-[var(--color-ok)]">
+              <p role="status" className="ap-note ap-intel__p">
                 Rascunho pronto (ainda não publicado).{' '}
-                <Link href={`/lotes/${rascunho}`} className="font-medium text-[var(--color-brand)] underline">
+                <Link href={`/lotes/${rascunho}`}>
                   Ver lote
                 </Link>
               </p>
             ) : null}
           </section>
-          <section className="space-y-2">
-            <h3 className="font-semibold">Salvar aprendizado</h3>
-            <div className="flex gap-2">
+          <section className="ap-intel__sec">
+            <h3 className="ap-t-body-strong">Salvar aprendizado</h3>
+            <div className="ap-intel__row">
               <input
                 value={hipotese}
                 onChange={(e) => setHipotese(e.target.value)}
@@ -177,8 +176,8 @@ export function InteligenciaForm({ accountId, clientId }: Props) {
                 }} />
             </div>
             {aprendizado ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm text-[var(--color-ok)]">Aprendizado: {aprendizado}</p>
+              <div className="ap-intel__row ap-intel__row--wrap">
+                <p role="status" className="ap-note ap-intel__p">Aprendizado: {aprendizado}</p>
                 <input
                   value={resultado}
                   onChange={(e) => setResultado(e.target.value)}

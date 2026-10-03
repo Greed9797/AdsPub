@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from 'react';
-import { Badge, Field, inputClass } from '@/components/ui';
+import { Button, Field, Selo, inputClass } from '@/components/ui';
 import { confirmarImportacao, enviarRelatorio, type ReportPreview } from './actions';
-import { Button } from '@astryxdesign/core/Button';
 
 type Props = { clientId: string };
 
@@ -47,8 +46,8 @@ export function RelatorioForm({ clientId }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      <form onSubmit={onUpload} className="grid gap-3 md:grid-cols-3" encType="multipart/form-data">
+    <div className="ap-intel">
+      <form onSubmit={onUpload} className="ap-intel__form ap-intel__form--3" encType="multipart/form-data">
         <input type="hidden" name="client_id" value={clientId} />
         <Field label="Arquivo CSV ou XLSX">
           <input type="file" name="file" required accept=".csv,.xlsx,.xls" disabled={busy} className={inputClass} />
@@ -77,41 +76,38 @@ export function RelatorioForm({ clientId }: Props) {
             <option value="unknown">Desconhecida</option>
           </select>
         </Field>
-        <div className="flex items-end md:col-span-3">
+        <div className="ap-intel__wide">
           <Button variant="primary" label={busy ? 'Enviando...' : 'Enviar e pré-visualizar'} type="submit" isDisabled={busy} />
         </div>
-        {erro ? <p className="text-sm text-[var(--color-danger)] md:col-span-3">{erro}</p> : null}
+        {erro ? <p role="alert" className="ap-note ap-intel__wide" data-tone="danger">{erro}</p> : null}
       </form>
 
       {preview ? (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <Badge tone="ok">{preview.valid} válida(s)</Badge>
-            <Badge tone={preview.invalid > 0 ? 'warn' : 'ok'}>{preview.invalid} inválida(s)</Badge>
+        <div className="ap-intel">
+          <div className="ap-intel__row ap-intel__row--wrap">
+            <Selo tone="publicado">{preview.valid} válida(s)</Selo>
+            <Selo tone={preview.invalid > 0 ? 'rascunho' : 'publicado'}>{preview.invalid} inválida(s)</Selo>
             {preview.unmapped.length > 0 ? (
-              <span className="text-xs text-[var(--color-muted)]">
+              <span className="ap-t-small ap-passos__dica">
                 Sem mapeamento: {preview.unmapped.join(', ')}
               </span>
             ) : null}
           </div>
-          <ul className="space-y-2">
+          <ul className="ap-intel__hyp">
             {preview.rows.map((row) => (
-              <li
-                key={row.row_number}
-                className="rounded-lg border border-[var(--color-border)] p-3 text-sm"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Linha {row.row_number}</span>
-                  <Badge tone={row.status === 'valid' ? 'ok' : 'danger'}>{row.status}</Badge>
+              <li key={row.row_number} className="ap-intel__linha">
+                <div className="ap-intel__row ap-intel__row--wrap">
+                  <span className="ap-t-body-strong">Linha {row.row_number}</span>
+                  <Selo tone={row.status === 'valid' ? 'publicado' : 'bloqueado'} label={row.status} />
                   {row.observation ? (
-                    <span className="text-xs text-[var(--color-muted)]">
+                    <span className="ap-t-small ap-passos__dica">
                       {row.observation.grain}
                       {row.observation.adId ? ` · ${row.observation.adId}` : ' · sem ID'}
                     </span>
                   ) : null}
                 </div>
                 {row.errors.length > 0 ? (
-                  <ul className="mt-1 space-y-1 text-xs text-[var(--color-danger)]">
+                  <ul className="ap-intel__erros ap-t-small">
                     {row.errors.map((e, i) => (
                       <li key={i}>
                         {e.code} ({e.field}): {e.message}
@@ -122,9 +118,10 @@ export function RelatorioForm({ clientId }: Props) {
               </li>
             ))}
           </ul>
-          <div className="flex items-center gap-2">
+          <p className="ap-note">A importação só vale depois de confirmar: até lá, nenhuma observação entra nos números.</p>
+          <div className="ap-intel__row ap-intel__row--wrap">
             <Button variant="secondary" label={busy ? 'Confirmando...' : `Confirmar ${preview.valid} observação(ões)`} isDisabled={busy} onClick={onCommit} />
-            {salvo ? <p className="text-sm text-[var(--color-ok)]">{salvo}</p> : null}
+            {salvo ? <p role="status" className="ap-note">{salvo}</p> : null}
           </div>
         </div>
       ) : null}

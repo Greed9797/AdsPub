@@ -3,14 +3,13 @@
 import { Fragment, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Badge, Card, ctaLabel, formatLabel, plural, statusLabel, Table } from '@/components/ui';
+import { Badge, Button, Card, Selo, Table, TableCell, TableRow, formatLabel, plural } from '@/components/ui';
+import { etapasDoAnuncio } from '@/lib/etapas';
 import type { AdDraft, Asset } from '@/lib/types';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { ItemEditor } from './item-editor';
 import type { SalvarItemPayload } from './item-editor';
 import type { ActionResult } from '../actions';
-import { Button } from '@astryxdesign/core/Button';
-import { TableCell, TableRow } from '@astryxdesign/core/Table';
 
 type BatchItemsTableProps = {
   batchId: string;
@@ -28,7 +27,7 @@ type BatchItemsTableProps = {
   }) => Promise<ActionResult<{ job_id: string; queue: string }>>;
 };
 
-const COLUMNS = 6;
+const COLUMNS = 5;
 
 /** Mesma regra da API: item em voo ou publicado sai da revisão. */
 const EDITAVEIS: ReadonlySet<AdDraft['status']> = new Set(['draft', 'blocked', 'ready', 'failed']);
@@ -77,12 +76,29 @@ function revisaoLabel(status: string): string {
   return REVISAO_PT[status] ?? status;
 }
 
-function statusTone(status: AdDraft['status']): 'ok' | 'warn' | 'danger' | 'info' {
-  if (status === 'ready' || status === 'published' || status === 'approved') return 'ok';
-  if (status === 'blocked' || status === 'failed' || status === 'disapproved') return 'danger';
-  if (status === 'draft') return 'info';
-  return 'warn';
+function EtapasBar({ item }: { item: AdDraft }) {
+  const { segmentos, legenda } = etapasDoAnuncio(item.status, item.step);
+  return (
+    <div className="ap-etapas">
+      <span className="ap-etapas__bar" aria-hidden="true">
+        {segmentos.map((estado, i) => (
+          <i key={i} data-estado={estado} />
+        ))}
+      </span>
+      <span className="ap-etapas__legenda ap-t-small">{legenda}</span>
+    </div>
+  );
 }
+
+function Miniatura({ item, assets }: { item: AdDraft; assets: Asset[] }) {
+  const asset = assets.find((a) => a.id === item.asset_ids[0]);
+  return asset?.thumbnail_url ? (
+    <img className="ap-thumb" src={asset.thumbnail_url} alt="" width={44} height={44} />
+  ) : (
+    <span className="ap-thumb ap-thumb--vazio" aria-hidden="true" />
+  );
+}
+
 export function BatchItemsTable({
   batchId,
   items,
@@ -156,7 +172,7 @@ export function BatchItemsTable({
 
   return (
     <Card title={`Anúncios do lote (${items.length})`}>
-      <Table head={canEdit ? ['Anúncio', 'Formato', 'Textos', 'Status', 'Revisão', 'Ações'] : ['Anúncio', 'Formato', 'Textos', 'Status', 'Revisão']}>
+      <Table className="ap-tabela-lote" head={canEdit ? ['Anúncio', 'Etapas na Meta', 'Estado', 'Revisão', 'Ações'] : ['Anúncio', 'Etapas na Meta', 'Estado', 'Revisão']}>
         {items.map((item) => {
           const errors = item.validation?.errors ?? [];
           const warnings = item.validation?.warnings ?? [];
@@ -166,35 +182,32 @@ export function BatchItemsTable({
             <Fragment key={item.id}>
               <TableRow>
                 <TableCell>
-                  {item.ads_manager_url ? (
-                    <a
-                      href={item.ads_manager_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="row-name"
-                    >
-                      {item.name}
-                    </a>
-                  ) : (
-                    <p className="min-w-36 max-w-56 text-sm font-medium">{item.name}</p>
-                  )}
-                  <p className="row-detail">Anúncio {item.position}</p>
-                </TableCell>
-                <TableCell className="whitespace-nowrap">{formatLabel(item.format)}</TableCell>
-                <TableCell className="max-w-56">
-                  <p className="truncate text-xs" title={item.copy.primary_text}>
-                    {item.copy.primary_text}
-                  </p>
-                  <p
-                    className="mt-1 truncate text-xs text-[var(--color-muted)]"
-                    title={item.copy.headline}
-                  >
-                    {item.copy.headline || 'Sem título'} · {ctaLabel(item.copy.cta)}
-                  </p>
+                  <div className="ap-item">
+                    <Miniatura item={item} assets={assets} />
+                    <div className="ap-item__text">
+                      <p className="ap-t-ref ap-item__ref">AD-{String(item.position + 1).padStart(2, '0')}</p>
+                      {item.ads_manager_url ? (
+                        <a href={item.ads_manager_url} target="_blank" rel="noreferrer" className="ap-t-body-strong">
+                          {item.name}
+                        </a>
+                      ) : (
+                        <p className="ap-t-body-strong">{item.name}</p>
+                      )}
+                      <p className="ap-t-small ap-item__detail">
+                        {formatLabel(item.format)}
+                        {item.copy.headline ? ` · ${item.copy.headline}` : ''}
+                      </p>
+                      <p className="ap-t-small ap-item__copy" title={item.copy.primary_text}>
+                        {item.copy.primary_text}
+                      </p>
+                    </div>
+                  </div>
                 </TableCell>
                 <TableCell>
-                  <Badge tone={statusTone(item.status)}>{statusLabel(item.status)}</Badge>
-                  {item.step ? <p className="row-detail">{statusLabel(item.step)}</p> : null}
+                  <EtapasBar item={item} />
+                </TableCell>
+                <TableCell>
+                  <Selo status={item.status} />
                 </TableCell>
                 <TableCell className="min-w-36 max-w-60">
                   <div className="flex flex-wrap gap-1">
@@ -214,7 +227,7 @@ export function BatchItemsTable({
                       </Badge>
                     ) : null}
                     {!item.validation ? (
-                      <span className="text-xs text-[var(--color-muted)]">
+                      <span className="text-xs text-[var(--ap-text-2)]">
                         Aguardando validação
                       </span>
                     ) : errors.length + warnings.length + policy.length === 0 ? (
@@ -223,7 +236,7 @@ export function BatchItemsTable({
                   </div>
                   {item.error ? (
                     <p
-                      className="mt-2 text-xs text-[var(--color-danger)]"
+                      className="mt-2 text-xs text-[var(--ap-error)]"
                       title={item.error.fix ?? item.error.code}
                     >
                       {item.error.message}
@@ -235,10 +248,10 @@ export function BatchItemsTable({
                   {/* Resultado da revisão da Meta: motivo da reprovação é o que
                       o gestor precisa para corrigir o anúncio. */}
                   {item.effective_status ? (
-                    <p className="row-detail mt-2">Meta: {revisaoLabel(item.effective_status)}</p>
+                    <p className="ap-t-small ap-passos__dica mt-2">Meta: {revisaoLabel(item.effective_status)}</p>
                   ) : null}
                   {motivosDaRevisao(item.review_feedback).map((motivo) => (
-                    <p key={motivo} className="mt-1 text-xs text-[var(--color-danger)]">
+                    <p key={motivo} className="mt-1 text-xs text-[var(--ap-error)]">
                       {motivo}
                     </p>
                   ))}
@@ -282,7 +295,7 @@ export function BatchItemsTable({
                   <TableCell colSpan={COLUMNS}>
                     <p
                       role={message.erro ? 'alert' : 'status'}
-                      className={`text-sm ${message.erro ? 'text-[var(--color-danger)]' : 'text-[var(--color-ok)]'}`}
+                      className={`text-sm ${message.erro ? 'text-[var(--ap-error)]' : 'text-[var(--ap-text-1)]'}`}
                     >
                       {message.text}
                     </p>

@@ -1,11 +1,11 @@
-import { Card, Empty, PageHead, Table } from '@/components/ui';
+import { Card, Empty, PageHead, Selo, Table, TableCell, TableRow } from '@/components/ui';
 import { api } from '@/lib/api';
+import { ROTULO_DO_PAPEL } from '@/lib/papeis';
 import { requireRole } from '@/lib/session';
 import type { AdAccount } from '@/lib/types';
 import { UserRowForm } from './user-row-form';
 import { UserCreateForm } from './user-create-form';
 import type { Usuario } from './actions';
-import { TableCell, TableRow } from '@astryxdesign/core/Table';
 
 export default async function UsuariosPage() {
   await requireRole(['admin']);
@@ -16,8 +16,8 @@ export default async function UsuariosPage() {
   const accountById = new Map(accounts.map((account) => [account.id, account.name] as const));
 
   return (
-    <div className="space-y-6">
-      <PageHead title="Usuários" description="Papéis e contas atribuídas a cada usuário." />
+    <div className="ap-lotes">
+      <PageHead title="Usuários" description="Papéis e contas atribuídas a cada usuário. Só o admin cria usuários." />
 
       <UserCreateForm />
 
@@ -35,9 +35,19 @@ export default async function UsuariosPage() {
                 <TableRow key={user.id}>
                   <TableCell>{user.email}</TableCell>
                   <TableCell>{user.name || '—'}</TableCell>
-                  <TableCell>{user.role}</TableCell>
-                  <TableCell>{user.active ? 'Ativo' : 'Inativo'}</TableCell>
-                  <TableCell>{assigned.length === 0 ? 'Nenhuma' : assigned.join(', ')}</TableCell>
+                  <TableCell>
+                    <Selo tone={user.role === 'admin' ? 'ativa' : user.role === 'viewer' ? 'leitura' : 'neutro'} label={ROTULO_DO_PAPEL[user.role]} />
+                  </TableCell>
+                  <TableCell>
+                    <Selo tone={user.active ? 'publicado' : 'neutro'} label={user.active ? 'Ativo' : 'Inativo'} />
+                  </TableCell>
+                  <TableCell>
+                    {user.role === 'admin' || user.role === 'coordinator'
+                      ? 'todas'
+                      : assigned.length === 0
+                        ? 'Nenhuma'
+                        : assigned.join(', ')}
+                  </TableCell>
                   <TableCell>
                     <UserRowForm user={user} accounts={accounts} />
                   </TableCell>

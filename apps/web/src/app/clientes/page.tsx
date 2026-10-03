@@ -1,10 +1,9 @@
-import { Badge, Card, Empty, PageHead, Table } from '@/components/ui';
+import { Card, Empty, PageHead, Selo, Table, TableCell, TableRow } from '@/components/ui';
 import type { Client } from '@/lib/types';
 import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
 import { atualizarCliente, criarCliente } from './actions';
 import ClientForm from './client-form';
-import { TableCell, TableRow } from '@astryxdesign/core/Table';
 
 export default async function ClientesPage() {
   const user = await requireSession();
@@ -15,7 +14,7 @@ export default async function ClientesPage() {
   const head = ['Nome', 'Política', 'Template de nomeação', 'Domínios', 'Advantage+ desligado'];
 
   return (
-    <div className="space-y-6">
+    <div className="ap-lotes">
       <PageHead
         title="Clientes"
         description="Gerencie a identidade, as regras e os padrões de anúncio de cada cliente."
@@ -26,9 +25,7 @@ export default async function ClientesPage() {
         title="Clientes cadastrados"
         action={
           clientes.length > 0 ? (
-            <span className="text-xs tabular-nums text-[var(--color-muted)]">
-              {clientes.length}
-            </span>
+            <span className="ap-t-num-s ap-passos__dica">{clientes.length}</span>
           ) : undefined
         }
       >
@@ -40,18 +37,19 @@ export default async function ClientesPage() {
         ) : (
           <Table head={canEdit ? [...head, 'Ações'] : head}>
             {clientes.map((cliente) => (
-              <TableRow key={cliente.id} className="align-top">
+              <TableRow key={cliente.id}>
                 <TableCell>
-                  <span className="block">{cliente.name}</span>
-                  <span className="block text-xs text-[var(--color-muted)]">{cliente.id}</span>
+                  <span className="ap-t-body-strong ap-conta__name">{cliente.name}</span>
+                  <span className="ap-t-ref ap-conta__id">{cliente.id}</span>
                 </TableCell>
                 <TableCell>
-                  <Badge tone={cliente.policy_mode === 'block' ? 'danger' : 'warn'}>
-                    {cliente.policy_mode === 'block' ? 'Bloquear violações' : 'Avisar'}
-                  </Badge>
+                  <Selo
+                    tone={cliente.policy_mode === 'block' ? 'bloqueado' : 'rascunho'}
+                    label={cliente.policy_mode === 'block' ? 'Bloquear violações' : 'Avisar'}
+                  />
                 </TableCell>
-                <TableCell className="text-xs">{cliente.naming_template}</TableCell>
-                <TableCell className="text-xs">
+                <TableCell className="ap-t-ref">{cliente.naming_template}</TableCell>
+                <TableCell className="ap-t-small">
                   {cliente.landing_domains.length === 0 ? '—' : cliente.landing_domains.join(', ')}
                 </TableCell>
                 <TableCell>{cliente.advantage_creative_optout ? 'sim' : 'não'}</TableCell>

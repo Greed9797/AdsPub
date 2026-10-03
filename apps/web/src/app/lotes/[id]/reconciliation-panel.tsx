@@ -3,8 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Button } from '@astryxdesign/core/Button';
-import { Card, Field, inputClass, statusLabel } from '@/components/ui';
+import { Button, Card, Field, inputClass, statusLabel } from '@/components/ui';
 import type { AdDraft, BatchRef } from '@/lib/types';
 import type { ActionResult } from '../actions';
 
@@ -135,23 +134,23 @@ export function ReconciliationPanel({
 
   return (
     <Card title="Conferência pendente na Meta">
-      <p className="text-sm text-[var(--color-muted)]">
+      <p className="ap-t-body ap-recon__lead">
         A Meta pode ter criado o objeto sem responder. O AdPub não recria nada sozinho: confira na
         Meta e informe o ID encontrado, ou descarte com o motivo.
       </p>
       {erro ? (
-        <p role="alert" className="notice notice-error mt-3">
+        <p role="alert" className="ap-note" data-tone="danger">
           {erro}
         </p>
       ) : null}
 
       {refsTravadas.map((ref) => (
-        <div key={ref.ref_key} className="mt-4 space-y-2 border-t pt-4">
-          <p className="text-sm font-semibold">
+        <div key={ref.ref_key} className="ap-recon__block">
+          <p className="ap-t-body-strong">
             {ref.kind === 'campaign' ? 'Campanha compartilhada' : 'Conjunto compartilhado'}:{' '}
             {ref.ref_key}
           </p>
-          {ref.last_error ? <p className="row-detail">{ref.last_error}</p> : null}
+          {ref.last_error ? <p className="ap-t-small ap-recon__detail">{ref.last_error}</p> : null}
           <Field label={`ID ${ref.kind === 'campaign' ? 'da campanha' : 'do conjunto'} na Meta`}>
             <input
               className={inputClass}
@@ -170,7 +169,7 @@ export function ReconciliationPanel({
               }
             />
           </Field>
-          <div className="flex flex-wrap gap-2">
+          <div className="ap-recon__actions">
             <Button
               size="sm"
               label="Adotar o que existe na Meta"
@@ -192,9 +191,9 @@ export function ReconciliationPanel({
         const etapa = item.step ?? '';
         const rotulo = ID_POR_ETAPA[etapa]?.rotulo;
         return (
-          <div key={item.id} className="mt-4 space-y-2 border-t pt-4">
-            <p className="text-sm font-semibold">{item.name}</p>
-            <p className="row-detail">
+          <div key={item.id} className="ap-recon__block">
+            <p className="ap-t-body-strong">{item.name}</p>
+            <p className="ap-t-small ap-recon__detail">
               Parou em {statusLabel(etapa) || 'etapa desconhecida'}
               {item.error ? ` · ${item.error.message}` : ''}
             </p>
@@ -218,7 +217,7 @@ export function ReconciliationPanel({
                 }
               />
             </Field>
-            <div className="flex flex-wrap gap-2">
+            <div className="ap-recon__actions">
               <Button
                 size="sm"
                 label="Adotar e retomar"
