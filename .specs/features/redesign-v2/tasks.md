@@ -651,6 +651,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T21: Usuários
 
+**Status**: ✅ Complete
 **What**: Tabela, ficha com papel, contas e senha, e a explicação do papel.
 **Where**: `apps/web/src/app/usuarios/page.tsx`, `apps/web/src/app/usuarios/user-create-form.tsx`, `apps/web/src/app/usuarios/user-row-form.tsx`
 **Depends on**: T20
@@ -664,10 +665,10 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] Criar usuário, trocar papel e contas, desativar e redefinir senha continuam funcionando
-- [ ] A ficha explica o que o papel escolhido pode e não pode
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-usuarios.spec.ts`
-- [ ] Test count: 4 tests pass (no silent deletions)
+- [x] Criar usuário, trocar papel e contas, desativar e redefinir senha continuam funcionando
+- [x] A ficha explica o que o papel escolhido pode e não pode
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-usuarios.spec.ts`
+- [x] Test count: 4 e2e + 5 unit new (suíte e2e 90, vitest 541) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full
