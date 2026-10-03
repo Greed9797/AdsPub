@@ -106,6 +106,11 @@
     text-decoration: none;
     white-space: nowrap;
   }
+  .ap-chip > span:first-child {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
   .ap-chip__count {
     color: var(--ap-text-3);
   }
@@ -114,8 +119,9 @@
     border-color: var(--ap-text-1);
     color: var(--ap-bg-surface);
   }
+  /* O chip ativo inverte fundo e texto nos dois temas: o contador segue o texto invertido, não um cinza fixo. */
   .ap-chip--active .ap-chip__count {
-    color: var(--ap-text-on-dark);
+    color: color-mix(in srgb, var(--ap-bg-surface) 78%, var(--ap-text-1));
   }
 
   /* ---------- campo ---------- */

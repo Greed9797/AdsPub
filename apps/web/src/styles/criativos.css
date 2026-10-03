@@ -205,7 +205,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: var(--ap-text-on-dark);
+    color: color-mix(in srgb, var(--ap-bg-surface) 78%, var(--ap-text-1));
   }
   .ap-selbar__actions {
     display: flex;

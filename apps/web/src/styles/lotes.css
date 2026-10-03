@@ -444,4 +444,13 @@
       position: static;
     }
   }
+
+  /* Tabela de anúncios do lote: a coluna do nome não pode espremer; a rolagem fica dentro da tabela. */
+  .ap-tabela-lote .ap-td:first-child,
+  .ap-tabela-lote .ap-th:first-child {
+    min-width: 280px;
+  }
+  .ap-tabela-lote .ap-td:last-child {
+    white-space: nowrap;
+  }
 }

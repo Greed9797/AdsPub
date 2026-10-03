@@ -172,7 +172,7 @@ export function BatchItemsTable({
 
   return (
     <Card title={`Anúncios do lote (${items.length})`}>
-      <Table head={canEdit ? ['Anúncio', 'Etapas na Meta', 'Estado', 'Revisão', 'Ações'] : ['Anúncio', 'Etapas na Meta', 'Estado', 'Revisão']}>
+      <Table className="ap-tabela-lote" head={canEdit ? ['Anúncio', 'Etapas na Meta', 'Estado', 'Revisão', 'Ações'] : ['Anúncio', 'Etapas na Meta', 'Estado', 'Revisão']}>
         {items.map((item) => {
           const errors = item.validation?.errors ?? [];
           const warnings = item.validation?.warnings ?? [];

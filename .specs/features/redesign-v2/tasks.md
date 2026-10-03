@@ -765,6 +765,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T25: Verificação visual e contraste
 
+**Status**: ✅ Complete
 **What**: Capturar as 14 rotas e o login em 1440 e 390 px, claro e escuro, comparar com o Figma e corrigir cortes e contraste.
 **Where**: `e2e/redesign-visual.spec.ts`, ajustes em `apps/web/src/styles/`
 **Depends on**: T24
@@ -778,11 +779,11 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] Nenhuma rota rola na horizontal em 390 px
-- [ ] Texto com contraste de pelo menos 4,5:1 em claro e em escuro
-- [ ] Nenhum texto cortado nas capturas de 1440 e 390 px
-- [ ] Gate check passes: `pnpm build && pnpm lint && pnpm typecheck && pnpm test && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-visual.spec.ts`
-- [ ] Test count: 3 tests pass (no silent deletions)
+- [x] Nenhuma rota rola na horizontal em 390 px
+- [x] Texto com contraste de pelo menos 4,5:1 em claro e em escuro
+- [x] Nenhum texto cortado nas capturas de 1440 e 390 px
+- [x] Gate check passes: `pnpm build && pnpm lint && pnpm typecheck && pnpm test && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-visual.spec.ts`
+- [x] Test count: 3 e2e new (suíte e2e 96) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: build
