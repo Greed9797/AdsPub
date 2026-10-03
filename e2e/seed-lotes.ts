@@ -22,6 +22,10 @@ export interface LoteSemeado {
   refs?: { campanha: 'pending' | 'created' | 'failed' | 'needs_reconciliation'; conjunto: 'pending' | 'created' | 'failed' | 'needs_reconciliation' };
   /** Anúncios apontam para campanha e conjunto que já existem na Meta (salvar um item não exige plano). */
   refsExistentes?: boolean;
+  /** Conta do lote: a principal (padrão) ou a de revisão. */
+  conta?: 'principal' | 'revisao';
+  /** Marca os anúncios como publicados hoje, o que consome o saldo diário da conta. */
+  publicadoHoje?: boolean;
   /** Grava um erro de validação (link ausente) em cada anúncio. */
   comErro?: boolean;
   /** Etapa gravada em cada anúncio (padrão: a primeira). */
@@ -67,6 +71,7 @@ export async function semearLotes(seed: SeedData, lotes: readonly LoteSemeado[])
         name: `${lote.nome} · ${position + 1}`,
         pageId: seed.account.pageId,
         status,
+        publishedAt: lote.publicadoHoje ? new Date() : null,
         step: lote.etapa ?? ('upload_media' as const),
         validation: lote.comErro
           ? {
@@ -85,7 +90,7 @@ export async function semearLotes(seed: SeedData, lotes: readonly LoteSemeado[])
       await db.insert(batches).values({
         id: batchId,
         clientId: seed.client.id,
-        adAccountId: seed.account.id,
+        adAccountId: lote.conta === 'revisao' ? seed.reviewAccount.id : seed.account.id,
         name: lote.nome,
         mode: 'manual',
         status: lote.status,

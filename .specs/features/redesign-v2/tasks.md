@@ -366,6 +366,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T11: Novo lote
 
+**Status**: ✅ Complete
 **What**: Etapas, cartões de modo, mídias em grade, resumo com aviso de limite e barra de ação.
 **Where**: `apps/web/src/app/lotes/novo/new-batch-form.tsx`, `apps/web/src/app/lotes/novo/page.tsx`
 **Depends on**: T10
@@ -379,12 +380,12 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] O modo IA e o manual são cartões selecionáveis e enviam o mesmo valor de hoje
-- [ ] O resumo avisa quando mídias × variações excede o saldo diário
-- [ ] Erro de validação mantém os dados digitados e mostra a mensagem no campo
-- [ ] O botão fica desabilitado enquanto o lote é criado
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-novo-lote.spec.ts`
-- [ ] Test count: 5 tests pass (no silent deletions)
+- [x] O modo IA e o manual são cartões selecionáveis e enviam o mesmo valor de hoje
+- [x] O resumo avisa quando mídias × variações excede o saldo diário
+- [x] Erro de validação mantém os dados digitados e mostra a mensagem no campo
+- [x] O botão fica desabilitado enquanto o lote é criado
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-novo-lote.spec.ts`
+- [x] Test count: 5 e2e new (suíte e2e 54, vitest 509) pass; 2 linhas de teste existente alteradas (test-changes.md) (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full
