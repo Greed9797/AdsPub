@@ -92,14 +92,9 @@ jobs:
           fi
           echo 'Nenhum token nos logs.'
 
-      # A imagem espelhada é arm64 (a mesma de produção); o runner é amd64.
-      - uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
       - name: MinIO para o smoke
         run: |
-          docker run -d --name minio --platform linux/arm64 -p 9000:9000 \
+          docker run -d --name minio -p 9000:9000 \
             -e MINIO_ROOT_USER=adpubminio -e MINIO_ROOT_PASSWORD=adpubminio123 \
             ghcr.io/greed9797/minio:RELEASE.2025-09-07T16-13-09Z server /data
           for i in $(seq 1 30); do

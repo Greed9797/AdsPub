@@ -7,10 +7,10 @@ que publica as três imagens no GHCR e aplica no servidor por SSH. O runner do C
 precisa ter a mesma arquitetura das imagens (ou trocar `platforms` no workflow e usar buildx).
 
 **MinIO:** `quay.io/minio` e o Docker Hub não servem mais a imagem. Usamos o espelho
-`ghcr.io/greed9797/minio:RELEASE.2025-09-07T16-13-09Z`, que é a imagem arm64 que já roda no host
-(mesmo ID `14cea493d9a3`; ela embute o `mc`, usado pelo `minio-init` e pelo `backup.sh`). O pacote precisa
-estar **público** (o host não tem login no GHCR) e o CI roda essa imagem sob qemu. Para republicar:
-`docker save` no host → `docker load` → `docker push` com o mesmo ID conferido.
+`ghcr.io/greed9797/minio:RELEASE.2025-09-07T16-13-09Z`: a variante **linux/amd64** (manifest
+`sha256:a1a8bd4a…`) da mesma imagem que roda no host. Ela embute o `mc`, usado pelo `minio-init` e pelo
+`backup.sh`. O pacote precisa estar **público** (o host não tem login no GHCR). Para republicar: `docker save`
+no host → `docker load` → `docker push`, conferindo o digest do manifest amd64.
 
 ## 1. Topologia
 
