@@ -250,8 +250,9 @@ T22 → T23 → T24 → T25 → T26
 
 ### T7: Lotes (cartões mobile e vazio)
 
+**Status**: ✅ Complete
 **What**: Cartões de lote até 768 px e o estado vazio com "Novo lote" só para quem edita.
-**Where**: `apps/web/src/app/lotes-board.tsx`
+**Where**: `apps/web/src/app/page.tsx`, `components/lotes/state-board.tsx`, `styles/lotes.css`
 **Depends on**: T6
 **Reuses**: `ui/Empty`
 **Requirement**: RDS-15, RDS-16
@@ -263,10 +264,10 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] Em 390 px a lista vira cartões com a mesma informação
-- [ ] Sem lotes aparece o vazio, com "Novo lote" apenas se o papel não é `viewer`
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-lotes-mobile.spec.ts`
-- [ ] Test count: 3 tests pass (no silent deletions)
+- [x] Em 390 px a lista vira cartões com a mesma informação
+- [x] Sem lotes aparece o vazio, com "Novo lote" apenas se o papel não é `viewer`
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-lotes-mobile.spec.ts`
+- [x] Test count: 4 e2e pass (suíte e2e 36) (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full

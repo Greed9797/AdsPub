@@ -276,6 +276,8 @@ export default async function HomePage({
           ))}
         </Table>
       ) : (
+        <>
+          <div className="ap-lotes__table">
         <Table head={['Lote', 'Estado', 'Conta de anúncios', 'Pipeline', 'Anúncios', 'Última alteração', '']}>
           {listados.map((batch) => (
             <TableRow key={batch.id}>
@@ -308,6 +310,38 @@ export default async function HomePage({
             </TableRow>
           ))}
         </Table>
+          </div>
+          <ul className="ap-lotes__cards" aria-label="Lotes">
+            {listados.map((batch) => {
+              const naFila = fila.some((f) => f.id === batch.id);
+              const alerta = contarPorGrupo([batch]);
+              const pedem = precisamAtencao(alerta);
+              return (
+                <li key={batch.id} className="ap-lote-card" data-fila={naFila ? 'true' : undefined}>
+                  <Link href={`/lotes/${batch.id}`} className="ap-lote-card__link">
+                    <span className="ap-t-ref ap-lote-card__mode">
+                      {batch.mode === 'ai' ? 'Plano com IA' : 'Criação manual'}
+                    </span>
+                    <span className="ap-t-block ap-lote-card__name">{batch.name}</span>
+                    <span className="ap-t-small ap-lote-card__meta">
+                      {getAccountName(batch.ad_account_id)} · {batch.items.length}{' '}
+                      {batch.items.length === 1 ? 'anúncio' : 'anúncios'}
+                    </span>
+                    <PipelineBar batch={batch} />
+                    {pedem > 0 ? (
+                      <span className="ap-t-small ap-lote-card__alert">
+                        {pedem} {pedem === 1 ? 'precisa de atenção' : 'precisam de atenção'}
+                      </span>
+                    ) : null}
+                    <span className="ap-lote-card__foot">
+                      <Selo status={batch.status} />
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
     </div>
   );

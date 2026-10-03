@@ -166,4 +166,116 @@
     margin: 2px 0 0;
     color: var(--ap-text-3);
   }
+
+  /* ---------- resumo e cartões (mobile) ---------- */
+  .ap-board__summary,
+  .ap-lotes__cards {
+    display: none;
+  }
+  .ap-board__summary {
+    flex-direction: column;
+    gap: var(--ap-s-12);
+  }
+  .ap-board__big {
+    margin: 0;
+  }
+  .ap-board__stack {
+    display: flex;
+    height: 12px;
+    overflow: hidden;
+    border-radius: var(--ap-r-pill);
+    background: var(--ap-bg-sunken);
+  }
+  .ap-board__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ap-board__legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ap-board__legend li[data-grupo='rascunho'] .ap-board__dot,
+  .ap-board__legend li[data-grupo='publicando'] .ap-board__dot { background: var(--ap-orange); }
+  .ap-board__legend li[data-grupo='bloqueado'] .ap-board__dot,
+  .ap-board__legend li[data-grupo='reprovado'] .ap-board__dot,
+  .ap-board__legend li[data-grupo='falhou'] .ap-board__dot,
+  .ap-board__legend li[data-grupo='conferir'] .ap-board__dot { background: var(--ap-error); }
+  .ap-board__legend li[data-grupo='pronto'] .ap-board__dot,
+  .ap-board__legend li[data-grupo='aprovado'] .ap-board__dot,
+  .ap-board__legend li[data-grupo='fila'] .ap-board__dot,
+  .ap-board__legend li[data-grupo='analise'] .ap-board__dot { background: var(--ap-line-strong); }
+  .ap-board__stack .ap-pipeline__seg { min-width: 4px; }
+
+  .ap-lote-card {
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-xl);
+    background: var(--ap-bg-surface);
+  }
+  .ap-lote-card[data-fila='true'] {
+    border: 2px solid var(--ap-orange);
+    background: var(--ap-orange-veil);
+  }
+  .ap-lote-card__link {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--ap-s-8);
+    padding: 18px 20px;
+    color: var(--ap-text-1);
+    text-decoration: none;
+  }
+  .ap-lote-card__mode,
+  .ap-lote-card__meta {
+    color: var(--ap-text-2);
+  }
+  .ap-lote-card__alert {
+    color: var(--ap-error);
+  }
+  .ap-lote-card__foot {
+    align-self: stretch;
+    padding-top: var(--ap-s-12);
+    border-top: 1px solid var(--ap-line);
+  }
+  .ap-lotes__cards {
+    flex-direction: column;
+    gap: var(--ap-s-12);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  @media (max-width: 768px) {
+    .ap-board__groups,
+    .ap-lotes__table {
+      display: none;
+    }
+    .ap-board__summary,
+    .ap-lotes__cards {
+      display: flex;
+    }
+    .ap-board__head {
+      display: none;
+    }
+    .ap-chips {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .ap-fila {
+      border-radius: var(--ap-r-xl);
+      background: var(--ap-text-1);
+      color: var(--ap-bg-surface);
+    }
+    .ap-lotes__filters .ap-field {
+      flex: 1 1 100%;
+    }
+    .ap-pipeline {
+      max-width: 100%;
+    }
+  }
 }

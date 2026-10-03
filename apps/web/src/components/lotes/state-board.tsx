@@ -49,6 +49,25 @@ export function StateBoard({
           {atencao} {atencao === 1 ? 'precisa de atenção' : 'precisam de atenção'}
         </p>
       </header>
+      <div className="ap-board__summary">
+        <p className="ap-board__big ap-t-num-xl">{total}</p>
+        <span className="ap-board__stack" aria-hidden="true">
+          {colunasDoQuadro(contagem)
+            .filter((c) => c.n > 0)
+            .map((c) => (
+              <span key={c.grupo} className="ap-pipeline__seg" data-grupo={c.grupo} style={{ flexGrow: c.n }} />
+            ))}
+        </span>
+        <ul className="ap-board__legend ap-t-small">
+          {colunasDoQuadro(contagem)
+            .filter((c) => c.n > 0)
+            .map((c) => (
+              <li key={c.grupo} data-grupo={c.grupo}>
+                <i className="ap-board__dot" aria-hidden="true" /> {c.n} {c.rotulo.toLowerCase()}
+              </li>
+            ))}
+        </ul>
+      </div>
       <ul className="ap-board__groups">
         {colunasDoQuadro(contagem).map(({ grupo, rotulo, n }) => {
           const ativo = filtro === grupo;
