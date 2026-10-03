@@ -12,6 +12,7 @@ import '../styles/lotes.css';
 import '../styles/ficha.css';
 import '../styles/publish.css';
 import '../styles/novo-lote.css';
+import '../styles/acesso.css';
 import { currentSession } from '@/lib/session';
 import { BottomNav } from '@/components/shell/bottom-nav';
 import { Footer } from '@/components/shell/footer';
@@ -57,7 +58,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <BottomNav />
             </div>
           ) : (
-            <main className="auth-layout" id="conteudo">
+            <main className="ap-auth-layout" id="conteudo">
               {children}
             </main>
           )}

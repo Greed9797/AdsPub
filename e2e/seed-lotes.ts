@@ -112,3 +112,21 @@ export async function semearLotes(seed: SeedData, lotes: readonly LoteSemeado[])
   }
   return ids;
 }
+
+/**
+ * Tira a senha de todos os usuários, que é o que liga o "Primeiro acesso" (a API
+ * só o oferece enquanto ninguém tem senha). Devolve a função que restaura os hashes.
+ */
+export async function desligarSenhas(): Promise<() => Promise<void>> {
+  const { sql } = createDb(`${POSTGRES_BASE_URL}/${E2E_DATABASE}`, { max: 1, onNotice: () => {} });
+  const guardados = await sql<{ id: string; password_hash: string }[]>`select id, password_hash from users where password_hash is not null`;
+  await sql`update users set password_hash = null`;
+  await sql.end();
+  return async () => {
+    const { sql: volta } = createDb(`${POSTGRES_BASE_URL}/${E2E_DATABASE}`, { max: 1, onNotice: () => {} });
+    for (const linha of guardados) {
+      await volta`update users set password_hash = ${linha.password_hash} where id = ${linha.id}`;
+    }
+    await volta.end();
+  };
+}

@@ -396,6 +396,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T12: Acesso
 
+**Status**: ✅ Complete
 **What**: Login e primeiro acesso com abas, no layout do Figma.
 **Where**: `apps/web/src/app/login/page.tsx`, `apps/web/src/app/login/login-form.tsx`, `apps/web/src/app/login/bootstrap-form.tsx`
 **Depends on**: T11
@@ -409,11 +410,11 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] `/login` mostra as abas Entrar e Primeiro acesso
-- [ ] Login inválido mostra a mensagem no formulário e mantém os campos
-- [ ] Sem bootstrap disponível a aba Primeiro acesso não aparece
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-acesso.spec.ts`
-- [ ] Test count: 4 tests pass (no silent deletions)
+- [x] `/login` mostra as abas Entrar e Primeiro acesso
+- [x] Login inválido mostra a mensagem no formulário e mantém os campos
+- [x] Sem bootstrap disponível a aba Primeiro acesso não aparece
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-acesso.spec.ts`
+- [x] Test count: 5 e2e + 6 unit new (suíte e2e 59, vitest 515) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: build

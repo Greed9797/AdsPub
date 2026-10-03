@@ -1,15 +1,18 @@
-"use client";
+'use client';
 
-import { useActionState } from 'react';
-import { Field, inputClass } from '@/components/ui';
-import { Button } from '@astryxdesign/core/Button';
+import { useActionState, useState } from 'react';
+
+import { Button, Field, inputClass } from '@/components/ui';
 import { criarAdminInicial } from './actions';
 
 export function BootstrapForm() {
   const [state, action, pending] = useActionState(criarAdminInicial, null);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} className="ap-auth__form">
       <Field label="Seu nome">
         <input
           name="name"
@@ -18,6 +21,8 @@ export function BootstrapForm() {
           autoComplete="name"
           disabled={pending}
           className={inputClass}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
         />
       </Field>
       <Field label="E-mail corporativo">
@@ -29,6 +34,8 @@ export function BootstrapForm() {
           placeholder="voce@empresa.com.br"
           disabled={pending}
           className={inputClass}
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
         />
       </Field>
       <Field label="Senha (mínimo 12 caracteres)">
@@ -40,10 +47,12 @@ export function BootstrapForm() {
           autoComplete="new-password"
           disabled={pending}
           className={inputClass}
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
         />
       </Field>
       {state ? (
-        <p role="alert" className="notice notice-error">
+        <p role="alert" className="ap-note" data-tone="danger">
           {state.erro}
         </p>
       ) : null}
@@ -52,7 +61,7 @@ export function BootstrapForm() {
         label={pending ? 'Criando...' : 'Criar administrador e entrar'}
         type="submit"
         isDisabled={pending}
-        className="w-full"
+        block
       />
     </form>
   );
