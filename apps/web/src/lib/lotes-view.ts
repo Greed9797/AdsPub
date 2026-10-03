@@ -37,6 +37,20 @@ const GRUPO_DO_STATUS: Readonly<Record<AdDraftStatus, EstadoGrupo>> = {
   needs_reconciliation: 'conferir',
 };
 
+export const ROTULO_GRUPO: Readonly<Record<EstadoGrupo, string>> = {
+  rascunho: 'Rascunho',
+  bloqueado: 'Bloqueado',
+  pronto: 'Pronto',
+  fila: 'Na fila',
+  publicando: 'Publicando',
+  publicado: 'Publicado',
+  analise: 'Em análise',
+  aprovado: 'Aprovado',
+  reprovado: 'Reprovado',
+  falhou: 'Falhou',
+  conferir: 'Conferir',
+};
+
 /** Estados em que o anúncio pede ação de uma pessoa. */
 const ATENCAO: readonly EstadoGrupo[] = ['bloqueado', 'reprovado', 'falhou', 'conferir'];
 
@@ -109,4 +123,15 @@ export function filtrarLotes(batches: readonly Batch[], filtro: FiltroLista = 't
 
 export function contarLotes(batches: readonly Batch[], filtro: FiltroLista): number {
   return filtrarLotes(batches, filtro).length;
+}
+
+export interface ColunaDoQuadro {
+  grupo: EstadoGrupo;
+  rotulo: string;
+  n: number;
+}
+
+/** Uma coluna por grupo, na ordem do quadro, inclusive as zeradas. */
+export function colunasDoQuadro(contagem: ContagemPorGrupo): ColunaDoQuadro[] {
+  return ESTADOS.map((grupo) => ({ grupo, rotulo: ROTULO_GRUPO[grupo], n: contagem[grupo] }));
 }

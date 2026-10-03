@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ESTADOS,
+  ROTULO_GRUPO,
   barraDoLote,
+  colunasDoQuadro,
   contarLotes,
   contarPorGrupo,
   filaDePublicacao,
@@ -145,5 +147,22 @@ describe('lotes-view: filtro da lista (RDS-12)', () => {
     expect(contarLotes(lotes, 'atencao')).toBe(1);
     expect(contarLotes(lotes, 'pronto')).toBe(1);
     expect(contarLotes(lotes, 'publicando')).toBe(0);
+  });
+});
+
+describe('lotes-view: colunas do quadro (RDS-10)', () => {
+  it('rotula os 11 grupos com o mesmo texto do selo', () => {
+    expect(ROTULO_GRUPO.fila).toBe('Na fila');
+    expect(ROTULO_GRUPO.analise).toBe('Em análise');
+    expect(Object.keys(ROTULO_GRUPO)).toEqual([...ESTADOS]);
+  });
+
+  it('devolve uma coluna por grupo, na ordem do quadro, com a contagem e o rótulo', () => {
+    const colunas = colunasDoQuadro(contarPorGrupo([lote('a', ['ready', 'ready', 'failed'])]));
+    expect(colunas).toHaveLength(11);
+    expect(colunas.map((c) => c.grupo)).toEqual([...ESTADOS]);
+    expect(colunas.find((c) => c.grupo === 'pronto')).toEqual({ grupo: 'pronto', rotulo: 'Pronto', n: 2 });
+    expect(colunas.find((c) => c.grupo === 'falhou')?.n).toBe(1);
+    expect(colunas.find((c) => c.grupo === 'rascunho')?.n).toBe(0);
   });
 });

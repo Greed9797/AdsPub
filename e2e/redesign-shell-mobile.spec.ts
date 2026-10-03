@@ -35,7 +35,9 @@ test.describe('casca mobile (RDS-06)', () => {
     await page.getByRole('button', { name: 'Escuro' }).click();
     expect((await context.cookies()).find((c) => c.name === 'adpub_theme')?.value).toBe('dark');
     await expect(page.getByRole('button', { name: 'Sair do AdPub' })).toBeVisible();
-    const largura = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth, janela: window.innerWidth }));
+    const largura = await page.evaluate<{ doc: number; janela: number }>(
+      '({ doc: document.documentElement.scrollWidth, janela: window.innerWidth })',
+    );
     expect(largura.doc).toBeLessThanOrEqual(largura.janela);
   });
 });

@@ -1,23 +1,35 @@
 import Link from 'next/link';
 
+import { PipelineBar } from '@/components/lotes/pipeline-bar';
+import { StateBoard } from '@/components/lotes/state-board';
 import {
-  Badge,
+  Button,
+  Chip,
   Empty,
   Field,
   PageHead,
+  Selo,
   Table,
+  TableCell,
+  TableRow,
   inputClass,
   statusLabel,
   formatLabel,
 } from '@/components/ui';
 import { Icon } from '@/components/icons';
+import {
+  ESTADOS,
+  contarLotes,
+  contarPorGrupo,
+  filaDePublicacao,
+  filtrarLotes,
+  precisamAtencao,
+  type FiltroLista,
+} from '@/lib/lotes-view';
 import { requireSession } from '@/lib/session';
 import { api } from '@/lib/api';
 import type { AdAccount, Batch, BatchStatus } from '@/lib/types';
 import { batchStatusSchema } from '@adpub/shared';
-import { Button } from '@astryxdesign/core/Button';
-import { ButtonLink } from '@/components/button-link';
-import { TableCell, TableRow } from '@astryxdesign/core/Table';
 
 type HomeSearchParams = {
   ad_account_id?: string | string[];
@@ -25,6 +37,7 @@ type HomeSearchParams = {
   erro?: string | string[];
   q?: string | string[];
   view?: string | string[];
+  estado?: string | string[];
 };
 
 const BATCH_STATUSES: BatchStatus[] = [
@@ -47,11 +60,9 @@ function pickFirst(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
-function statusTone(status: string): 'ok' | 'warn' | 'danger' | 'info' {
-  if (['done', 'approved', 'ready', 'published'].includes(status)) return 'ok';
-  if (['partial', 'failed', 'blocked', 'disapproved'].includes(status)) return 'danger';
-  if (status === 'publishing' || status === 'queued') return 'warn';
-  return 'info';
+function lerFiltro(valor: string | undefined): FiltroLista {
+  if (valor === 'atencao') return 'atencao';
+  return (ESTADOS as readonly string[]).includes(valor ?? '') ? (valor as FiltroLista) : 'todos';
 }
 
 export default async function HomePage({
@@ -99,7 +110,12 @@ export default async function HomePage({
         ...batch.items.map((item) => item.name),
       ].some((value) => value.toLocaleLowerCase('pt-BR').includes(needle)),
   );
-  const ads = visibleBatches.flatMap((batch) =>
+  const filtro = lerFiltro(pickFirst(params.estado));
+  const contagem = contarPorGrupo(visibleBatches);
+  const totalAnuncios = visibleBatches.reduce((soma, batch) => soma + batch.items.length, 0);
+  const listados = filtrarLotes(visibleBatches, filtro);
+  const fila = filaDePublicacao(visibleBatches);
+  const ads = listados.flatMap((batch) =>
     batch.items
       .filter(
         (item) =>
@@ -111,26 +127,25 @@ export default async function HomePage({
       )
       .map((item) => ({ item, batch })),
   );
-  const activeCount = visibleBatches.filter((batch) =>
-    ['queued', 'publishing'].includes(batch.status),
-  ).length;
-  const attentionCount = visibleBatches.filter((batch) =>
-    ['failed', 'partial', 'blocked'].includes(batch.status),
-  ).length;
 
-  function viewHref(view: 'batches' | 'ads') {
+  function href(view: 'batches' | 'ads', estado: FiltroLista = 'todos') {
     const query = new URLSearchParams(filters);
     if (search) query.set('q', search);
     if (view === 'ads') query.set('view', 'ads');
+    if (estado !== 'todos') query.set('estado', estado);
     return query.size ? `/?${query}` : '/';
   }
+  const hrefDoFiltro = (alvo: FiltroLista) => href(adsView ? 'ads' : 'batches', alvo);
+
+  const novoLote = canEdit ? <Button variant="primary" label="Novo lote" href="/lotes/novo" /> : undefined;
+  const filtrando = filters.size > 0 || search !== '' || filtro !== 'todos';
 
   return (
-    <div className="space-y-5">
+    <div className="ap-lotes">
       <PageHead
-        title="Anúncios"
+        title="Lotes"
         description="Organize seus lotes, revise os anúncios e acompanhe a publicação."
-        action={canEdit ? <ButtonLink variant="primary" label="Novo lote" href="/lotes/novo" /> : undefined}
+        action={novoLote}
       />
 
       {errorMessage ? (
@@ -139,25 +154,40 @@ export default async function HomePage({
         </p>
       ) : null}
 
-      <div className="workspace">
-      <form method="get" aria-label="Filtrar lotes" className="toolbar">
+      <StateBoard
+        contagem={contagem}
+        total={totalAnuncios}
+        atencao={precisamAtencao(contagem)}
+        filtro={filtro}
+        hrefDoFiltro={hrefDoFiltro}
+      />
+
+      {fila.length > 0 ? (
+        <section className="ap-fila" aria-label="Fila de publicação">
+          <p className="ap-t-body-strong">
+            {fila.length} {fila.length === 1 ? 'lote pronto' : 'lotes prontos'} para publicar
+          </p>
+          {canEdit ? (
+            <Button variant="primary" label="Revisar e publicar" href={`/lotes/${fila[0]!.id}`} />
+          ) : null}
+        </section>
+      ) : null}
+
+      <form method="get" aria-label="Filtrar lotes" className="ap-lotes__filters">
         {adsView ? <input type="hidden" name="view" value="ads" /> : null}
-        <div className="search-field">
-          <label htmlFor="ads-search">Pesquisar</label>
-          <div className="search-field-control">
-            <Icon name="search" />
-            <input
-              id="ads-search"
-              type="search"
-              name="q"
-              defaultValue={search}
-              placeholder="Nome do lote ou anúncio"
-              className={inputClass}
-            />
-          </div>
-        </div>
-        <Field label="Conta" className="w-full sm:w-56">
-          <select name="ad_account_id" defaultValue={accountId ?? ''} className={inputClass}>
+        {filtro !== 'todos' ? <input type="hidden" name="estado" value={filtro} /> : null}
+        <Field label="Pesquisar" className="ap-lotes__search">
+          <input
+            id="ads-search"
+            type="search"
+            name="q"
+            defaultValue={search}
+            placeholder="Nome do lote ou anúncio"
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Conta">
+          <select id="filtro-conta" name="ad_account_id" defaultValue={accountId ?? ''} className={inputClass}>
             <option value="">Todas as contas</option>
             {accounts.map((account) => (
               <option key={account.id} value={account.id}>
@@ -166,8 +196,8 @@ export default async function HomePage({
             ))}
           </select>
         </Field>
-        <Field label="Status do lote" className="w-full sm:w-44">
-          <select name="status" defaultValue={status ?? ''} className={inputClass}>
+        <Field label="Status do lote">
+          <select id="filtro-status" name="status" defaultValue={status ?? ''} className={inputClass}>
             <option value="">Todos os status</option>
             {BATCH_STATUSES.map((batchStatus) => (
               <option key={batchStatus} value={batchStatus}>
@@ -177,152 +207,108 @@ export default async function HomePage({
           </select>
         </Field>
         <Button variant="secondary" label="Aplicar" type="submit" />
-        {filters.size > 0 || search ? (
-          <Link
-            href={adsView ? '/?view=ads' : '/'}
-            className="py-2 text-sm text-[var(--color-brand)]"
-          >
-            Limpar filtros
-          </Link>
+        {filtrando ? (
+          <Button variant="ghost" label="Limpar filtros" href={adsView ? '/?view=ads' : '/'} />
         ) : null}
       </form>
 
-      <div className="workspace-rail">
-        <nav className="workspace-tabs" aria-label="Visualização dos anúncios">
-          <Link
-            className="workspace-tab"
-            href={viewHref('batches')}
-            aria-current={!adsView ? 'page' : undefined}
-          >
-            <Icon name="folder" /> Lotes
-          </Link>
-          <Link
-            className="workspace-tab"
-            href={viewHref('ads')}
-            aria-current={adsView ? 'page' : undefined}
-          >
-            <Icon name="ad" /> Anúncios
-          </Link>
-          <Link
-            className="workspace-tab"
-            href={
-              accountId
-                ? `/performance?ad_account_id=${encodeURIComponent(accountId)}`
-                : '/performance'
-            }
-          >
-            <Icon name="chart" /> Desempenho
-          </Link>
-        </nav>
-        <p className="workspace-summary" aria-label="Resumo dos lotes filtrados">
-          <span>
-            <strong>{visibleBatches.length}</strong> lotes
-          </span>
-          <span>
-            <strong>{ads.length}</strong> anúncios
-          </span>
-          <span>
-            <strong>{activeCount}</strong> publicando
-          </span>
-          <span>
-            <strong>{attentionCount}</strong> precisam de atenção
-          </span>
-        </p>
+      <div className="ap-chips" role="group" aria-label="Filtro por estado">
+        <Chip href={href(adsView ? 'ads' : 'batches')} active={filtro === 'todos'} count={visibleBatches.length}>
+          Todos
+        </Chip>
+        <Chip
+          href={hrefDoFiltro('atencao')}
+          active={filtro === 'atencao'}
+          count={contarLotes(visibleBatches, 'atencao')}
+        >
+          Precisam de atenção
+        </Chip>
+        <Chip href={href('batches', filtro)} active={!adsView}>
+          <Icon name="folder" /> Lotes
+        </Chip>
+        <Chip href={href('ads', filtro)} active={adsView}>
+          <Icon name="ad" /> Anúncios
+        </Chip>
+        <Chip
+          href={
+            accountId ? `/performance?ad_account_id=${encodeURIComponent(accountId)}` : '/performance'
+          }
+        >
+          <Icon name="chart" /> Desempenho
+        </Chip>
       </div>
-      <div className="workspace-list">
-          {(adsView ? ads.length === 0 : visibleBatches.length === 0) ? (
-            <Empty
-              title={adsView ? 'Nenhum anúncio neste recorte' : 'Nenhum lote encontrado'}
-              hint={
-                adsView
-                  ? 'Os anúncios aparecem aqui depois de montar um lote. Abra um lote ou comece um novo.'
-                  : 'Ajuste a busca e os filtros, ou crie um lote para começar.'
-              }
-              action={canEdit ? <ButtonLink variant="primary" label="Novo lote" href="/lotes/novo" /> : undefined}
-            />
-          ) : adsView ? (
-            <Table head={['Anúncio', 'Lote', 'Formato', 'Status', 'Destino']}>
-              {ads.map(({ item, batch }) => (
-                <TableRow key={item.id}>
-                  <TableCell>
-                    <Link className="row-name" href={`/lotes/${batch.id}`}>
-                      {item.name}
-                    </Link>
-                    <p className="row-detail">{getAccountName(batch.ad_account_id)}</p>
-                  </TableCell>
-                  <TableCell>{batch.name}</TableCell>
-                  <TableCell>{formatLabel(item.format)}</TableCell>
-                  <TableCell>
-                    <Badge tone={statusTone(item.status)}>{statusLabel(item.status)}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {item.ads_manager_url ? (
-                      <a
-                        href={item.ads_manager_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[var(--color-brand)]"
-                      >
-                        Ver na Meta
-                      </a>
-                    ) : (
-                      <Link href={`/lotes/${batch.id}`} className="text-[var(--color-brand)]">
-                        Revisar anúncio
-                      </Link>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </Table>
-          ) : (
-            <Table
-              head={[
-                'Nome do lote',
-                'Status',
-                'Conta de anúncios',
-                'Anúncios',
-                'Última alteração',
-                '',
-              ]}
-            >
-              {visibleBatches.map((batch) => (
-                <TableRow key={batch.id}>
-                  <TableCell>
-                    <Link href={`/lotes/${batch.id}`} className="row-name">
-                      {batch.name}
-                    </Link>
-                    <p className="row-detail">
-                      {batch.mode === 'ai' ? 'Planejamento com IA' : 'Criação manual'}
-                    </p>
-                  </TableCell>
-                  <TableCell>
-                    <Badge tone={statusTone(batch.status)}>{statusLabel(batch.status)}</Badge>
-                  </TableCell>
-                  <TableCell className="text-[var(--color-muted)]">
-                    {getAccountName(batch.ad_account_id)}
-                  </TableCell>
-                  <TableCell className="numeric">{batch.items.length}</TableCell>
-                  <TableCell className="whitespace-nowrap tabular-nums text-[var(--color-muted)]">
-                    {new Intl.DateTimeFormat('pt-BR', {
-                      dateStyle: 'short',
-                      timeStyle: 'short',
-                      timeZone: 'America/Sao_Paulo',
-                    }).format(new Date(batch.updated_at))}
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/lotes/${batch.id}`}
-                      className="whitespace-nowrap text-[var(--color-brand)]"
-                    >
-                      Abrir lote
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </Table>
-          )}
-      </div>
-      </div>
+
+      {(adsView ? ads.length === 0 : listados.length === 0) ? (
+        <Empty
+          title={adsView ? 'Nenhum anúncio neste recorte' : 'Nenhum lote encontrado'}
+          hint={
+            adsView
+              ? 'Os anúncios aparecem aqui depois de montar um lote. Abra um lote ou comece um novo.'
+              : 'Ajuste a busca e os filtros, ou crie um lote para começar.'
+          }
+          action={novoLote}
+        />
+      ) : adsView ? (
+        <Table head={['Anúncio', 'Lote', 'Formato', 'Estado', 'Destino']}>
+          {ads.map(({ item, batch }) => (
+            <TableRow key={item.id}>
+              <TableCell>
+                <Link className="ap-lotes__name" href={`/lotes/${batch.id}`}>
+                  {item.name}
+                </Link>
+                <p className="ap-lotes__detail ap-t-small">{getAccountName(batch.ad_account_id)}</p>
+              </TableCell>
+              <TableCell>{batch.name}</TableCell>
+              <TableCell>{formatLabel(item.format)}</TableCell>
+              <TableCell>
+                <Selo status={item.status} />
+              </TableCell>
+              <TableCell>
+                {item.ads_manager_url ? (
+                  <a href={item.ads_manager_url} target="_blank" rel="noreferrer">
+                    Ver na Meta
+                  </a>
+                ) : (
+                  <Link href={`/lotes/${batch.id}`}>Revisar anúncio</Link>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </Table>
+      ) : (
+        <Table head={['Lote', 'Estado', 'Conta de anúncios', 'Pipeline', 'Anúncios', 'Última alteração', '']}>
+          {listados.map((batch) => (
+            <TableRow key={batch.id}>
+              <TableCell>
+                <Link href={`/lotes/${batch.id}`} className="ap-lotes__name">
+                  {batch.name}
+                </Link>
+                <p className="ap-lotes__detail ap-t-small">
+                  {batch.mode === 'ai' ? 'Planejamento com IA' : 'Criação manual'}
+                </p>
+              </TableCell>
+              <TableCell>
+                <Selo status={batch.status} />
+              </TableCell>
+              <TableCell>{getAccountName(batch.ad_account_id)}</TableCell>
+              <TableCell>
+                <PipelineBar batch={batch} />
+              </TableCell>
+              <TableCell className="numeric">{batch.items.length}</TableCell>
+              <TableCell className="numeric">
+                {new Intl.DateTimeFormat('pt-BR', {
+                  dateStyle: 'short',
+                  timeStyle: 'short',
+                  timeZone: 'America/Sao_Paulo',
+                }).format(new Date(batch.updated_at))}
+              </TableCell>
+              <TableCell>
+                <Link href={`/lotes/${batch.id}`}>Abrir lote</Link>
+              </TableCell>
+            </TableRow>
+          ))}
+        </Table>
+      )}
     </div>
   );
 }

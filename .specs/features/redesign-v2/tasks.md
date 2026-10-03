@@ -220,8 +220,9 @@ T22 → T23 → T24 → T25 → T26
 
 ### T6: Lotes (lista desktop)
 
+**Status**: ✅ Complete
 **What**: Rota `/` com quadro de pontos, filtros "Mostrar na lista", tabela com barra de pipeline e fila de publicação.
-**Where**: `apps/web/src/app/page.tsx`, `apps/web/src/app/lotes-board.tsx`
+**Where**: `apps/web/src/app/page.tsx`, `apps/web/src/components/lotes/{state-board,pipeline-bar}.tsx`, `apps/web/src/styles/lotes.css`; `GET /batches` passa a devolver `items` e `approval` (a lista vinha com `items: []`)
 **Depends on**: T5
 **Reuses**: `lib/lotes-view.ts`, filtros de URL existentes
 **Requirement**: RDS-10, RDS-11, RDS-12, RDS-13, RDS-14
@@ -233,12 +234,12 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] O quadro mostra 1 ponto por anúncio nos 11 grupos
-- [ ] Acionar um grupo filtra a lista por URL e mantém conta e busca
-- [ ] Cada linha mostra a barra de pipeline com largura proporcional
-- [ ] A fila de publicação aparece só com lote `ready` aprovado
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-lotes.spec.ts`
-- [ ] Test count: 6 tests pass (no silent deletions)
+- [x] O quadro mostra 1 ponto por anúncio nos 11 grupos
+- [x] Acionar um grupo filtra a lista por URL e mantém conta e busca
+- [x] Cada linha mostra a barra de pipeline com largura proporcional
+- [x] A fila de publicação aparece só com lote `ready` aprovado
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-lotes.spec.ts`
+- [x] Test count: 8 e2e + 2 unit new (suíte e2e 32, vitest 493) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full

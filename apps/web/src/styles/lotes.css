@@ -1,0 +1,169 @@
+/* Lista de lotes: quadro de pontos, barras de pipeline e fila de publicação. */
+@layer ap {
+  .ap-lotes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-24);
+    min-width: 0;
+  }
+
+  /* ---------- quadro de pontos ---------- */
+  .ap-board {
+    padding: 20px 22px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-xl);
+    background: var(--ap-bg-surface);
+  }
+  .ap-board__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--ap-s-16);
+    margin-bottom: var(--ap-s-16);
+  }
+  .ap-board__head p {
+    margin: 0;
+  }
+  .ap-board__attention {
+    color: var(--ap-text-2);
+  }
+  .ap-board__attention[data-alert='true'] {
+    color: var(--ap-error);
+  }
+  .ap-board__groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--ap-s-12);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ap-board__link {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-8);
+    height: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-lg);
+    color: var(--ap-text-1);
+    text-decoration: none;
+  }
+  .ap-board__link:hover {
+    background: var(--ap-bg-band);
+  }
+  .ap-board__link[aria-current='true'] {
+    border-color: var(--ap-text-1);
+    background: var(--ap-bg-sunken);
+  }
+  .ap-board__group[data-empty='true'] .ap-board__n {
+    color: var(--ap-text-3);
+  }
+  .ap-board__dots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-height: 8px;
+  }
+  .ap-board__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ap-text-1);
+  }
+  .ap-board__group[data-grupo='rascunho'] .ap-board__dot,
+  .ap-board__group[data-grupo='publicando'] .ap-board__dot {
+    background: var(--ap-orange);
+  }
+  .ap-board__group[data-grupo='bloqueado'] .ap-board__dot,
+  .ap-board__group[data-grupo='reprovado'] .ap-board__dot,
+  .ap-board__group[data-grupo='falhou'] .ap-board__dot,
+  .ap-board__group[data-grupo='conferir'] .ap-board__dot {
+    background: var(--ap-error);
+  }
+  .ap-board__group[data-grupo='pronto'] .ap-board__dot,
+  .ap-board__group[data-grupo='aprovado'] .ap-board__dot,
+  .ap-board__group[data-grupo='fila'] .ap-board__dot,
+  .ap-board__group[data-grupo='analise'] .ap-board__dot {
+    background: var(--ap-line-strong);
+  }
+
+  /* ---------- filtros ---------- */
+  .ap-lotes__filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--ap-s-12);
+  }
+  .ap-lotes__filters .ap-field {
+    min-width: 180px;
+  }
+  .ap-lotes__search {
+    flex: 1 1 260px;
+  }
+  .ap-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ap-s-8);
+  }
+
+  /* ---------- fila de publicação ---------- */
+  .ap-fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ap-s-16);
+    padding: 16px 22px;
+    border-radius: var(--ap-r-xl);
+    background: var(--ap-orange-veil);
+  }
+  .ap-fila p {
+    margin: 0;
+  }
+
+  /* ---------- barra de pipeline ---------- */
+  .ap-pipeline {
+    display: inline-flex;
+    height: 10px;
+    overflow: hidden;
+    border-radius: var(--ap-r-pill);
+    background: var(--ap-bg-sunken);
+    vertical-align: middle;
+  }
+  .ap-pipeline__seg {
+    display: block;
+    height: 100%;
+    background: var(--ap-text-1);
+  }
+  .ap-pipeline__seg[data-grupo='rascunho'],
+  .ap-pipeline__seg[data-grupo='publicando'] {
+    background: var(--ap-orange);
+  }
+  .ap-pipeline__seg[data-grupo='bloqueado'],
+  .ap-pipeline__seg[data-grupo='reprovado'],
+  .ap-pipeline__seg[data-grupo='falhou'],
+  .ap-pipeline__seg[data-grupo='conferir'] {
+    background: var(--ap-error);
+  }
+  .ap-pipeline__seg[data-grupo='pronto'],
+  .ap-pipeline__seg[data-grupo='aprovado'],
+  .ap-pipeline__seg[data-grupo='fila'],
+  .ap-pipeline__seg[data-grupo='analise'] {
+    background: var(--ap-line-strong);
+  }
+  .ap-pipeline__none {
+    color: var(--ap-text-3);
+  }
+  .ap-lotes__name {
+    color: var(--ap-text-1);
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .ap-lotes__name:hover {
+    text-decoration: underline;
+  }
+  .ap-lotes__detail {
+    margin: 2px 0 0;
+    color: var(--ap-text-3);
+  }
+}
