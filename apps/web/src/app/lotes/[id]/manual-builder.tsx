@@ -11,11 +11,10 @@ import {
   type BatchPlan,
 } from '@adpub/shared';
 
-import { Card, Empty, Field, ctaLabel, goalLabel, inputClass, plural } from '@/components/ui';
+import { Button, Card, Empty, Field, ctaLabel, goalLabel, inputClass, plural } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import type { AdsetRef, Asset, Batch, CampaignRef } from '@/lib/types';
 import type { ActionResult } from '../actions';
-import { Button } from '@astryxdesign/core/Button';
 
 type ManualBuilderProps = {
   batchId: string;
@@ -280,7 +279,7 @@ export function ManualBuilder({
   return (
     <Card title="Construtor manual">
       <nav
-        className="mb-5 flex flex-wrap gap-3 border-b border-[var(--color-border)] pb-3 text-xs text-[var(--color-brand)]"
+        className="mb-5 flex flex-wrap gap-3 border-b border-[var(--ap-line)] pb-3 text-xs text-[var(--ap-orange-text)]"
         aria-label="Seções do construtor"
       >
         <a href="#destino-manual">Destino</a>
@@ -292,7 +291,7 @@ export function ManualBuilder({
         <fieldset className="space-y-5" disabled={isSaving}>
           <section id="destino-manual" className="space-y-3">
             <h3 className="text-sm font-semibold">Conjunto de anúncios</h3>
-            <p className="text-xs text-[var(--color-muted)]">
+            <p className="text-xs text-[var(--ap-text-2)]">
               Escolha o destino. Um conjunto existente já define a campanha; um novo conjunto
               permite escolher ou criar uma campanha.
             </p>
@@ -355,10 +354,10 @@ export function ManualBuilder({
                     onChange={(event) => setAdsetBudget(event.target.value)}
                   />
                 </Field>
-                <details className="md:col-span-2 rounded-lg border border-[var(--color-border)] p-3">
+                <details className="md:col-span-2 rounded-lg border border-[var(--ap-line)] p-3">
                   <summary className="cursor-pointer text-sm font-medium">
                     Otimização e cobrança{' '}
-                    <span className="font-normal text-[var(--color-muted)]">
+                    <span className="font-normal text-[var(--ap-text-2)]">
                       (opções avançadas)
                     </span>
                   </summary>
@@ -403,17 +402,17 @@ export function ManualBuilder({
             )}
           </section>
 
-          <section className="space-y-3 border-t border-[var(--color-border)] pt-4">
+          <section className="space-y-3 border-t border-[var(--ap-line)] pt-4">
             <h3 className="text-sm font-semibold">Campanha</h3>
 
             {!inheritsCampaign ? null : !adsetId ? (
-              <p className="text-sm text-[var(--color-muted)]">
+              <p className="text-sm text-[var(--ap-text-2)]">
                 Escolha o conjunto acima: a campanha vem dele.
               </p>
             ) : inheritedCampaignId ? (
-              <p className="text-sm text-[var(--color-muted)]">
+              <p className="text-sm text-[var(--ap-text-2)]">
                 Herdada do conjunto escolhido:{' '}
-                <span className="text-[var(--color-text)]">{inheritedCampaignName}</span>
+                <span className="text-[var(--ap-text-1)]">{inheritedCampaignName}</span>
               </p>
             ) : (
               <Field
@@ -519,7 +518,7 @@ export function ManualBuilder({
 
           <section
             id="identidade-manual"
-            className="grid gap-3 border-t border-[var(--color-border)] pt-4 md:grid-cols-2"
+            className="grid gap-3 border-t border-[var(--ap-line)] pt-4 md:grid-cols-2"
           >
             <h3 className="text-sm font-semibold md:col-span-2">Identidade do anúncio</h3>
             <Field
@@ -543,7 +542,7 @@ export function ManualBuilder({
 
           <section
             id="midias-manual"
-            className="space-y-2 border-t border-[var(--color-border)] pt-4"
+            className="space-y-2 border-t border-[var(--ap-line)] pt-4"
           >
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">
@@ -551,7 +550,7 @@ export function ManualBuilder({
               </h3>
               <button
                 type="button"
-                className="text-xs text-[var(--color-brand)]"
+                className="text-xs text-[var(--ap-orange-text)]"
                 onClick={() =>
                   setSelectedAssetIds((previous) =>
                     previous.length === assets.length ? [] : assets.map((asset) => asset.id),
@@ -564,7 +563,7 @@ export function ManualBuilder({
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {assets.map((asset) => (
-                <label key={asset.id} className="media-choice">
+                <label key={asset.id} className="ap-choice">
                   <input
                     type="checkbox"
                     checked={selectedAssetIds.includes(asset.id)}
@@ -588,7 +587,7 @@ export function ManualBuilder({
                   <span className="min-w-0 flex-1 truncate text-sm" title={asset.filename}>
                     {asset.filename}
                   </span>
-                  <span className="text-xs text-[var(--color-muted)]">
+                  <span className="text-xs text-[var(--ap-text-2)]">
                     {asset.kind === 'image' ? 'Imagem' : 'Vídeo'} · {asset.aspect_ratio}
                   </span>
                 </label>
@@ -598,7 +597,7 @@ export function ManualBuilder({
 
           <section
             id="textos-manual"
-            className="space-y-3 border-t border-[var(--color-border)] pt-4"
+            className="space-y-3 border-t border-[var(--ap-line)] pt-4"
           >
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">
@@ -606,7 +605,7 @@ export function ManualBuilder({
               </h3>
               <button
                 type="button"
-                className="text-xs text-[var(--color-brand)]"
+                className="text-xs text-[var(--ap-orange-text)]"
                 disabled={copies.length >= MAX_COPIES}
                 onClick={() => setCopies((previous) => [...previous, emptyCopy()])}
               >
@@ -617,16 +616,16 @@ export function ManualBuilder({
             {copies.map((copy, index) => (
               <div
                 key={`copy-${index}`}
-                className="space-y-3 rounded-lg border border-[var(--color-border)] p-3"
+                className="space-y-3 rounded-lg border border-[var(--ap-line)] p-3"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--color-muted)]">
+                  <span className="text-xs font-medium text-[var(--ap-text-2)]">
                     Variação {index + 1}
                   </span>
                   {copies.length > 1 ? (
                     <button
                       type="button"
-                      className="text-xs text-[var(--color-danger)]"
+                      className="text-xs text-[var(--ap-error)]"
                       onClick={() =>
                         setCopies((previous) => previous.filter((_, i) => i !== index))
                       }
@@ -687,7 +686,7 @@ export function ManualBuilder({
             ))}
           </section>
 
-          <div className="editor-footer">
+          <div className="ap-builder__foot">
             <p aria-live="polite">
               {plural(selectedAssetIds.length, 'mídia', 'mídias')} ×{' '}
               {plural(copies.length, 'texto', 'textos')} ={' '}
@@ -695,7 +694,7 @@ export function ManualBuilder({
             </p>
 
             {errorMessage ? (
-              <p role="alert" className="text-sm text-[var(--color-danger)]">
+              <p role="alert" className="text-sm text-[var(--ap-error)]">
                 {errorMessage}
               </p>
             ) : null}

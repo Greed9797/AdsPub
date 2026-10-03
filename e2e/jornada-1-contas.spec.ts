@@ -53,7 +53,7 @@ test('contas em 390px: rolagem contida na tabela e ações alcançáveis', async
     return { scroll: g.document.documentElement.scrollWidth, largura: g.innerWidth };
   });
   expect(pagina.scroll).toBeLessThanOrEqual(pagina.largura);
-  // A rolagem acontece no contêiner efetivo da linha (a tabela Astryx tem o
+  // A rolagem acontece no contêiner efetivo da linha (a tabela tem o
   // próprio wrapper de scroll dentro da região): ele contém a rolagem e a
   // página não vaza.
   interface ScrollBox {

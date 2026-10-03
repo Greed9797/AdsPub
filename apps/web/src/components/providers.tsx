@@ -1,10 +1,8 @@
 'use client';
 
 import { createContext, useContext, useState } from 'react';
-import Link from 'next/link';
-import { Theme } from '@astryxdesign/core/theme';
-import { LinkProvider } from '@astryxdesign/core/Link';
-import { adpubTheme, type ThemeMode } from '@/astryx-theme';
+
+export type ThemeMode = 'light' | 'dark' | 'system';
 
 const ThemePreference = createContext<{
   mode: ThemeMode;
@@ -32,11 +30,5 @@ export function Providers({
     document.cookie = `adpub_theme=${nextMode}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
   }
 
-  return (
-    <ThemePreference.Provider value={{ mode, setMode }}>
-      <Theme theme={adpubTheme} mode={mode}>
-        <LinkProvider component={Link}>{children}</LinkProvider>
-      </Theme>
-    </ThemePreference.Provider>
-  );
+  return <ThemePreference.Provider value={{ mode, setMode }}>{children}</ThemePreference.Provider>;
 }

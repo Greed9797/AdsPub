@@ -227,7 +227,7 @@ export function BatchItemsTable({
                       </Badge>
                     ) : null}
                     {!item.validation ? (
-                      <span className="text-xs text-[var(--color-muted)]">
+                      <span className="text-xs text-[var(--ap-text-2)]">
                         Aguardando validação
                       </span>
                     ) : errors.length + warnings.length + policy.length === 0 ? (
@@ -236,7 +236,7 @@ export function BatchItemsTable({
                   </div>
                   {item.error ? (
                     <p
-                      className="mt-2 text-xs text-[var(--color-danger)]"
+                      className="mt-2 text-xs text-[var(--ap-error)]"
                       title={item.error.fix ?? item.error.code}
                     >
                       {item.error.message}
@@ -248,10 +248,10 @@ export function BatchItemsTable({
                   {/* Resultado da revisão da Meta: motivo da reprovação é o que
                       o gestor precisa para corrigir o anúncio. */}
                   {item.effective_status ? (
-                    <p className="row-detail mt-2">Meta: {revisaoLabel(item.effective_status)}</p>
+                    <p className="ap-t-small ap-passos__dica mt-2">Meta: {revisaoLabel(item.effective_status)}</p>
                   ) : null}
                   {motivosDaRevisao(item.review_feedback).map((motivo) => (
-                    <p key={motivo} className="mt-1 text-xs text-[var(--color-danger)]">
+                    <p key={motivo} className="mt-1 text-xs text-[var(--ap-error)]">
                       {motivo}
                     </p>
                   ))}
@@ -295,7 +295,7 @@ export function BatchItemsTable({
                   <TableCell colSpan={COLUMNS}>
                     <p
                       role={message.erro ? 'alert' : 'status'}
-                      className={`text-sm ${message.erro ? 'text-[var(--color-danger)]' : 'text-[var(--color-ok)]'}`}
+                      className={`text-sm ${message.erro ? 'text-[var(--ap-error)]' : 'text-[var(--ap-text-1)]'}`}
                     >
                       {message.text}
                     </p>

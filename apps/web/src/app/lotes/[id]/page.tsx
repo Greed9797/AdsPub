@@ -78,22 +78,22 @@ export default async function LotePage({
         }
       />
       {errorMessage ? (
-        <p role="alert" className="notice notice-error">
+        <p role="alert" className="ap-note" data-tone="danger">
           {errorMessage}
         </p>
       ) : null}
       {batch.pending.length > 0 ? (
-        <p role="status" className="notice notice-warning">
+        <p role="status" className="ap-note" data-tone="warn">
           Pendências do plano: {batch.pending.join(', ')}
         </p>
       ) : null}
 
-      <div className="review-layout">
-        <div className="review-main">
+      <div className="ap-lote__layout">
+        <div className="ap-lote__main">
           <Card>
             <details>
               <summary className="text-sm font-semibold">Detalhes e orientações do lote</summary>
-              <dl className="summary-list mt-4 sm:grid-cols-2">
+              <dl className="ap-resumo ap-lote__detalhes">
                 <div>
                   <dt>Conta de anúncios</dt>
                   <dd>{account.name}</dd>
@@ -104,7 +104,7 @@ export default async function LotePage({
                 </div>
                 <div>
                   <dt>Pendências</dt>
-                  <dd className={batch.pending.length ? 'text-[var(--color-warn)]' : ''}>
+                  <dd className={batch.pending.length ? 'text-[var(--ap-text-2)]' : ''}>
                     {batch.pending.join(', ') || 'Sem pendências'}
                   </dd>
                 </div>
@@ -168,7 +168,7 @@ export default async function LotePage({
             </details>
           ) : null}
         </div>
-        <aside className="editor-aside" aria-label="Publicação do lote">
+        <aside className="ap-lote__aside" aria-label="Publicação do lote">
           <PublishPanel
             batchId={batch.id}
             batchName={batch.name}

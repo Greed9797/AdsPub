@@ -11,8 +11,6 @@ allowBuilds:
   "@tailwindcss/oxide": true
   msgpackr-extract: false
   protobufjs: false
-  '@astryxdesign/core': true
-  '@astryxdesign/cli': true
 
 onlyBuiltDependencies:
   - sharp

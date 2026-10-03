@@ -373,4 +373,75 @@
   .ap-estrutura__erro {
     color: var(--ap-error);
   }
+
+  /* ---------- lote aberto: layout e construtor manual ---------- */
+  .ap-lote__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: var(--ap-s-24);
+    align-items: start;
+  }
+  .ap-lote__main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-24);
+    min-width: 0;
+  }
+  .ap-lote__aside {
+    position: sticky;
+    top: var(--ap-s-16);
+    min-width: 0;
+  }
+  .ap-lote__detalhes {
+    margin-top: var(--ap-s-16);
+  }
+  .ap-choice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-lg);
+    background: var(--ap-bg-surface);
+    cursor: pointer;
+  }
+  .ap-choice:has(input:checked) {
+    border: 2px solid var(--ap-text-1);
+    padding: 9px;
+    background: var(--ap-orange-veil);
+  }
+  .ap-choice img {
+    flex-shrink: 0;
+    border-radius: var(--ap-r-sm);
+    object-fit: cover;
+  }
+  .ap-builder__foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ap-s-12);
+    padding: 12px 16px;
+    border: 1px solid var(--ap-line);
+    border-radius: var(--ap-r-lg);
+    background: var(--ap-bg-surface);
+  }
+  .ap-builder__foot p {
+    margin: 0;
+    color: var(--ap-text-2);
+    font-size: 13px;
+  }
+
+  @media (max-width: 960px) {
+    .ap-lote__layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .ap-lote__aside {
+      position: static;
+    }
+  }
 }

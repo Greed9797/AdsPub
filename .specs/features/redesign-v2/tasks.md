@@ -709,6 +709,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T23: Remover o Astryx e o CSS legado
 
+**Status**: ✅ Complete
 **What**: Trocar os imports restantes pelos primitivos próprios, apagar `legacy.css`, `astryx-theme.ts` e a dependência.
 **Where**: `apps/web/src/`, `apps/web/package.json`, `apps/web/src/app/globals.css`
 **Depends on**: T22
@@ -722,10 +723,10 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] `grep -r "@astryxdesign" apps/web` não retorna nada
-- [ ] `legacy.css` e `astryx-theme.ts` não existem
-- [ ] Gate check passes: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
-- [ ] Test count: all existing tests pass (no silent deletions)
+- [x] `grep -r "@astryxdesign" apps/web` não retorna nada
+- [x] `legacy.css` e `astryx-theme.ts` não existem
+- [x] Gate check passes: `pnpm build && pnpm lint && pnpm typecheck && pnpm test`
+- [x] Test count: vitest 544 e e2e 93 passam, nenhum teste removido
 
 **Tests**: none
 **Gate**: build

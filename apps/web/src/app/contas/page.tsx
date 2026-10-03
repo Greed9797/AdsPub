@@ -104,7 +104,7 @@ export default async function ContasPage() {
             hint="Sincronize uma conexão para importar contas."
           />
         ) : (
-          <Table head={canEditDefaults ? [...head, 'Padrões'] : head} className="accounts-table">
+          <Table head={canEditDefaults ? [...head, 'Padrões'] : head}>
             {accounts.map((account) => {
               const pausedUntil = account.paused_until;
               const lastSyncedAt = account.last_synced_at;

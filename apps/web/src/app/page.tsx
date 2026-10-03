@@ -149,7 +149,7 @@ export default async function HomePage({
       />
 
       {errorMessage ? (
-        <p role="alert" className="notice notice-error">
+        <p role="alert" className="ap-note" data-tone="danger">
           {errorMessage}
         </p>
       ) : null}
