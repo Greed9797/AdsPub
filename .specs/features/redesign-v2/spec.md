@@ -217,11 +217,11 @@ Each requirement gets a unique ID for tracking across design, tasks, and validat
 | RDS-07 | P1: Sistema visual e casca | Design | Pending |
 | RDS-08 | P1: Sistema visual e casca | Design | Pending |
 | RDS-09 | P1: Sistema visual e casca | Design | Implementing |
-| RDS-10 | P1: Lotes | Design | Pending |
-| RDS-11 | P1: Lotes | Design | Pending |
-| RDS-12 | P1: Lotes | Design | Pending |
-| RDS-13 | P1: Lotes | Design | Pending |
-| RDS-14 | P1: Lotes | Design | Pending |
+| RDS-10 | P1: Lotes | Design | Implementing |
+| RDS-11 | P1: Lotes | Design | Implementing |
+| RDS-12 | P1: Lotes | Design | Implementing |
+| RDS-13 | P1: Lotes | Design | Implementing |
+| RDS-14 | P1: Lotes | Design | Implementing |
 | RDS-15 | P1: Lotes | Design | Pending |
 | RDS-16 | P1: Lotes | Design | Pending |
 | RDS-20 | P1: Lote aberto e publicação | Design | Pending |

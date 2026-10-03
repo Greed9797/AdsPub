@@ -101,6 +101,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T2: Modelo de visão de lotes
 
+**Status**: ✅ Complete
 **What**: Funções puras que agrupam anúncios em 11 estados, contam atenção, calculam segmentos de pipeline e a fila de publicação.
 **Where**: `apps/web/src/lib/lotes-view.ts`
 **Depends on**: T1
@@ -114,12 +115,12 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] Cada um dos 15 `AdDraftStatus` mapeia para o grupo definido no design
-- [ ] `precisamAtencao` soma bloqueado, reprovado, falhou e conferir
-- [ ] `segmentosDoLote` devolve contagens por grupo e vazio para lote sem anúncios, sem divisão por zero
-- [ ] `filaDePublicacao` devolve só lotes `ready` com `approval.approved` verdadeiro
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web`
-- [ ] Test count: 12 tests pass (no silent deletions)
+- [x] Cada um dos 15 `AdDraftStatus` mapeia para o grupo definido no design
+- [x] `precisamAtencao` soma bloqueado, reprovado, falhou e conferir
+- [x] `segmentosDoLote` devolve contagens por grupo e vazio para lote sem anúncios, sem divisão por zero
+- [x] `filaDePublicacao` devolve só lotes `ready` com `approval.approved` verdadeiro
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web`
+- [x] Test count: 27 tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
