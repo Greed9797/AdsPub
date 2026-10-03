@@ -567,6 +567,7 @@ T22 → T23 → T24 → T25 → T26
 
 ### T18: Performance
 
+**Status**: ✅ Complete
 **What**: Filtros, KPIs, gasto por dia, custo por resultado e tabela, com período e origem visíveis.
 **Where**: `apps/web/src/app/performance/page.tsx`
 **Depends on**: T17
@@ -580,10 +581,10 @@ T22 → T23 → T24 → T25 → T26
 
 **Done when**:
 
-- [ ] Período e origem dos dados aparecem sempre
-- [ ] Os KPIs batem com os totais da tabela
-- [ ] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-performance.spec.ts`
-- [ ] Test count: 3 tests pass (no silent deletions)
+- [x] Período e origem dos dados aparecem sempre
+- [x] Os KPIs batem com os totais da tabela
+- [x] Gate check passes: `pnpm --filter @adpub/web typecheck && pnpm exec vitest run apps/web && E2E_API_PORT=4510 E2E_WEB_PORT=3510 pnpm test:e2e e2e/redesign-performance.spec.ts`
+- [x] Test count: 3 e2e + 6 unit new (suíte e2e 79, vitest 532) pass (no silent deletions)
 
 **Tests**: e2e
 **Gate**: full

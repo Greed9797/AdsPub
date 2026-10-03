@@ -28,13 +28,15 @@ export function TableCell({
   children,
   className,
   colSpan,
+  ...rest
 }: {
   children?: ReactNode;
   className?: string;
   colSpan?: number;
+  'data-total'?: string;
 }) {
   return (
-    <td className={className ? `ap-td ${className}` : 'ap-td'} colSpan={colSpan}>
+    <td className={className ? `ap-td ${className}` : 'ap-td'} colSpan={colSpan} {...rest}>
       {children}
     </td>
   );

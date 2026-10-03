@@ -164,4 +164,75 @@
       grid-template-columns: minmax(0, 1fr);
     }
   }
+
+  /* ---------- performance ---------- */
+  .ap-perf__escopo {
+    margin: 0;
+    color: var(--ap-text-2);
+  }
+  .ap-perf__kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--ap-s-16);
+  }
+  .ap-perf__rotulo,
+  .ap-perf__valor,
+  .ap-perf__fonte {
+    margin: 0;
+  }
+  .ap-perf__rotulo,
+  .ap-perf__fonte {
+    color: var(--ap-text-2);
+  }
+  .ap-perf__barras {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ap-s-12);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ap-perf__barra-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--ap-s-12);
+    margin-bottom: 4px;
+  }
+  .ap-perf__nome {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ap-perf__trilho {
+    display: block;
+    height: 10px;
+    overflow: hidden;
+    border-radius: var(--ap-r-pill);
+    background: var(--ap-bg-sunken);
+  }
+  .ap-perf__trilho i {
+    display: block;
+    height: 100%;
+    border-radius: var(--ap-r-pill);
+    background: var(--ap-orange);
+  }
+  .ap-perf__trilho i[data-vencedor='true'] {
+    background: var(--ap-text-1);
+  }
+  .ap-perf__limites {
+    margin: 0;
+    padding-left: 18px;
+  }
+  .ap-perf__total .ap-td {
+    border-top: 2px solid var(--ap-line-strong);
+    background: var(--ap-bg-band);
+  }
+
+  @media (max-width: 768px) {
+    .ap-perf__kpis {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
 }

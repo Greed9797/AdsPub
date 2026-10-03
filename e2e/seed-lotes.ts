@@ -5,7 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import { adDrafts, assets, batchRefs, batches, clients, createDb, userAdAccounts, users } from '@adpub/db';
+import { adDrafts, assets, batchRefs, batches, clients, createDb, metricObservations, userAdAccounts, users } from '@adpub/db';
 import type { AdDraftStatus } from '@adpub/shared';
 
 import { approvalFingerprint } from '../apps/api/src/services/approval.js';
@@ -175,6 +175,46 @@ export async function definirTetoDaConta(contaId: string, teto: number): Promise
   const { sql } = createDb(`${POSTGRES_BASE_URL}/${E2E_DATABASE}`, { max: 1, onNotice: () => {} });
   try {
     await sql`update ad_accounts set daily_ad_cap = ${teto} where id = ${contaId}`;
+  } finally {
+    await sql.end();
+  }
+}
+
+export interface ObservacaoSemeada {
+  anuncio: string;
+  dia: string;
+  gasto: number;
+  impressoes: number;
+  resultados: number;
+}
+
+/** Observações de métrica (como as de um arquivo importado) numa conta, para a tela de performance. */
+export async function semearObservacoes(contaId: string, clienteId: string, linhas: readonly ObservacaoSemeada[]): Promise<void> {
+  const { db, sql } = createDb(`${POSTGRES_BASE_URL}/${E2E_DATABASE}`, { max: 1, onNotice: () => {} });
+  try {
+    for (const [i, linha] of linhas.entries()) {
+      await db.insert(metricObservations).values({
+        clientId: clienteId,
+        adAccountId: contaId,
+        localRowId: `rds18-${contaId}-${i}`,
+        adId: `ad-${linha.anuncio}`,
+        adName: linha.anuncio,
+        entityLevel: 'ad',
+        dateStart: linha.dia,
+        dateStop: linha.dia,
+        grain: 'day',
+        attribution: '7d_click',
+        coverage: 'full',
+        currency: 'BRL',
+        metrics: {
+          spend: linha.gasto,
+          impressions: linha.impressoes,
+          primary_results: linha.resultados,
+          primary_event_type: 'purchase',
+        },
+        source: 'file',
+      });
+    }
   } finally {
     await sql.end();
   }

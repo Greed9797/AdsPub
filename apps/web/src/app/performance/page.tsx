@@ -1,9 +1,14 @@
-import { Badge, Card, Empty, Field, PageHead, Table, inputClass } from '@/components/ui';
+import { Button, Card, Empty, Field, PageHead, Selo, Table, TableCell, TableRow, inputClass } from '@/components/ui';
 import { api } from '@/lib/api';
+import {
+  descreverPeriodo,
+  dinheiro,
+  maioresGastos,
+  rotuloDaFonte,
+  totalDaTabela,
+} from '@/lib/performance-view';
 import { requireSession } from '@/lib/session';
 import type { AdAccount } from '@/lib/types';
-import { Button } from '@astryxdesign/core/Button';
-import { TableCell, TableRow } from '@astryxdesign/core/Table';
 
 type SearchParams = {
   ad_account_id?: string | string[];
@@ -43,11 +48,6 @@ interface Performance {
   };
 }
 
-const money = (value: number | null): string =>
-  value === null
-    ? '—'
-    : value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
 /** T-005-3: dashboard determinístico — origem e definição sempre visíveis. */
 export default async function PerformancePage({
   searchParams,
@@ -73,19 +73,18 @@ export default async function PerformancePage({
     data = await api<Performance>(`/performance?${query.toString()}`);
   }
 
+  const barras = data ? maioresGastos(data.rows) : [];
+  const totalTabela = data ? totalDaTabela(data.rows) : { spend: 0, results: 0 };
+
   return (
-    <div className="space-y-6">
+    <div className="ap-lotes">
       <PageHead
         title="Performance"
         description="Compare gasto e resultados por anúncio, com período e origem dos dados sempre visíveis."
       />
-      <form method="get" action="/performance" aria-label="Filtrar performance" className="toolbar">
-        <Field label="Conta" className="w-full sm:w-64">
-          <select
-            name="ad_account_id"
-            defaultValue={params.ad_account_id ?? ''}
-            className={inputClass}
-          >
+      <form method="get" action="/performance" aria-label="Filtrar performance" className="ap-lotes__filters">
+        <Field label="Conta">
+          <select id="perf-conta" name="ad_account_id" defaultValue={params.ad_account_id ?? ''} className={inputClass}>
             <option value="">Selecione</option>
             {accounts.map((account) => (
               <option key={account.id} value={account.id}>
@@ -95,118 +94,81 @@ export default async function PerformancePage({
           </select>
         </Field>
         <Field label="De">
-          <input type="date" name="from" defaultValue={params.from ?? ''} className={inputClass} />
+          <input id="perf-de" type="date" name="from" defaultValue={params.from ?? ''} className={inputClass} />
         </Field>
         <Field label="Até">
-          <input type="date" name="to" defaultValue={params.to ?? ''} className={inputClass} />
+          <input id="perf-ate" type="date" name="to" defaultValue={params.to ?? ''} className={inputClass} />
         </Field>
         <Field label="Fonte">
-          <select name="source" defaultValue={params.source ?? ''} className={inputClass}>
+          <select id="perf-fonte" name="source" defaultValue={params.source ?? ''} className={inputClass}>
             <option value="">Todas</option>
             <option value="file">Arquivo</option>
             <option value="api">API</option>
           </select>
         </Field>
-        <div>
-          <Button variant="secondary" label="Consultar" type="submit" />
-        </div>
+        <Button variant="secondary" label="Consultar" type="submit" />
       </form>
+
+      <p className="ap-perf__escopo ap-t-label" aria-label="Período e origem dos dados">
+        Período: {descreverPeriodo(params.from, params.to)} · Origem: {rotuloDaFonte(params.source)}
+      </p>
 
       {!data ? (
         <Card>
-          <Empty
-            title="Nenhum recorte selecionado"
-            hint="Selecione uma conta para ver os números."
-          />
+          <Empty title="Nenhum recorte selecionado" hint="Selecione uma conta para ver os números." />
         </Card>
       ) : (
         <>
-          <Card
-            title="Totais"
-            action={<Badge tone="info">{data.metric_version}</Badge>}
-            variant="stat"
-          >
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-              <div>
-                <dt className="text-xs font-medium text-[var(--color-muted)]">Gasto</dt>
-                <dd className="metric-value">{money(data.totals.spend)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-[var(--color-muted)]">Impressões</dt>
-                <dd className="metric-value">{data.totals.impressions.toLocaleString('pt-BR')}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-[var(--color-muted)]">
-                  Custo por resultado
-                </dt>
-                <dd className="metric-value">
-                  {data.totals.cpa.value === null ? '—' : money(data.totals.cpa.value)}
-                </dd>
-                {data.totals.cpa.value === null ? (
-                  <dd className="mt-0.5 text-xs text-[var(--color-muted)]">
-                    indisponível ({data.totals.cpa.reason})
-                  </dd>
-                ) : null}
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-[var(--color-muted)]">
-                  Retorno sobre gasto (ROAS)
-                </dt>
-                <dd className="metric-value">
-                  {data.totals.roas.value === null ? '—' : money(data.totals.roas.value)}
-                </dd>
-                {data.totals.roas.value === null ? (
-                  <dd className="mt-0.5 text-xs text-[var(--color-muted)]">
-                    indisponível ({data.totals.roas.reason})
-                  </dd>
-                ) : null}
-              </div>
-            </dl>
-            <p className="mt-4 border-t border-[var(--color-border)] pt-3 text-xs text-[var(--color-muted)]">
-              Fonte: {data.sources.filter} · {data.sources.observations} observações ·{' '}
-              {data.sources.snapshots.length} snapshot(s) · atualizado em{' '}
-              {data.sources.observed_at_max ?? '—'} · definições {data.metric_version}
-            </p>
-          </Card>
+          <section aria-label="Totais" className="ap-perf__kpis">
+            <Card variant="stat">
+              <p className="ap-t-label ap-perf__rotulo">Gasto</p>
+              <p className="ap-t-num-l ap-perf__valor">{dinheiro(data.totals.spend)}</p>
+            </Card>
+            <Card variant="stat">
+              <p className="ap-t-label ap-perf__rotulo">Impressões</p>
+              <p className="ap-t-num-l ap-perf__valor">{data.totals.impressions.toLocaleString('pt-BR')}</p>
+            </Card>
+            <Card variant="stat">
+              <p className="ap-t-label ap-perf__rotulo">Custo por resultado</p>
+              <p className="ap-t-num-l ap-perf__valor">{data.totals.cpa.value === null ? '—' : dinheiro(data.totals.cpa.value)}</p>
+              {data.totals.cpa.value === null ? (
+                <p className="ap-t-small ap-perf__rotulo">indisponível ({data.totals.cpa.reason})</p>
+              ) : null}
+            </Card>
+            <Card variant="stat">
+              <p className="ap-t-label ap-perf__rotulo">Retorno sobre gasto (ROAS)</p>
+              <p className="ap-t-num-l ap-perf__valor">{data.totals.roas.value === null ? '—' : dinheiro(data.totals.roas.value)}</p>
+              {data.totals.roas.value === null ? (
+                <p className="ap-t-small ap-perf__rotulo">indisponível ({data.totals.roas.reason})</p>
+              ) : null}
+            </Card>
+          </section>
+          <p className="ap-perf__fonte ap-t-small">
+            Fonte: {data.sources.filter} · {data.sources.observations} observações · {data.sources.snapshots.length} snapshot(s) ·
+            atualizado em {data.sources.observed_at_max ?? '—'} · definições {data.metric_version}
+          </p>
 
-          {data.rows.length > 0 ? (
-            <Card
-              title="Gasto por anúncio"
-              action={<Badge tone="info">top {Math.min(8, data.rows.length)}</Badge>}
-            >
-              <ul className="space-y-3">
-                {[...data.rows]
-                  .sort((a, b) => b.spend - a.spend)
-                  .slice(0, 8)
-                  .map((row, index) => {
-                    const max = Math.max(...data.rows.map((r) => r.spend), 0);
-                    return (
-                      <li key={row.id}>
-                        <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
-                          <span className="min-w-0 truncate font-medium">{row.name || row.id}</span>
-                          <span className="shrink-0 tabular-nums text-[var(--color-muted)]">
-                            {money(row.spend)}
-                          </span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-[var(--color-surface-2)]">
-                          <div
-                            className={`bar-draw h-full rounded-full ${data.verdict.winnerId === row.id ? 'bg-[var(--color-ok)]' : 'bg-[var(--color-brand-solid)]'}`}
-                            style={{
-                              width: `${max > 0 ? (row.spend / max) * 100 : 0}%`,
-                              animationDelay: `${Math.min(index * 60, 240)}ms`,
-                            }}
-                          />
-                        </div>
-                      </li>
-                    );
-                  })}
+          {barras.length > 0 ? (
+            <Card title="Gasto por anúncio" action={<Selo tone="neutro" label={`top ${barras.length}`} />}>
+              <ul className="ap-perf__barras">
+                {barras.map((barra) => (
+                  <li key={barra.id}>
+                    <div className="ap-perf__barra-head">
+                      <span className="ap-t-body-strong ap-perf__nome">{barra.name}</span>
+                      <span className="ap-t-num-s">{dinheiro(barra.spend)}</span>
+                    </div>
+                    <span className="ap-perf__trilho">
+                      <i data-vencedor={data.verdict.winnerId === barra.id ? 'true' : undefined} style={{ width: `${barra.percentual}%` }} />
+                    </span>
+                  </li>
+                ))}
               </ul>
             </Card>
           ) : null}
 
           {!data.cohort.comparable ? (
             <Card title="Limitações">
-              <ul className="list-disc space-y-1 pl-5 text-sm">
+              <ul className="ap-perf__limites">
                 {data.cohort.limitations.map((limitation) => (
                   <li key={limitation}>{limitation}</li>
                 ))}
@@ -214,40 +176,35 @@ export default async function PerformancePage({
             </Card>
           ) : null}
 
-          <Card
-            title={`Ranking · ${data.rows.length}`}
-            action={<Badge tone="info">{data.verdict.sufficiency}</Badge>}
-          >
+          <Card title={`Ranking · ${data.rows.length}`} action={<Selo tone="neutro" label={data.verdict.sufficiency} />}>
             {data.rows.length === 0 ? (
-              <Empty
-                title="Sem observações no recorte"
-                hint="Ajuste o período ou a fonte e consulte de novo."
-              />
+              <Empty title="Sem observações no recorte" hint="Ajuste o período ou a fonte e consulte de novo." />
             ) : (
               <Table head={['Anúncio', 'Gasto', 'Resultados', 'Dias', 'CPA', '']}>
                 {data.rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    className="border-b border-[var(--color-border)] last:border-0"
-                  >
-                    <TableCell className="max-w-64 truncate font-medium">
-                      {row.name || row.id}
-                    </TableCell>
-                    <TableCell className="numeric">{money(row.spend)}</TableCell>
+                  <TableRow key={row.id}>
+                    <TableCell className="ap-t-body-strong">{row.name || row.id}</TableCell>
+                    <TableCell className="numeric">{dinheiro(row.spend)}</TableCell>
                     <TableCell className="numeric">{row.results}</TableCell>
                     <TableCell className="numeric">{row.days}</TableCell>
-                    <TableCell className="numeric">
-                      {row.cpa === null ? '—' : money(row.cpa)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {data.verdict.winnerId === row.id ? <Badge tone="ok">vencedor</Badge> : null}
-                    </TableCell>
+                    <TableCell className="numeric">{row.cpa === null ? '—' : dinheiro(row.cpa)}</TableCell>
+                    <TableCell>{data.verdict.winnerId === row.id ? <Selo tone="publicado" label="vencedor" /> : null}</TableCell>
                   </TableRow>
                 ))}
+                <TableRow className="ap-perf__total">
+                  <TableCell className="ap-t-body-strong">Total da tabela</TableCell>
+                  <TableCell className="numeric" data-total="gasto">
+                    {dinheiro(totalTabela.spend)}
+                  </TableCell>
+                  <TableCell className="numeric">{totalTabela.results}</TableCell>
+                  <TableCell />
+                  <TableCell />
+                  <TableCell />
+                </TableRow>
               </Table>
             )}
           </Card>
-          <p className="text-xs text-[var(--color-muted)]">{data.verdict.reason}</p>
+          <p className="ap-t-small ap-perf__fonte">{data.verdict.reason}</p>
         </>
       )}
     </div>
