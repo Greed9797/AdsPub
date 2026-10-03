@@ -26,13 +26,29 @@
 - **Date**: 2026-10-03
 - **Status**: active
 
+### AD-004
+- **Decision**: `GET /batches` passa a devolver `items` e `approval` em cada lote (uma consulta para todos).
+- **Reason**: A lista vinha com `items: []`, então o quadro de estados, a barra de pipeline e a fila de publicação não tinham o que contar.
+- **Trade-off**: A resposta da lista fica maior (até 200 lotes com seus anúncios).
+- **Scope**: `apps/api/src/routes/batches.ts`, `packages/db/src/repos/drafts.ts`
+- **Date**: 2026-10-03
+- **Status**: active
+
+### AD-005
+- **Decision**: `requireRole` chama `forbidden()` (Next `experimental.authInterrupts`) e mostra a página de permissão, em vez de redirecionar para a home.
+- **Reason**: O redirect silencioso não explicava o bloqueio (RDS-73).
+- **Trade-off**: Depende de uma flag experimental do Next; a resposta HTTP é 200 e não 403.
+- **Scope**: `apps/web/src/lib/session.ts`, `apps/web/next.config.ts`, `apps/web/src/app/forbidden.tsx`
+- **Date**: 2026-10-03
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: `.specs/features/redesign-v2`
-- **Phase / Task**: Specify e Design prontos, Tasks em redação
-- **Completed**: none
+- **Phase / Task**: T1 a T25 prontas e commitadas; verificação independente em `validation.md` (PASS). Falta só a T26 (deploy).
+- **Completed**: T1–T25
 - **In-progress** (file:line): none
-- **Next step**: escrever `tasks.md`, validar, oferecer sub-agentes e executar T1
-- **Blockers**: none
-- **Uncommitted files**: `.specs/`
-- **Branch**: `feat/redesign-v2`
+- **Next step**: o Vitor revisa `test-changes.md` e dá o go-ahead de push, merge e deploy; depois T26 (backup, `deploy-host.sh` prepare/activate, Caddyfile substituído, verificação em produção)
+- **Blockers**: go-ahead explícito para push/merge/deploy e as credenciais do deploy (Meta, Anthropic, opencode-auth.json, WhatsApp, domínio e e-mail do admin)
+- **Uncommitted files**: none
+- **Branch**: `feat/redesign-v2` (local, sem push)
